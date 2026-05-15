@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "LYZ - AI生图反推工具 V1.0",
+  "description": "此插件可拖拉网页图片&粘贴图片、反推提示词、一键生图，还有全览图库，一键加入Eagle图片收集。",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "LYZ - AI生图反推工具 V1.0",
+    "default_icon": {
+      "16": "assets/icon-16.png",
+      "32": "assets/icon-32.png",
+      "48": "assets/icon-48.png",
+      "128": "assets/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icon-16.png",
+    "32": "assets/icon-32.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  },
+  "permissions": [
+    "contextMenus",
+    "sidePanel",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/*.svg"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}

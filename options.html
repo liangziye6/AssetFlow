@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>平台模板设置</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <h1>平台模板</h1>
+        <p>添加自己的图片生成平台链接和 API 模板。可用占位符：{prompt}、{promptText}、{imageUrl}、{pageUrl}。</p>
+      </header>
+
+      <section class="editor">
+        <label>
+          <span>平台名称</span>
+          <input id="nameInput" placeholder="例如：我的 Midjourney 工作流">
+        </label>
+        <label>
+          <span>链接模板</span>
+          <input id="linkInput" placeholder="https://example.com/create?prompt={prompt}">
+        </label>
+        <label>
+          <span>API 模板</span>
+          <textarea id="apiInput" placeholder='curl https://example.com/api -d "{\"prompt\":\"{promptText}\"}"'></textarea>
+        </label>
+        <button id="saveBtn">保存模板</button>
+      </section>
+
+      <section>
+        <h2>已保存</h2>
+        <div id="platformList" class="platform-list"></div>
+      </section>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>

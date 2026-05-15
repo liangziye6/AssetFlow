@@ -1,0 +1,9 @@
+{
+  "name": "image-prompt-builder",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "preview": "node preview-server.js",
+    "package": "powershell -ExecutionPolicy Bypass -File ./deploy-extension.ps1"
+  }
+}

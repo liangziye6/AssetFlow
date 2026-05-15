@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "preview": "node preview-server.js",
-    "package": "powershell -ExecutionPolicy Bypass -File ./deploy-extension.ps1"
+    "package": "node package-extension.js",
+    "package:windows": "powershell -ExecutionPolicy Bypass -File ./deploy-extension.ps1"
   }
 }

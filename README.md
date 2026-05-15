@@ -20,6 +20,12 @@
 npm run preview
 ```
 
+如果当前环境只有 `node`，也可以直接运行：
+
+```bash
+node preview-server.js
+```
+
 然后打开：
 
 ```text
@@ -38,6 +44,12 @@ docs/conversation-notes.md
 
 ```bash
 npm run package
+```
+
+如果当前环境只有 `node`，也可以直接运行：
+
+```bash
+node package-extension.js
 ```
 
 脚本会生成：

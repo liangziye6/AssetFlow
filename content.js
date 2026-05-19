@@ -5,6 +5,7 @@
   const MAX_IMAGES = 80;
   const MAX_TEXT = 180;
   const VIEWER_ID = "image-spark-page-viewer";
+  const ENABLE_EAGLE_INTEGRATION = false;
   let lastContextImage = null;
   let lastContextPoint = null;
   let viewerState = {
@@ -1021,7 +1022,7 @@
       <div class="viewer" role="dialog" aria-modal="true" aria-label="Image Spark 图片预览">
         <div class="actions">
           <button class="action-btn download" type="button">下载图片</button>
-          <button class="action-btn eagle" type="button">收集到 Eagle</button>
+          ${ENABLE_EAGLE_INTEGRATION ? '<button class="action-btn eagle" type="button">收集到 Eagle</button>' : ''}
           <button class="action-btn close" type="button">关闭</button>
         </div>
         <div class="notice" hidden></div>
@@ -1044,7 +1045,7 @@
 
     shadow.querySelector(".close").addEventListener("click", closeViewer);
     shadow.querySelector(".download").addEventListener("click", downloadViewerImage);
-    shadow.querySelector(".eagle").addEventListener("click", collectViewerImageToEagle);
+    shadow.querySelector(".eagle")?.addEventListener("click", collectViewerImageToEagle);
     shadow.querySelector(".stage").addEventListener("wheel", (event) => {
       event.preventDefault();
       setViewerZoom(viewerState.zoom + (event.deltaY < 0 ? 0.12 : -0.12));

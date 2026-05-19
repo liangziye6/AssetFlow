@@ -83,7 +83,6 @@
                   <option value="jimeng">即梦</option>
                   <option value="siliconflow">SiliconFlow</option>
                   <option value="replicate">Replicate</option>
-                  <option value="comfyui">ComfyUI 本地</option>
                   <option value="custom">自定义</option>
                 </select>
               </label>
@@ -103,13 +102,20 @@
                 <select id="apiImageModelSelect">
                   <option value="gpt-image-1">GPT Image</option>
                   <option value="gpt-image-2">GPT Image 2</option>
-                  <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0</option>
+                  <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
                   <option value="flux-pro">Flux Pro</option>
                   <option value="sdxl">SDXL</option>
                   <option value="midjourney">Midjourney</option>
                   <option value="doubao-seedream-4-0-250828">即梦-Doubao-Seedream-4.0</option>
                   <option value="doubao-seedream-4-5-251128">即梦-Doubao-Seedream-4.5</option>
                   <option value="custom">自定义生图模型</option>
+                </select>
+              </label>
+              <label id="runningHubApiModeField" class="api-wide custom-model-field" hidden>
+                <span>RunningHub 接口</span>
+                <select id="runningHubApiMode">
+                  <option value="consumer">消费级会员（AI应用）</option>
+                  <option value="enterprise">企业级共享（Standard-API）</option>
                 </select>
               </label>
               <label id="customModelField" class="api-wide custom-model-field" hidden>
@@ -119,7 +125,7 @@
             </div>
           </section>
 
-          <section class="api-section api-section-wide">
+          <section class="api-section api-section-wide" hidden>
             <div class="api-section-title">
               <strong>Eagle 收集 API</strong>
               <small>优先调用 Eagle 本地 API 收集图片；不可用时回退到 Eagle 协议跳转</small>
@@ -175,8 +181,8 @@
             </button>
             <div class="field-head">
               <div class="mode-tabs" role="tablist" aria-label="生图方式">
-                <button id="textToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="false">文生图</button>
-                <button id="imageToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="true">图生图</button>
+                <button id="textToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="true">文生图</button>
+                <button id="imageToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="false">图生图</button>
               </div>
               <div class="inline-actions">
                 <button id="reversePromptBtn" type="button">反推提示词</button>
@@ -196,7 +202,7 @@
                   <select id="modelSelect">
                     <option value="gpt-image-1">GPT Image</option>
                     <option value="gpt-image-2">GPT Image 2</option>
-                    <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0</option>
+                    <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
                     <option value="flux-pro">Flux Pro</option>
                     <option value="sdxl">SDXL</option>
                     <option value="midjourney">Midjourney</option>
@@ -283,7 +289,7 @@
       <div id="lightbox" class="lightbox" hidden>
         <div class="lightbox-actions">
           <button id="lightboxDownloadBtn" class="lightbox-action-btn" type="button">下载图片</button>
-          <button id="eagleCollectBtn" class="lightbox-action-btn" type="button">收集到 Eagle</button>
+          <button id="eagleCollectBtn" class="lightbox-action-btn" type="button" hidden>收集到 Eagle</button>
           <button id="lightboxClose" class="lightbox-action-btn" type="button">关闭</button>
         </div>
         <div class="lightbox-layout">

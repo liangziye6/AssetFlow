@@ -56,6 +56,8 @@ const nodes = {
   imageApiKey: document.querySelector("#imageApiKey"),
   promptModelSelect: document.querySelector("#promptModelSelect"),
   apiImageModelSelect: document.querySelector("#apiImageModelSelect"),
+  runningHubApiModeField: document.querySelector("#runningHubApiModeField"),
+  runningHubApiMode: document.querySelector("#runningHubApiMode"),
   customModelField: document.querySelector("#customModelField"),
   customModelName: document.querySelector("#customModelName"),
   eagleApiMode: document.querySelector("#eagleApiMode"),
@@ -83,7 +85,8 @@ let galleryItems = [];
 let apiConfig = null;
 let activeLightboxItem = null;
 let activePageLightboxTabId = 0;
-let generationMode = "image";
+let generationMode = "text";
+const runningHubAppDemoCache = new Map();
 let promptMeta = {
   source: "",
   chinese: "",
@@ -103,11 +106,26 @@ const API_STORAGE_KEY = "imageSparkApiConfig";
 const APP_STATE_KEY = "imageSparkWorkspaceState";
 const GALLERY_STORAGE_KEY = "imageSparkGalleryItems";
 const PENDING_CONTEXT_IMAGE_KEY = "imageSparkPendingContextImage";
-const OUTPUT_SAVE_ENDPOINT = "http://127.0.0.1:4173/api/save-output";
 const LOCAL_IMAGE_DB_NAME = "imageSparkLocalImages";
 const LOCAL_IMAGE_DB_VERSION = 1;
 const LOCAL_IMAGE_STORE = "images";
 const MAX_UPLOAD_IMAGES = 4;
+const ENABLE_EAGLE_INTEGRATION = false;
+const RUNNINGHUB_G2_MODEL = "runninghub-rhart-image-g-2";
+const RUNNINGHUB_API_MODE_CONSUMER = "consumer";
+const RUNNINGHUB_API_MODE_ENTERPRISE = "enterprise";
+const RUNNINGHUB_G2_TEXT_APP_ID = "2046794551444119554";
+const RUNNINGHUB_G2_IMAGE_APP_ID = "2046794946094571522";
+const RUNNINGHUB_API_PATHS = {
+  appDemo: "/api/webapp/apiCallDemo",
+  appRun: "/task/openapi/ai-app/run",
+  appOutputs: "/task/openapi/outputs",
+  appUpload: "/task/openapi/upload",
+  standardUpload: "/openapi/v2/media/upload/binary",
+  standardQuery: "/openapi/v2/query",
+  standardTextToImage: "/openapi/v2/rhart-image-g-2/text-to-image",
+  standardImageToImage: "/openapi/v2/rhart-image-g-2/image-to-image"
+};
 const SIZE_OPTIONS = {
   auto: { label: "自适应", ratio: "auto", resolution: "auto" },
   square: { label: "1:1", ratio: "1:1", resolution: "1k", width: 1024, height: 1024 },
@@ -538,7 +556,8 @@ function loadWorkspaceState() {
       english: state.promptMeta?.english || "",
       structure: state.promptMeta?.structure || ""
     };
-    setGenerationMode(state.generationMode === "text" ? "text" : "image", { silent: true });
+    const hasRestoredImage = Boolean(imageItems.length || state.image?.src || state.images?.length);
+    setGenerationMode(state.generationMode === "image" && hasRestoredImage ? "image" : "text", { silent: true });
     if (state.options) {
       nodes.sizeMode.value = state.options.sizeMode || "auto";
       nodes.modelSelect.value = state.options.model || "gpt-image-1";
@@ -560,6 +579,19 @@ function maskedKey(value) {
   return value.length <= 8 ? "已保存" : `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
+function selectedOptionText(select, fallback = "") {
+  return select?.options?.[select.selectedIndex]?.text || fallback;
+}
+
+function setSelectValue(select, value, fallback) {
+  if (!select) return fallback;
+  select.value = value || fallback;
+  if (select.value !== value && fallback !== undefined) {
+    select.value = fallback;
+  }
+  return select.value;
+}
+
 function defaultBaseUrl(provider) {
   const urls = {
     openai: "https://api.openai.com/v1",
@@ -569,7 +601,6 @@ function defaultBaseUrl(provider) {
     siliconflow: "https://api.siliconflow.cn/v1",
     replicate: "https://api.replicate.com/v1",
     jimeng: "https://ark.cn-beijing.volces.com/api/v3",
-    comfyui: "http://127.0.0.1:8188",
     custom: ""
   };
   return urls[provider] || "";
@@ -595,6 +626,15 @@ function currentEagleConfig() {
     baseUrl,
     token
   };
+}
+
+function setupOptionalLocalIntegrations() {
+  if (ENABLE_EAGLE_INTEGRATION) return;
+
+  nodes.eagleApiMode?.closest(".api-section")?.setAttribute("hidden", "");
+  if (nodes.eagleCollectBtn) {
+    nodes.eagleCollectBtn.hidden = true;
+  }
 }
 
 function selectedModelLabel() {
@@ -1028,6 +1068,15 @@ function renderSizeMenu() {
 function syncCustomModelField() {
   const isCustom = nodes.apiImageModelSelect.value === "custom";
   nodes.customModelField.hidden = !isCustom;
+  syncRunningHubApiModeField();
+}
+
+function syncRunningHubApiModeField() {
+  if (!nodes.runningHubApiModeField) return;
+  const isRunningHub = nodes.imageApiProvider.value === "runninghub"
+    || nodes.apiImageModelSelect.value === RUNNINGHUB_G2_MODEL
+    || nodes.modelSelect.value === RUNNINGHUB_G2_MODEL;
+  nodes.runningHubApiModeField.hidden = !isRunningHub;
 }
 
 function setCountValue(value) {
@@ -1812,48 +1861,18 @@ async function handleGalleryImageError(item) {
   removeBrokenGalleryItem(item);
 }
 
-function outputFilenameForItem(item) {
-  const index = String(item.index || "image").replace(/^#/, "");
-  const model = String(item.model || "generated")
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
-    .replace(/\s+/g, "-")
-    .slice(0, 48);
-  return `${Date.now()}-${model}-${index}.png`;
-}
-
 async function persistGalleryItemImage(item) {
-  if (!item?.url || item.url.startsWith("/Output/") || /\/Output\//.test(item.url)) {
+  if (!item?.url) {
     return item;
   }
 
   try {
-    const response = await fetch(OUTPUT_SAVE_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: item.url,
-        filename: outputFilenameForItem(item)
-      })
-    });
-    const result = await response.json();
-    if (!response.ok || !result?.ok || !result.url) {
-      throw new Error(result?.error || "本地保存失败");
-    }
-    return {
-      ...item,
-      originalUrl: item.originalUrl || item.url,
-      localPath: result.path || "",
-      url: new URL(result.url, OUTPUT_SAVE_ENDPOINT).href
-    };
-  } catch {
-    try {
-      const storedItem = await saveImageToIndexedDb(item);
-      setStatus("图片已保存到浏览器本地图库。");
-      return storedItem;
-    } catch (error) {
-      setStatus(`图片已生成，但保存到本地图库失败：${error.message || "浏览器本地存储不可用"}。`);
-      return item;
-    }
+    const storedItem = await saveImageToIndexedDb(item);
+    setStatus("图片已保存到浏览器本地图库。");
+    return storedItem;
+  } catch (error) {
+    setStatus(`图片已生成，但保存到本地图库失败：${error.message || "浏览器本地存储不可用"}。`);
+    return item;
   }
 }
 
@@ -2236,10 +2255,46 @@ function renderGallery() {
 }
 
 function baseUrlWithPath(baseUrl, path) {
-  const clean = String(baseUrl || "").replace(/\/+$/, "");
-  if (!clean) return "";
-  if (clean.endsWith(path)) return clean;
-  return `${clean}${path}`;
+  const rawBase = String(baseUrl || "").trim();
+  const cleanPath = `/${String(path || "").replace(/^\/+/, "")}`;
+  if (!rawBase) return "";
+
+  try {
+    const url = new URL(rawBase);
+    const basePath = url.pathname.replace(/\/+$/, "");
+    const baseHasPath = basePath && basePath !== "/";
+    if (baseHasPath && basePath.endsWith(cleanPath)) {
+      return url.toString();
+    }
+    const knownApiPrefixes = [
+      "/openapi/v2",
+      "/task/openapi",
+      "/api/webapp",
+      "/api/v3",
+      "/v1",
+      "/v1beta"
+    ];
+    const baseHasKnownApiPrefix = knownApiPrefixes.some((prefix) => (
+      basePath === prefix || basePath.startsWith(`${prefix}/`)
+    ));
+    const pathHasKnownApiPrefix = knownApiPrefixes.some((prefix) => (
+      cleanPath === prefix || cleanPath.startsWith(`${prefix}/`)
+    ));
+    const sharedApiPrefix = knownApiPrefixes.some((prefix) => (
+      basePath.startsWith(`${prefix}/`)
+      && cleanPath.startsWith(`${prefix}/`)
+    ));
+    if (!baseHasPath || basePath === cleanPath || cleanPath.startsWith(`${basePath}/`) || sharedApiPrefix || (baseHasKnownApiPrefix && pathHasKnownApiPrefix)) {
+      url.pathname = cleanPath;
+    } else {
+      url.pathname = `${basePath}/${cleanPath.slice(1)}`.replace(/\/{2,}/g, "/");
+    }
+    return url.toString();
+  } catch {
+    const cleanBase = rawBase.replace(/\/+$/, "");
+    if (cleanBase.endsWith(cleanPath)) return cleanBase;
+    return `${cleanBase}${cleanPath}`;
+  }
 }
 
 function isLocalPreviewPage() {
@@ -2266,7 +2321,16 @@ function networkErrorMessage(error, url) {
   return error?.message || "网络请求失败。";
 }
 
-async function fetchJson(url, options, contextLabel = "请求") {
+function isSuccessfulApiCode(code) {
+  if (code === undefined || code === null || code === "") return true;
+  return ["0", "200", "success", "ok"].includes(String(code).trim().toLowerCase());
+}
+
+function normalizedApiCode(code) {
+  return String(code ?? "").trim();
+}
+
+async function fetchJson(url, options, contextLabel = "请求", requestOptions = {}) {
   let response;
   try {
     response = await fetch(url, options);
@@ -2286,8 +2350,15 @@ async function fetchJson(url, options, contextLabel = "请求") {
     throw new Error(data?.error?.message || data?.errorMessage || data?.message || `${contextLabel}失败：${response.status}`);
   }
 
-  if (data?.code && data.code !== 200) {
+  const allowedCodes = new Set((requestOptions.allowCodes || []).map(normalizedApiCode));
+  const code = normalizedApiCode(data?.code);
+  if (!isSuccessfulApiCode(data?.code) && !allowedCodes.has(code)) {
     throw new Error(data?.error?.message || data?.errorMessage || data?.message || `${contextLabel}失败：${data.code}`);
+  }
+
+  const errorCode = normalizedApiCode(data?.errorCode);
+  if (data?.errorCode && !allowedCodes.has(errorCode)) {
+    throw new Error(data?.errorMessage || data?.message || `${contextLabel}失败：${data.errorCode}`);
   }
 
   return data;
@@ -2295,6 +2366,9 @@ async function fetchJson(url, options, contextLabel = "请求") {
 
 function friendlyApiErrorMessage(message, providerLabel = "当前服务") {
   const text = String(message || "");
+  if (/Standard Model API is restricted to Enterprise-Shared API Keys/i.test(text)) {
+    return `${providerLabel} 权限拒绝：RunningHub Standard-API 需要企业共享 Key。请刷新插件，使用已切换的 AI 应用接口重新生成。`;
+  }
   if (/User location is not supported/i.test(text)) {
     return `${providerLabel} 返回：当前网络地区不支持使用该 API。可以切换到 Google Gemini、SiliconFlow，或使用可用地区的 OpenAI-compatible 中转服务。`;
   }
@@ -2403,9 +2477,41 @@ function aspectRatioForRunningHubApi(width, height) {
 
 function resolutionForRunningHubApi() {
   const mode = nodes.sizeMode.value;
-  if (mode === "2k") return "2K";
-  if (mode === "4k") return "4K";
-  return "1K";
+  if (mode === "2k") return "2k";
+  if (mode === "4k") return "4k";
+  return "1k";
+}
+
+function normalizeRunningHubApiMode(value) {
+  return value === RUNNINGHUB_API_MODE_ENTERPRISE
+    ? RUNNINGHUB_API_MODE_ENTERPRISE
+    : RUNNINGHUB_API_MODE_CONSUMER;
+}
+
+function runningHubApiModeLabel(value) {
+  return normalizeRunningHubApiMode(value) === RUNNINGHUB_API_MODE_ENTERPRISE
+    ? "企业级共享 Standard-API"
+    : "消费级会员 AI应用";
+}
+
+function isRunningHubPendingCode(code) {
+  return normalizedApiCode(code) === "804";
+}
+
+function valueAtPath(source, path) {
+  return path.reduce((value, key) => (
+    value && typeof value === "object" ? value[key] : undefined
+  ), source);
+}
+
+function firstStringAtPaths(source, paths) {
+  for (const path of paths) {
+    const value = valueAtPath(source, path);
+    if ((typeof value === "string" || typeof value === "number") && value !== "") {
+      return String(value);
+    }
+  }
+  return "";
 }
 
 function extractGeneratedImages(data) {
@@ -2488,7 +2594,23 @@ function extractApimartTaskImages(data) {
 }
 
 function extractRunningHubTaskId(data) {
-  return data?.data?.taskId || data?.data?.task_id || data?.taskId || data?.task_id || "";
+  return firstStringAtPaths(data, [
+    ["taskId"],
+    ["task_id"],
+    ["taskID"],
+    ["id"],
+    ["data"],
+    ["data", "taskId"],
+    ["data", "task_id"],
+    ["data", "taskID"],
+    ["data", "id"],
+    ["data", "task", "taskId"],
+    ["data", "task", "task_id"],
+    ["result", "taskId"],
+    ["result", "task_id"],
+    ["response", "taskId"],
+    ["response", "task_id"]
+  ]);
 }
 
 function extractRunningHubImages(data) {
@@ -2601,6 +2723,264 @@ async function selectedImageDataUrlsForApi(options = {}) {
   return urls;
 }
 
+function runningHubG2AppId(useImageReferences) {
+  return useImageReferences ? RUNNINGHUB_G2_IMAGE_APP_ID : RUNNINGHUB_G2_TEXT_APP_ID;
+}
+
+function runningHubAppDemoUrl(baseUrl, apiKey, webappId) {
+  const url = new URL(baseUrlWithPath(baseUrl, RUNNINGHUB_API_PATHS.appDemo));
+  url.searchParams.set("apiKey", apiKey);
+  url.searchParams.set("webappId", webappId);
+  return url.toString();
+}
+
+async function fetchRunningHubAppDemo({ baseUrl, apiKey, webappId }) {
+  const cacheKey = `${String(baseUrl || "").replace(/\/+$/, "")}|${webappId}`;
+  const cached = runningHubAppDemoCache.get(cacheKey);
+  if (cached) return cached;
+
+  const data = await fetchJson(runningHubAppDemoUrl(baseUrl, apiKey, webappId), {
+    method: "GET",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`
+    }
+  }, "RunningHub AI应用参数读取");
+  const nodeInfoList = data?.data?.nodeInfoList || data?.nodeInfoList || [];
+  if (!Array.isArray(nodeInfoList) || !nodeInfoList.length) {
+    throw new Error("RunningHub AI应用没有返回可调用的输入参数，请确认 API Key 是否能访问该应用。");
+  }
+
+  const demo = { nodeInfoList };
+  runningHubAppDemoCache.set(cacheKey, demo);
+  return demo;
+}
+
+function cloneRunningHubNode(node) {
+  return {
+    nodeId: String(node?.nodeId || ""),
+    fieldName: String(node?.fieldName || ""),
+    fieldValue: node?.fieldValue ?? "",
+    fieldType: String(node?.fieldType || ""),
+    description: String(node?.description || node?.descriptionEn || "")
+  };
+}
+
+function runningHubFieldValueSet(node) {
+  const values = new Set();
+  function add(value) {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      const text = String(value).trim();
+      if (text) values.add(text);
+    }
+  }
+  function walk(value) {
+    if (value === null || value === undefined) return;
+    if (typeof value === "string") {
+      add(value);
+      const trimmed = value.trim();
+      if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+        try {
+          walk(JSON.parse(trimmed));
+        } catch {
+          // Field metadata is provider-authored, so malformed JSON should not block defaults.
+        }
+      }
+      return;
+    }
+    if (typeof value !== "object") {
+      add(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+      return;
+    }
+    ["index", "name", "value", "default"].forEach((key) => add(value[key]));
+    Object.values(value).forEach(walk);
+  }
+  walk(node?.fieldData);
+  return values;
+}
+
+function chooseRunningHubFieldValue(node, candidates, fallback) {
+  const available = runningHubFieldValueSet(node);
+  if (!available.size) return candidates.find(Boolean) || fallback;
+  return candidates.find((candidate) => available.has(String(candidate))) || fallback;
+}
+
+function runningHubNodeText(node) {
+  return `${node.fieldName} ${node.fieldType} ${node.description}`.toLowerCase();
+}
+
+function isRunningHubPromptNode(node) {
+  const field = node.fieldName.toLowerCase();
+  const text = runningHubNodeText(node);
+  return field === "prompt"
+    || field.includes("prompt")
+    || (/string/.test(text) && /提示|文本|text|prompt/.test(text));
+}
+
+function isRunningHubImageNode(node) {
+  const field = node.fieldName.toLowerCase();
+  const text = runningHubNodeText(node);
+  return field === "image"
+    || field === "upload"
+    || field.includes("image")
+    || /image|图片|图像|上传/.test(text);
+}
+
+function isRunningHubRatioNode(node) {
+  const field = node.fieldName.toLowerCase();
+  const text = runningHubNodeText(node);
+  return field === "aspect_ratio"
+    || field === "aspectratio"
+    || field.includes("ratio")
+    || /比例|ratio/.test(text);
+}
+
+function isRunningHubResolutionNode(node) {
+  const field = node.fieldName.toLowerCase();
+  const text = runningHubNodeText(node);
+  return field.includes("resolution")
+    || /分辨率|清晰度|resolution/.test(text);
+}
+
+function prepareRunningHubAppNodeInfoList({
+  demo,
+  prompt,
+  width,
+  height,
+  useImageReferences,
+  imageValues
+}) {
+  const nodesForSubmit = demo.nodeInfoList.map(cloneRunningHubNode);
+  const promptNode = nodesForSubmit.find(isRunningHubPromptNode);
+  if (!promptNode) {
+    throw new Error("RunningHub AI应用缺少提示词输入节点，无法自动提交。");
+  }
+  promptNode.fieldValue = prompt;
+
+  const ratioNode = nodesForSubmit.find(isRunningHubRatioNode);
+  if (ratioNode) {
+    const ratio = aspectRatioForRunningHubApi(width, height);
+    ratioNode.fieldValue = chooseRunningHubFieldValue(
+      ratioNode,
+      useImageReferences ? ["match_input_image", ratio, "auto"] : [ratio, "auto", "1:1"],
+      ratio
+    );
+  }
+
+  const resolutionNode = nodesForSubmit.find(isRunningHubResolutionNode);
+  if (resolutionNode) {
+    const resolution = resolutionForRunningHubApi();
+    resolutionNode.fieldValue = chooseRunningHubFieldValue(resolutionNode, [resolution, resolution.toUpperCase(), "1k"], resolution);
+  }
+
+  if (useImageReferences) {
+    const imageNode = nodesForSubmit.find(isRunningHubImageNode);
+    if (!imageNode) {
+      throw new Error("RunningHub 图生图 AI应用缺少图片输入节点，无法自动提交。");
+    }
+    if (!imageValues.length) {
+      throw new Error("RunningHub 图生图需要先上传或粘贴参考图片。");
+    }
+    imageNode.fieldValue = imageValues[0];
+  }
+
+  return nodesForSubmit
+    .filter((node) => node.nodeId && node.fieldName)
+    .map((node) => ({
+      nodeId: node.nodeId,
+      fieldName: node.fieldName,
+      fieldValue: node.fieldValue,
+      ...(node.description ? { description: node.description } : {})
+    }));
+}
+
+async function uploadRunningHubImage({ baseUrl, apiKey, apiMode, imageItem, index }) {
+  const dataUrl = await imageSourceAsDataUrl(imageItem);
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed) {
+    throw new Error("RunningHub 参考图读取失败，请重新上传图片。");
+  }
+
+  const bytes = Uint8Array.from(atob(parsed.data), (char) => char.charCodeAt(0));
+  const blob = new Blob([bytes], { type: parsed.mimeType || "image/png" });
+  const extension = parsed.mimeType?.includes("jpeg") ? "jpg" : (parsed.mimeType?.split("/")[1] || "png").replace("svg+xml", "svg");
+  const formData = new FormData();
+  formData.append("file", blob, imageItem.name || `reference-${index + 1}.${extension}`);
+  const normalizedMode = normalizeRunningHubApiMode(apiMode);
+  if (normalizedMode === RUNNINGHUB_API_MODE_CONSUMER) {
+    formData.append("apiKey", apiKey);
+    formData.append("fileType", "input");
+  }
+
+  let response;
+  const url = baseUrlWithPath(baseUrl, normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE
+    ? RUNNINGHUB_API_PATHS.standardUpload
+    : RUNNINGHUB_API_PATHS.appUpload);
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: formData
+    });
+  } catch (error) {
+    throw new Error(networkErrorMessage(error, url));
+  }
+
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!response.ok || !isSuccessfulApiCode(data?.code)) {
+    throw new Error(data?.error?.message || data?.errorMessage || data?.message || data?.msg || `RunningHub 参考图上传失败：${response.status}`);
+  }
+
+  if (normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE) {
+    const downloadUrl = data?.data?.download_url || data?.data?.downloadUrl || data?.download_url || data?.downloadUrl;
+    if (!downloadUrl) {
+      throw new Error("RunningHub 企业级参考图上传成功，但没有返回 download_url。");
+    }
+    return downloadUrl;
+  }
+
+  const fileName = data?.data?.fileName || data?.data?.filename || data?.fileName || data?.filename;
+  if (!fileName) {
+    throw new Error("RunningHub 参考图上传成功，但没有返回 fileName。");
+  }
+
+  return fileName;
+}
+
+async function selectedImageUrlsForRunningHubApi({ baseUrl, apiKey, apiMode, max = 1, onProgress }) {
+  const selected = imageItems
+    .filter((item) => selectedImageIds.has(item.id))
+    .slice(0, max);
+  const images = selected.length ? selected : imageItems.slice(0, max);
+  const values = [];
+
+  for (let index = 0; index < images.length; index += 1) {
+    const item = images[index];
+    const source = item?.dataUrl || item?.src || "";
+    if (/^https?:\/\//i.test(source) && !isLocalPreviewHttpUrl(source)) {
+      values.push(source);
+      continue;
+    }
+
+    onProgress?.(8 + index, "正在上传参考图");
+    values.push(await uploadRunningHubImage({ baseUrl, apiKey, apiMode, imageItem: item, index }));
+  }
+
+  return values;
+}
+
 async function pollApimartTask({ baseUrl, apiKey, taskId, count, onProgress }) {
   const maxAttempts = 75;
 
@@ -2711,20 +3091,25 @@ async function callApimartGptImage2({
   }));
 }
 
-async function pollRunningHubTask({ baseUrl, apiKey, taskId, count, onProgress }) {
+async function pollRunningHubTask({ baseUrl, apiKey, apiMode, taskId, count, onProgress }) {
   const maxAttempts = 75;
+  const normalizedMode = normalizeRunningHubApiMode(apiMode);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, attempt === 1 ? 5000 : 4000));
 
-    const data = await fetchJson(baseUrlWithPath(baseUrl, "/openapi/v2/query"), {
+    const data = await fetchJson(baseUrlWithPath(baseUrl, normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE
+      ? RUNNINGHUB_API_PATHS.standardQuery
+      : RUNNINGHUB_API_PATHS.appOutputs), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`
       },
-      body: JSON.stringify({ taskId })
-    }, "RunningHub 任务查询");
+      body: JSON.stringify(normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE
+        ? { taskId }
+        : { apiKey, taskId })
+    }, "RunningHub 任务查询", { allowCodes: ["804"] });
 
     const task = data?.data?.eventData || data?.eventData || data?.data || data;
     const status = extractTaskStatus(data, "RUNNING");
@@ -2736,6 +3121,11 @@ async function pollRunningHubTask({ baseUrl, apiKey, taskId, count, onProgress }
       onProgress?.(Math.min(94, 16 + attempt * 4), "RunningHub 正在生成");
     }
 
+    if (isRunningHubPendingCode(data?.code)) {
+      setStatus(`RunningHub 任务 ${taskId} 正在生成，继续等待结果。`);
+      continue;
+    }
+
     if (isFailedTaskStatus(status)) {
       throw new Error(extractTaskErrorMessage(data, "RunningHub 任务生成失败。"));
     }
@@ -2744,12 +3134,13 @@ async function pollRunningHubTask({ baseUrl, apiKey, taskId, count, onProgress }
       throw new Error("RunningHub 任务已取消。");
     }
 
-    if (isCompletedTaskStatus(status)) {
-      const urls = extractRunningHubImages(data);
-      if (!urls.length) {
-        throw new Error("RunningHub 任务已完成，但没有返回图片 URL。");
-      }
+    const urls = extractRunningHubImages(data);
+    if (urls.length) {
       return urls.slice(0, count);
+    }
+
+    if (isCompletedTaskStatus(status)) {
+      throw new Error("RunningHub 任务已完成，但没有返回图片 URL。");
     }
 
     setStatus(`RunningHub 任务 ${taskId} 正在生成：${status}${progressText}。`);
@@ -2771,37 +3162,126 @@ async function callRunningHubG2({
   promptEn,
   promptStructure,
   useImageReferences,
+  apiMode,
   mode,
   onProgress
 }) {
-  const body = {
-    prompt,
-    aspectRatio: aspectRatioForRunningHubApi(width, height),
-    resolution: resolutionForRunningHubApi()
-  };
-  let endpoint = "/openapi/v2/rhart-image-g-2/text-to-image";
+  const normalizedMode = normalizeRunningHubApiMode(apiMode);
+  if (normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE) {
+    const body = {
+      prompt,
+      aspectRatio: aspectRatioForRunningHubApi(width, height),
+      resolution: resolutionForRunningHubApi(),
+      quality: "medium"
+    };
+    let endpoint = RUNNINGHUB_API_PATHS.standardTextToImage;
 
-  if (useImageReferences) {
-    const imageUrls = await selectedImageDataUrlsForApi({ useAll: true, max: 16 });
-    if (!imageUrls.length) {
-      throw new Error("RunningHub 图生图需要先上传或粘贴参考图片。");
+    if (useImageReferences) {
+      const imageUrls = await selectedImageUrlsForRunningHubApi({
+        baseUrl,
+        apiKey,
+        apiMode: normalizedMode,
+        max: 16,
+        onProgress
+      });
+      if (!imageUrls.length) {
+        throw new Error("RunningHub 企业级图生图需要先上传或粘贴参考图片。");
+      }
+      body.imageUrls = imageUrls;
+      endpoint = RUNNINGHUB_API_PATHS.standardImageToImage;
+      setStatus(`RunningHub 企业级共享接口正在使用 ${imageUrls.length} 张参考图生成。`);
+    } else {
+      setStatus("RunningHub 企业级共享接口正在使用低价渠道文生图生成。");
     }
-    body.imageUrls = imageUrls;
-    endpoint = "/openapi/v2/rhart-image-g-2/image-to-image";
-    setStatus(`RunningHub 全能图片G-2.0 正在使用 ${imageUrls.length} 张参考图生成。`);
-  } else {
-    setStatus("RunningHub 全能图片G-2.0 正在使用文生图节点生成。");
+
+    onProgress?.(6, "正在提交任务");
+    const data = await fetchJson(baseUrlWithPath(baseUrl, endpoint), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    }, "RunningHub 企业级提交");
+
+    const taskId = extractRunningHubTaskId(data);
+    if (!taskId) {
+      const urls = extractRunningHubImages(data);
+      if (urls.length) {
+        onProgress?.(99, "正在载入图片");
+        return urls.slice(0, count).map((url, index) => ({
+          index: `#${galleryItems.length + index + 1}`,
+          model,
+          width,
+          height,
+          prompt: displayPrompt || prompt,
+          promptCn,
+          promptEn,
+          promptStructure,
+          mode,
+          url
+        }));
+      }
+      const responseMessage = extractTaskErrorMessage(data, "");
+      const fields = data && typeof data === "object" ? Object.keys(data).join(", ") : "";
+      throw new Error(responseMessage
+        ? `RunningHub 返回：${responseMessage}`
+        : `RunningHub 已响应，但没有返回 taskId 或图片 URL。返回字段：${fields || "空响应"}。`);
+    }
+
+    onProgress?.(12, "任务已提交");
+    setStatus(`RunningHub 企业级任务已提交：${taskId}。正在等待生成结果。`);
+    const urls = await pollRunningHubTask({ baseUrl, apiKey, apiMode: normalizedMode, taskId, count, onProgress });
+    return urls.map((url, index) => ({
+      index: `#${galleryItems.length + index + 1}`,
+      model,
+      width,
+      height,
+      prompt: displayPrompt || prompt,
+      promptCn,
+      promptEn,
+      promptStructure,
+      mode,
+      url
+    }));
   }
 
+  const webappId = runningHubG2AppId(useImageReferences);
+  onProgress?.(4, "正在读取AI应用参数");
+  const demo = await fetchRunningHubAppDemo({ baseUrl, apiKey, webappId });
+  let imageValues = [];
+  if (useImageReferences) {
+    imageValues = await selectedImageUrlsForRunningHubApi({ baseUrl, apiKey, apiMode: normalizedMode, max: 1, onProgress });
+    if (!imageValues.length) {
+      throw new Error("RunningHub 图生图需要先上传或粘贴参考图片。");
+    }
+    setStatus("RunningHub 全能图片G-2.0 低价渠道版正在使用图生图 AI应用生成。");
+  } else {
+    setStatus("RunningHub 全能图片G-2.0 低价渠道版正在使用文生图 AI应用生成。");
+  }
+
+  const nodeInfoList = prepareRunningHubAppNodeInfoList({
+    demo,
+    prompt,
+    width,
+    height,
+    useImageReferences,
+    imageValues
+  });
+
   onProgress?.(6, "正在提交任务");
-  const data = await fetchJson(baseUrlWithPath(baseUrl, endpoint), {
+  const data = await fetchJson(baseUrlWithPath(baseUrl, RUNNINGHUB_API_PATHS.appRun), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`
     },
-    body: JSON.stringify(body)
-  }, "RunningHub 提交");
+    body: JSON.stringify({
+      webappId,
+      apiKey,
+      nodeInfoList
+    })
+  }, "RunningHub AI应用提交");
 
   const taskId = extractRunningHubTaskId(data);
   if (!taskId) {
@@ -2821,12 +3301,16 @@ async function callRunningHubG2({
         url
       }));
     }
-    throw new Error("RunningHub 已响应，但没有返回 taskId 或图片 URL。");
+    const responseMessage = extractTaskErrorMessage(data, "");
+    const fields = data && typeof data === "object" ? Object.keys(data).join(", ") : "";
+    throw new Error(responseMessage
+      ? `RunningHub 返回：${responseMessage}`
+      : `RunningHub 已响应，但没有返回 taskId 或图片 URL。返回字段：${fields || "空响应"}。`);
   }
 
   onProgress?.(12, "任务已提交");
   setStatus(`RunningHub 任务已提交：${taskId}。正在等待生成结果。`);
-  const urls = await pollRunningHubTask({ baseUrl, apiKey, taskId, count, onProgress });
+  const urls = await pollRunningHubTask({ baseUrl, apiKey, apiMode: normalizedMode, taskId, count, onProgress });
   return urls.map((url, index) => ({
     index: `#${galleryItems.length + index + 1}`,
     model,
@@ -2866,16 +3350,12 @@ async function callImageGenerationApi({
     throw new Error("请先填写生图 API 的 Base URL。");
   }
 
-  if (provider !== "comfyui" && !apiKey) {
+  if (!apiKey) {
     throw new Error("请先填写生图 API Key。");
   }
 
   if (/^https?:\/\//i.test(apiKey) || apiKey.startsWith("/")) {
     throw new Error("生图 API Key 填写不正确。接口地址/路径请放在 Base URL，API Key 只填写密钥。");
-  }
-
-  if (provider === "comfyui") {
-    throw new Error("ComfyUI 需要工作流 JSON，当前界面还没配置工作流。");
   }
 
   if (provider === "replicate") {
@@ -2901,7 +3381,7 @@ async function callImageGenerationApi({
     });
   }
 
-  if (provider === "runninghub" && imageModel === "runninghub-rhart-image-g-2") {
+  if (provider === "runninghub" && imageModel === RUNNINGHUB_G2_MODEL) {
     return callRunningHubG2({
       prompt,
       displayPrompt,
@@ -2915,6 +3395,7 @@ async function callImageGenerationApi({
       apiKey,
       baseUrl,
       useImageReferences,
+      apiMode: image.runninghubMode,
       mode,
       onProgress
     });
@@ -3055,13 +3536,13 @@ async function runRealGeneration(payload, placeholders) {
     galleryItems = galleryItems.filter((item) => !item.isGenerating);
     renderGallery();
     saveWorkspaceState();
-    setStatus(error.message || "生图 API 调用失败。");
+    setStatus(friendlyApiErrorMessage(error.message || "生图 API 调用失败。", payload.model || "生图 API"));
   }
 }
 
 function shouldUseRealImageApi() {
   const config = currentApiConfigFromForm();
-  return Boolean(config.image.baseUrl && (config.image.apiKey || config.image.provider === "comfyui"));
+  return Boolean(config.image.baseUrl && config.image.apiKey);
 }
 
 function generate() {
@@ -3074,6 +3555,10 @@ function generate() {
   const width = Number(nodes.widthInput.value) || 1024;
   const height = Number(nodes.heightInput.value) || 1024;
   const model = nodes.modelSelect.options[nodes.modelSelect.selectedIndex].text;
+  const effectiveGenerationMode = generationMode === "image" && imageItems.length > 0 ? "image" : "text";
+  if (generationMode === "image" && effectiveGenerationMode === "text") {
+    setGenerationMode("text", { silent: true });
+  }
 
   if (!displayPrompt && !prompt) {
     setStatus("请先填写提示词，或点击反推提示词。");
@@ -3091,7 +3576,7 @@ function generate() {
     promptCn: bundle.chinese,
     promptEn: bundle.english,
     promptStructure: bundle.structure,
-    mode: generationMode
+    mode: effectiveGenerationMode
   });
   galleryItems = [...placeholders, ...galleryItems].slice(0, 12);
   renderGallery();
@@ -3104,12 +3589,12 @@ function generate() {
       promptCn: bundle.chinese,
       promptEn: bundle.english,
       promptStructure: bundle.structure,
-      useImageReferences: generationMode === "image",
+      useImageReferences: effectiveGenerationMode === "image",
       count,
       width,
       height,
       model,
-      mode: generationMode
+      mode: effectiveGenerationMode
     }, placeholders);
     return;
   }
@@ -3138,7 +3623,7 @@ function generate() {
     }
   }, 180);
 
-  if (apiConfig?.image?.apiKey || apiConfig?.image?.provider === "comfyui") {
+  if (apiConfig?.image?.apiKey) {
     setStatus(`正在用 ${apiConfig.image.providerLabel} 生图 API 配置模拟提交任务；接入网络请求后会调用真实生图 API。`);
   } else {
     setStatus("正在模拟生成进度。保存生图 API 配置后，可把这里接到真实任务状态。");
@@ -3146,25 +3631,26 @@ function generate() {
 }
 
 function currentApiConfigFromForm() {
-  const promptProvider = nodes.promptApiProvider.value;
-  const imageProvider = nodes.imageApiProvider.value;
+  const promptProvider = nodes.promptApiProvider.value || "openai";
+  const imageProvider = nodes.imageApiProvider.value || "openai";
   const imageModel = nodes.apiImageModelSelect.value === "custom"
     ? nodes.customModelName.value.trim()
     : nodes.apiImageModelSelect.value;
   return {
     prompt: {
       provider: promptProvider,
-      providerLabel: nodes.promptApiProvider.options[nodes.promptApiProvider.selectedIndex].text,
+      providerLabel: selectedOptionText(nodes.promptApiProvider, "OpenAI"),
       baseUrl: nodes.promptApiBaseUrl.value.trim(),
       apiKey: nodes.promptApiKey.value.trim(),
       model: nodes.promptModelSelect.value
     },
     image: {
       provider: imageProvider,
-      providerLabel: nodes.imageApiProvider.options[nodes.imageApiProvider.selectedIndex].text,
+      providerLabel: selectedOptionText(nodes.imageApiProvider, "OpenAI"),
       baseUrl: nodes.imageApiBaseUrl.value.trim(),
       apiKey: nodes.imageApiKey.value.trim(),
       model: imageModel,
+      runninghubMode: normalizeRunningHubApiMode(nodes.runningHubApiMode?.value),
       customModelName: nodes.customModelName.value.trim()
     },
     eagle: {
@@ -3196,6 +3682,7 @@ function applyApiConfig(config) {
         baseUrl: config.baseUrl || "",
         apiKey: config.apiKey || "",
         model: config.imageModel || "gpt-image-1",
+        runninghubMode: config.runninghubMode || RUNNINGHUB_API_MODE_CONSUMER,
         customModelName: config.customModelName || ""
       }
     };
@@ -3208,13 +3695,22 @@ function applyApiConfig(config) {
   };
 
   apiConfig = config;
-  nodes.promptApiProvider.value = config.prompt?.provider || "openai";
-  nodes.promptApiBaseUrl.value = config.prompt?.baseUrl || defaultBaseUrl(nodes.promptApiProvider.value);
+  const rawPromptProvider = config.prompt?.provider || "openai";
+  const promptProvider = setSelectValue(nodes.promptApiProvider, rawPromptProvider, "openai");
+  nodes.promptApiBaseUrl.value = promptProvider === rawPromptProvider
+    ? (config.prompt?.baseUrl || defaultBaseUrl(promptProvider))
+    : defaultBaseUrl(promptProvider);
   nodes.promptApiKey.value = config.prompt?.apiKey || "";
   nodes.promptModelSelect.value = config.prompt?.model || "gpt-4.1-mini";
-  nodes.imageApiProvider.value = config.image?.provider || "openai";
-  nodes.imageApiBaseUrl.value = config.image?.baseUrl || defaultBaseUrl(nodes.imageApiProvider.value);
+  const rawImageProvider = config.image?.provider || "openai";
+  const imageProvider = setSelectValue(nodes.imageApiProvider, rawImageProvider, "openai");
+  nodes.imageApiBaseUrl.value = imageProvider === rawImageProvider
+    ? (config.image?.baseUrl || defaultBaseUrl(imageProvider))
+    : defaultBaseUrl(imageProvider);
   nodes.imageApiKey.value = config.image?.apiKey || "";
+  if (nodes.runningHubApiMode) {
+    nodes.runningHubApiMode.value = normalizeRunningHubApiMode(config.image?.runninghubMode);
+  }
   const savedImageModel = config.image?.model || "gpt-image-1";
   nodes.apiImageModelSelect.value = [...nodes.apiImageModelSelect.options].some((option) => option.value === savedImageModel)
     ? savedImageModel
@@ -3226,7 +3722,10 @@ function applyApiConfig(config) {
   nodes.modelSelect.value = config.image?.model && [...nodes.modelSelect.options].some((option) => option.value === config.image.model)
     ? config.image.model
     : nodes.modelSelect.value;
-  nodes.apiMeta.textContent = `反推:${config.prompt?.providerLabel || "未配置"} · 生图:${config.image?.providerLabel || "未配置"} · Eagle:${config.eagle.mode === "api" ? "API" : "协议"}`;
+  const runningHubMeta = imageProvider === "runninghub"
+    ? ` · ${runningHubApiModeLabel(nodes.runningHubApiMode?.value)}`
+    : "";
+  nodes.apiMeta.textContent = `反推:${config.prompt?.providerLabel || "未配置"} · 生图:${config.image?.providerLabel || "未配置"}${runningHubMeta}`;
   syncCustomModelField();
   syncModelPicker();
 }
@@ -3294,7 +3793,10 @@ function saveApiConfig() {
 
   apiConfig = config;
   localStorage.setItem(API_STORAGE_KEY, JSON.stringify(config));
-  nodes.apiMeta.textContent = `已保存 · 反推:${config.prompt.providerLabel} · 生图:${config.image.providerLabel} · Eagle:${config.eagle.mode === "api" ? "API" : "协议"}`;
+  const runningHubMeta = config.image.provider === "runninghub"
+    ? ` · ${runningHubApiModeLabel(config.image.runninghubMode)}`
+    : "";
+  nodes.apiMeta.textContent = `已保存 · 反推:${config.prompt.providerLabel} · 生图:${config.image.providerLabel}${runningHubMeta}`;
   showApiSaveFeedback("已保存，刷新后仍会保留", "saved");
   nodes.saveApiBtn.classList.add("is-saved");
   nodes.saveApiBtn.textContent = "已保存";
@@ -3430,10 +3932,11 @@ nodes.imageApiProvider.addEventListener("change", () => {
     syncModelPicker();
   }
   if (nodes.imageApiProvider.value === "runninghub") {
-    nodes.apiImageModelSelect.value = "runninghub-rhart-image-g-2";
-    nodes.modelSelect.value = "runninghub-rhart-image-g-2";
+    nodes.apiImageModelSelect.value = RUNNINGHUB_G2_MODEL;
+    nodes.modelSelect.value = RUNNINGHUB_G2_MODEL;
     syncModelPicker();
   }
+  syncRunningHubApiModeField();
   markApiConfigDirty();
 });
 nodes.apiImageModelSelect.addEventListener("change", () => {
@@ -3450,10 +3953,11 @@ nodes.apiImageModelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "apimart";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("apimart");
   }
-  if (nodes.apiImageModelSelect.value === "runninghub-rhart-image-g-2") {
+  if (nodes.apiImageModelSelect.value === RUNNINGHUB_G2_MODEL) {
     nodes.imageApiProvider.value = "runninghub";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("runninghub");
   }
+  syncRunningHubApiModeField();
   markApiConfigDirty();
   saveWorkspaceState();
 });
@@ -3490,10 +3994,11 @@ nodes.modelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "apimart";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("apimart");
   }
-  if (nodes.modelSelect.value === "runninghub-rhart-image-g-2") {
+  if (nodes.modelSelect.value === RUNNINGHUB_G2_MODEL) {
     nodes.imageApiProvider.value = "runninghub";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("runninghub");
   }
+  syncRunningHubApiModeField();
   saveWorkspaceState();
 });
 [
@@ -3502,6 +4007,7 @@ nodes.modelSelect.addEventListener("change", () => {
   nodes.promptModelSelect,
   nodes.imageApiBaseUrl,
   nodes.imageApiKey,
+  nodes.runningHubApiMode,
   nodes.customModelName,
   nodes.eagleApiMode,
   nodes.eagleApiBaseUrl,
@@ -3536,7 +4042,7 @@ nodes.clearPromptBtn.addEventListener("click", clearPrompt);
 nodes.resetAllBtn?.addEventListener("click", resetAll);
 nodes.generateBtn.addEventListener("click", generate);
 nodes.lightboxClose.addEventListener("click", closeLightbox);
-nodes.eagleCollectBtn.addEventListener("click", collectToEagle);
+nodes.eagleCollectBtn?.addEventListener("click", collectToEagle);
 nodes.lightboxDownloadBtn.addEventListener("click", () => downloadImage(activeLightboxItem));
 nodes.lightbox.addEventListener("click", (event) => {
   if (event.target === nodes.lightbox) {
@@ -3565,6 +4071,7 @@ window.chrome?.storage?.onChanged?.addListener((changes, areaName) => {
 
 renderModelMenu();
 renderSizeMenu();
+setupOptionalLocalIntegrations();
 syncSizeInputs(1024, 1024);
 syncCustomModelField();
 loadApiConfig();

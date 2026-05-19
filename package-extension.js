@@ -23,6 +23,16 @@ const files = [
 ];
 
 const directories = ["assets", "docs"];
+const assetReferenceFiles = [
+  "manifest.json",
+  "content.js",
+  "popup.html",
+  "popup.css",
+  "popup.js",
+  "options.html",
+  "options.css",
+  "options.js",
+];
 
 async function exists(target) {
   try {
@@ -52,6 +62,38 @@ async function copyDirectoryIfPresent(relativePath) {
     recursive: true,
     force: true,
   });
+}
+
+async function referencedAssets() {
+  const assets = new Set();
+  const assetPattern = /["'`](assets\/[^"'`\s)]+)["'`]/g;
+
+  for (const file of assetReferenceFiles) {
+    const source = path.join(root, file);
+    if (!(await exists(source))) continue;
+
+    const content = await fsp.readFile(source, "utf8");
+    for (const match of content.matchAll(assetPattern)) {
+      if (!match[1].includes("*")) {
+        assets.add(match[1]);
+      }
+    }
+  }
+
+  return [...assets].sort();
+}
+
+async function assertFilesPresent(relativePaths, baseDir = root) {
+  const missing = [];
+  for (const relativePath of relativePaths) {
+    if (!(await exists(path.join(baseDir, relativePath)))) {
+      missing.push(relativePath);
+    }
+  }
+
+  if (missing.length) {
+    throw new Error(`Missing required extension files:\n${missing.map((file) => `- ${file}`).join("\n")}`);
+  }
 }
 
 function run(command, args, options = {}) {
@@ -90,6 +132,9 @@ function createZip() {
 }
 
 async function main() {
+  const assets = await referencedAssets();
+  await assertFilesPresent([...files, ...assets]);
+
   await fsp.mkdir(distDir, { recursive: true });
   await fsp.rm(buildDir, { recursive: true, force: true });
   await fsp.mkdir(buildDir, { recursive: true });
@@ -101,6 +146,8 @@ async function main() {
   for (const directory of directories) {
     await copyDirectoryIfPresent(directory);
   }
+
+  await assertFilesPresent([...files, ...assets], buildDir);
 
   if (!createZip()) {
     throw new Error("Failed to create extension zip. Please make sure ditto, zip, or PowerShell is available.");

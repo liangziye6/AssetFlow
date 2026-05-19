@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LYZ - AI生图反推工具 V1.0",
-  "description": "此插件可拖拉网页图片&粘贴图片、反推提示词、一键生图，还有全览图库，一键加入Eagle图片收集。",
+  "description": "此插件可拖拉网页图片&粘贴图片、反推提示词、一键生图，并在浏览器本地保存生成图库。",
   "version": "0.1.0",
   "action": {
     "default_title": "LYZ - AI生图反推工具 V1.0",

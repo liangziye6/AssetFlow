@@ -6,10 +6,14 @@ function setupContextMenus() {
   if (!chrome.contextMenus?.create) return;
 
   chrome.contextMenus.removeAll(() => {
+    if (chrome.runtime.lastError) return;
     chrome.contextMenus.create({
       id: addImageMenuId,
       title: "\u6dfb\u52a0\u5230 LYZ \u53cd\u63a8\u5de5\u5177",
       contexts: ["all"]
+    }, () => {
+      // Chrome can re-run the service worker while the previous menu still exists.
+      void chrome.runtime.lastError;
     });
   });
 }

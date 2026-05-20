@@ -5,7 +5,7 @@
   const MAX_IMAGES = 80;
   const MAX_TEXT = 180;
   const VIEWER_ID = "image-spark-page-viewer";
-  const ENABLE_EAGLE_INTEGRATION = false;
+  const ENABLE_EAGLE_INTEGRATION = true;
   let lastContextImage = null;
   let lastContextPoint = null;
   let viewerState = {
@@ -594,11 +594,10 @@
     }
 
     if (viewerState.eagle?.mode === "api") {
-      showViewerNotice("Eagle Local API 暂不可用，请确认 Eagle 已开启本地 API 服务。");
-      return;
+      showViewerNotice("Eagle Local API 暂不可用，已改用 eagle:// 协议尝试收集。");
     }
 
-    collectViewerImageToEagleProtocol(item);
+    collectViewerImageToEagleProtocol(item, { fallbackFromApi: viewerState.eagle?.mode === "api" });
   }
 
   async function collectViewerImageToEagleApi(item) {
@@ -649,13 +648,16 @@
     }, 2600);
   }
 
-  function collectViewerImageToEagleProtocol(item) {
+  function collectViewerImageToEagleProtocol(item, options = {}) {
     const params = new URLSearchParams({
       url: item.originalUrl || item.url,
       name: `${item.model}-${item.index}`,
       annotation: item.prompt || ""
     });
     window.location.href = `eagle://save?${params.toString()}`;
+    showViewerNotice(options.fallbackFromApi
+      ? "Eagle Local API 暂不可用，已改用 eagle:// 协议尝试收集。"
+      : "已尝试通过 eagle:// 协议发送到 Eagle。");
   }
 
   function openViewer(payload) {
@@ -980,7 +982,7 @@
           overflow: auto;
         }
         .thumbs::before {
-          content: "其他生成图";
+          content: "已生成";
           grid-column: 1 / -1;
           color: rgba(230, 229, 245, 0.72);
           font-size: 12px;

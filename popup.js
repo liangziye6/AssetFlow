@@ -81,6 +81,8 @@ let selectedImageIds = new Set();
 let lastConsumedContextImageKey = "";
 
 let generationTimer = 0;
+let progressSmoothingFrame = 0;
+let progressSmoothingLastTime = 0;
 let galleryItems = [];
 let apiConfig = null;
 let activeLightboxItem = null;
@@ -110,7 +112,7 @@ const LOCAL_IMAGE_DB_NAME = "imageSparkLocalImages";
 const LOCAL_IMAGE_DB_VERSION = 1;
 const LOCAL_IMAGE_STORE = "images";
 const MAX_UPLOAD_IMAGES = 4;
-const ENABLE_EAGLE_INTEGRATION = false;
+const ENABLE_EAGLE_INTEGRATION = true;
 const RUNNINGHUB_G2_MODEL = "runninghub-rhart-image-g-2";
 const RUNNINGHUB_API_MODE_CONSUMER = "consumer";
 const RUNNINGHUB_API_MODE_ENTERPRISE = "enterprise";
@@ -284,6 +286,12 @@ function serializeGalleryItems(items) {
     delete next.isGenerating;
     delete next.generationId;
     delete next.progress;
+    delete next.progressTarget;
+    delete next.progressTargetAt;
+    delete next.hasRealProgress;
+    delete next.lastRenderedProgress;
+    delete next.lastRenderedLabel;
+    delete next.lastProgressPaintAt;
     delete next.progressLabel;
     delete next.localObjectUrl;
     if (next.localStoreId) {
@@ -941,6 +949,41 @@ async function viewerSafeImageUrl(url, tabUrl = "") {
   }
 
   return urlToDataUrl(url);
+}
+
+function isBlobUrl(url) {
+  return /^blob:/i.test(String(url || ""));
+}
+
+async function galleryItemDataUrlFromStore(item) {
+  if (!item?.localStoreId) return "";
+  const stored = await imageFromIndexedDb(item.localStoreId);
+  if (!stored?.blob) return "";
+  return fileToDataUrl(stored.blob);
+}
+
+async function portableGalleryImageUrl(item, tabUrl = "") {
+  const originalUrl = item?.originalUrl || "";
+  const sourceUrl = item?.url || "";
+
+  if (isBlobUrl(sourceUrl) || item?.localStoreId) {
+    try {
+      const storedDataUrl = await galleryItemDataUrlFromStore(item);
+      if (storedDataUrl) return storedDataUrl;
+    } catch {
+      // Fall back below; generated image URLs are often still reachable remotely.
+    }
+    if (/^https?:\/\//i.test(originalUrl) && !isLocalPreviewHttpUrl(originalUrl)) {
+      return originalUrl;
+    }
+    try {
+      return await urlToDataUrl(sourceUrl);
+    } catch {
+      return originalUrl || sourceUrl;
+    }
+  }
+
+  return viewerSafeImageUrl(sourceUrl, tabUrl);
 }
 
 function syncSizeInputs(width, height) {
@@ -1675,6 +1718,10 @@ function openPinnedWindow() {
 
 function clearGenerationState() {
   window.clearInterval(generationTimer);
+  if (progressSmoothingFrame) {
+    window.cancelAnimationFrame(progressSmoothingFrame);
+    progressSmoothingFrame = 0;
+  }
   galleryItems = galleryItems.filter((item) => !item.isGenerating);
   renderGallery();
 }
@@ -1688,6 +1735,7 @@ function resetAll() {
 }
 
 function normalizedProgress(value) {
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   if (!Number.isFinite(number)) return null;
   return Math.max(0, Math.min(99, Math.round(number)));
@@ -1696,14 +1744,86 @@ function normalizedProgress(value) {
 function updateGeneratingItemProgress(target, progress, label = "") {
   const targetIndex = galleryItemIndexForTarget(target);
   if (targetIndex === -1) return;
+  const item = galleryItems[targetIndex];
+  if (label) {
+    item.progressLabel = label;
+  }
   const nextProgress = normalizedProgress(progress);
-  if (nextProgress === null) return;
-  galleryItems[targetIndex] = {
-    ...galleryItems[targetIndex],
-    progress: nextProgress,
-    progressLabel: label || galleryItems[targetIndex].progressLabel || ""
-  };
-  renderGallery();
+  if (nextProgress !== null) {
+    item.hasRealProgress = true;
+    item.progressTarget = Math.max(Number(item.progressTarget) || 0, nextProgress);
+    item.progressTargetAt = performance.now();
+    startProgressSmoothing();
+  }
+  applyGeneratingItemProgress(item, { forceLabel: Boolean(label) });
+}
+
+function generationCardSelector(id) {
+  return `[data-generation-id="${String(id || "").replace(/"/g, "\\\"")}"]`;
+}
+
+function applyGeneratingItemProgress(item, options = {}) {
+  if (!item?.generationId) return;
+  const card = nodes.galleryGrid.querySelector(generationCardSelector(item.generationId));
+  if (!card) return;
+  const progressText = item.hasRealProgress
+    ? `${Math.max(0, Math.min(99, Math.round(Number(item.progress) || 0)))}%`
+    : "等待中";
+  const progressNode = card.querySelector(".gallery-progress");
+  const labelNode = card.querySelector(".gallery-loading-label");
+  if (progressNode && item.lastRenderedProgress !== progressText) {
+    progressNode.textContent = progressText;
+    item.lastRenderedProgress = progressText;
+  }
+  const labelText = item.progressLabel || "正在生成中";
+  if (labelNode && (options.forceLabel || item.lastRenderedLabel !== labelText)) {
+    labelNode.textContent = labelText;
+    item.lastRenderedLabel = labelText;
+  }
+}
+
+function startProgressSmoothing() {
+  if (progressSmoothingFrame) return;
+  progressSmoothingLastTime = performance.now();
+  progressSmoothingFrame = window.requestAnimationFrame(smoothGeneratingProgress);
+}
+
+function smoothGeneratingProgress(timestamp) {
+  const delta = Math.min(260, Math.max(16, timestamp - progressSmoothingLastTime));
+  progressSmoothingLastTime = timestamp;
+  let shouldContinue = false;
+
+  galleryItems.forEach((item) => {
+    if (!item.isGenerating) return;
+    const realTarget = Number(item.progressTarget);
+    if (!item.hasRealProgress || !Number.isFinite(realTarget)) {
+      applyGeneratingItemProgress(item);
+      return;
+    }
+    const current = Number(item.progress) || 0;
+    const easing = Math.min(0.42, Math.max(0.08, delta / 760));
+    const distance = realTarget - current;
+    if (Math.abs(distance) <= 0.05) {
+      item.progress = realTarget;
+      item.lastProgressPaintAt = timestamp;
+      applyGeneratingItemProgress(item);
+      return;
+    } else {
+      item.progress = Math.max(0, Math.min(99, current + distance * easing));
+      shouldContinue = true;
+    }
+
+    if (!item.lastProgressPaintAt || timestamp - item.lastProgressPaintAt >= 120) {
+      item.lastProgressPaintAt = timestamp;
+      applyGeneratingItemProgress(item);
+    }
+  });
+
+  if (shouldContinue) {
+    progressSmoothingFrame = window.requestAnimationFrame(smoothGeneratingProgress);
+  } else {
+    progressSmoothingFrame = 0;
+  }
 }
 
 function openLocalImageDb() {
@@ -1880,6 +2000,7 @@ function createGalleryItem(item) {
   const card = document.createElement("article");
   card.className = "gallery-card";
   if (item.isGenerating) {
+    card.dataset.generationId = item.generationId || "";
     card.classList.add("is-generating");
   }
   card.dataset.label = generationModeLabel(item.mode);
@@ -1895,14 +2016,16 @@ function createGalleryItem(item) {
     video.muted = true;
     video.loop = true;
     video.playsInline = true;
+    video.preload = "auto";
+    video.disableRemotePlayback = true;
     video.setAttribute("aria-hidden", "true");
-    const movSource = document.createElement("source");
-    movSource.src = "assets/loading-animation.mov";
-    movSource.type = "video/quicktime";
     const mp4Source = document.createElement("source");
     mp4Source.src = "assets/loading-animation.mp4";
     mp4Source.type = "video/mp4";
-    video.append(movSource, mp4Source);
+    const movSource = document.createElement("source");
+    movSource.src = "assets/loading-animation.mov";
+    movSource.type = "video/quicktime";
+    video.append(mp4Source, movSource);
 
     const label = document.createElement("span");
     label.className = "gallery-loading-label";
@@ -1910,7 +2033,9 @@ function createGalleryItem(item) {
 
     const progress = document.createElement("span");
     progress.className = "gallery-progress";
-    progress.textContent = `${Math.max(0, Math.min(99, Math.round(Number(item.progress) || 0)))}%`;
+    progress.textContent = item.hasRealProgress
+      ? `${Math.max(0, Math.min(99, Math.round(Number(item.progress) || 0)))}%`
+      : "等待中";
 
     const progressWrap = document.createElement("div");
     progressWrap.className = "gallery-progress-wrap";
@@ -2009,7 +2134,7 @@ async function openPageLightbox(item) {
   try {
     items = await Promise.all(rawItems.map(async (galleryItem) => ({
       ...galleryItem,
-      url: await viewerSafeImageUrl(galleryItem.url, tab.url)
+      url: await portableGalleryImageUrl(galleryItem, tab.url)
     })));
   } catch {
     return false;
@@ -2180,15 +2305,12 @@ async function collectToEagle() {
     return;
   }
 
+  const isApiMode = currentEagleConfig().mode === "api";
   if (await collectToEagleApi(activeLightboxItem)) {
     return;
   }
 
-  if (currentEagleConfig().mode === "api") {
-    return;
-  }
-
-  collectToEagleProtocol(activeLightboxItem);
+  collectToEagleProtocol(activeLightboxItem, { fallbackFromApi: isApiMode });
 }
 
 async function collectToEagleApi(item) {
@@ -2202,7 +2324,7 @@ async function collectToEagleApi(item) {
       type: "IMAGE_SPARK_COLLECT_EAGLE",
       payload: {
         item: {
-          url: item.url,
+          url: item.originalUrl || item.url,
           model: item.model,
           index: item.index,
           prompt: item.prompt || "",
@@ -2225,15 +2347,17 @@ async function collectToEagleApi(item) {
   }
 }
 
-function collectToEagleProtocol(item) {
+function collectToEagleProtocol(item, options = {}) {
   const params = new URLSearchParams({
-    url: item.url,
+    url: item.originalUrl || item.url,
     name: `${item.model}-${item.index}`,
     annotation: item.prompt || ""
   });
 
   window.location.href = `eagle://save?${params.toString()}`;
-  setStatus("已尝试发送到 Eagle。如果没有响应，可以在大图上右键另存。");
+  setStatus(options.fallbackFromApi
+    ? "Eagle Local API 暂不可用，已改用 eagle:// 协议尝试收集。如果没有响应，请确认 Eagle 已安装并允许协议打开。"
+    : "已尝试通过 eagle:// 协议发送到 Eagle。如果没有响应，请确认 Eagle 已安装并允许协议打开。");
 }
 
 function renderGallery() {
@@ -2974,7 +3098,7 @@ async function selectedImageUrlsForRunningHubApi({ baseUrl, apiKey, apiMode, max
       continue;
     }
 
-    onProgress?.(8 + index, "正在上传参考图");
+    onProgress?.(null, "正在上传参考图");
     values.push(await uploadRunningHubImage({ baseUrl, apiKey, apiMode, imageItem: item, index }));
   }
 
@@ -3001,7 +3125,7 @@ async function pollApimartTask({ baseUrl, apiKey, taskId, count, onProgress }) {
     if (progress !== null) {
       onProgress?.(progress, "APIMart 正在生成");
     } else {
-      onProgress?.(Math.min(94, 18 + attempt * 3), "APIMart 正在生成");
+      onProgress?.(null, "APIMart 正在生成");
     }
     console.debug("APIMart task status", { taskId, status, progress, data });
 
@@ -3059,7 +3183,7 @@ async function callApimartGptImage2({
     setStatus(`GPT-Image-2 正在使用 ${imageUrls.length} 张参考图生成。`);
   }
 
-  onProgress?.(6, "正在提交任务");
+  onProgress?.(null, "正在提交任务");
   const data = await fetchJson(baseUrlWithPath(baseUrl, "/images/generations"), {
     method: "POST",
     headers: {
@@ -3074,7 +3198,7 @@ async function callApimartGptImage2({
     throw new Error("APIMart 已响应，但没有返回 task_id。");
   }
 
-  onProgress?.(12, "任务已提交");
+  onProgress?.(null, "任务已提交");
   setStatus(`APIMart 任务已提交：${taskId}。GPT-Image-2 是异步生成，通常需要几十秒。`);
   const urls = await pollApimartTask({ baseUrl, apiKey, taskId, count, onProgress });
   return urls.map((url, index) => ({
@@ -3118,7 +3242,7 @@ async function pollRunningHubTask({ baseUrl, apiKey, apiMode, taskId, count, onP
     if (progress !== null) {
       onProgress?.(progress, "RunningHub 正在生成");
     } else {
-      onProgress?.(Math.min(94, 16 + attempt * 4), "RunningHub 正在生成");
+      onProgress?.(null, "RunningHub 正在生成");
     }
 
     if (isRunningHubPendingCode(data?.code)) {
@@ -3194,7 +3318,7 @@ async function callRunningHubG2({
       setStatus("RunningHub 企业级共享接口正在使用低价渠道文生图生成。");
     }
 
-    onProgress?.(6, "正在提交任务");
+    onProgress?.(null, "正在提交任务");
     const data = await fetchJson(baseUrlWithPath(baseUrl, endpoint), {
       method: "POST",
       headers: {
@@ -3208,7 +3332,7 @@ async function callRunningHubG2({
     if (!taskId) {
       const urls = extractRunningHubImages(data);
       if (urls.length) {
-        onProgress?.(99, "正在载入图片");
+        onProgress?.(null, "正在载入图片");
         return urls.slice(0, count).map((url, index) => ({
           index: `#${galleryItems.length + index + 1}`,
           model,
@@ -3229,7 +3353,7 @@ async function callRunningHubG2({
         : `RunningHub 已响应，但没有返回 taskId 或图片 URL。返回字段：${fields || "空响应"}。`);
     }
 
-    onProgress?.(12, "任务已提交");
+    onProgress?.(null, "任务已提交");
     setStatus(`RunningHub 企业级任务已提交：${taskId}。正在等待生成结果。`);
     const urls = await pollRunningHubTask({ baseUrl, apiKey, apiMode: normalizedMode, taskId, count, onProgress });
     return urls.map((url, index) => ({
@@ -3247,7 +3371,7 @@ async function callRunningHubG2({
   }
 
   const webappId = runningHubG2AppId(useImageReferences);
-  onProgress?.(4, "正在读取AI应用参数");
+  onProgress?.(null, "正在读取AI应用参数");
   const demo = await fetchRunningHubAppDemo({ baseUrl, apiKey, webappId });
   let imageValues = [];
   if (useImageReferences) {
@@ -3269,7 +3393,7 @@ async function callRunningHubG2({
     imageValues
   });
 
-  onProgress?.(6, "正在提交任务");
+  onProgress?.(null, "正在提交任务");
   const data = await fetchJson(baseUrlWithPath(baseUrl, RUNNINGHUB_API_PATHS.appRun), {
     method: "POST",
     headers: {
@@ -3287,7 +3411,7 @@ async function callRunningHubG2({
   if (!taskId) {
     const urls = extractRunningHubImages(data);
     if (urls.length) {
-      onProgress?.(99, "正在载入图片");
+      onProgress?.(null, "正在载入图片");
       return urls.slice(0, count).map((url, index) => ({
         index: `#${galleryItems.length + index + 1}`,
         model,
@@ -3308,7 +3432,7 @@ async function callRunningHubG2({
       : `RunningHub 已响应，但没有返回 taskId 或图片 URL。返回字段：${fields || "空响应"}。`);
   }
 
-  onProgress?.(12, "任务已提交");
+  onProgress?.(null, "任务已提交");
   setStatus(`RunningHub 任务已提交：${taskId}。正在等待生成结果。`);
   const urls = await pollRunningHubTask({ baseUrl, apiKey, apiMode: normalizedMode, taskId, count, onProgress });
   return urls.map((url, index) => ({
@@ -3426,7 +3550,7 @@ async function callImageGenerationApi({
     }
   }
 
-  onProgress?.(18, "正在提交请求");
+  onProgress?.(null, "正在提交请求");
   const data = await fetchJson(baseUrlWithPath(baseUrl, "/images/generations"), {
     method: "POST",
     headers: {
@@ -3441,7 +3565,7 @@ async function callImageGenerationApi({
     throw new Error("API 已返回，但没有识别到图片 URL 或 base64 图片。");
   }
 
-  onProgress?.(96, "正在载入图片");
+  onProgress?.(null, "正在载入图片");
   return urls.slice(0, count).map((url, index) => ({
     index: `#${galleryItems.length + index + 1}`,
     model,
@@ -3472,6 +3596,9 @@ function createGeneratingItems({ count, model, width, height, prompt, promptCn, 
     url: "",
     isGenerating: true,
     progress: 0,
+    progressTarget: 0,
+    progressTargetAt: performance.now(),
+    hasRealProgress: false,
     progressLabel: "等待生成"
   }));
 }
@@ -3493,6 +3620,8 @@ function replaceGeneratingItem(target, item) {
     index: target.index,
     generationId: "",
     progress: 100,
+    progressTarget: 100,
+    hasRealProgress: true,
     isGenerating: false
   };
   renderGallery();
@@ -3508,14 +3637,14 @@ async function runRealGeneration(payload, placeholders) {
 
     for (let index = 0; index < placeholders.length; index += 1) {
       setStatus(`正在生成 ${index + 1}/${placeholders.length}。`);
-      updateGeneratingItemProgress(placeholders[index], 8, `正在生成 ${index + 1}/${placeholders.length}`);
+      updateGeneratingItemProgress(placeholders[index], null, `正在生成 ${index + 1}/${placeholders.length}`);
       const [item] = await callImageGenerationApi({
         ...payload,
         count: 1,
         onProgress: (progress, label) => updateGeneratingItemProgress(placeholders[index], progress, label)
       });
       if (item) {
-        updateGeneratingItemProgress(placeholders[index], 99, "正在载入图片");
+        updateGeneratingItemProgress(placeholders[index], null, "正在载入图片");
         item.index = placeholders[index].index;
         const savedItem = await persistGalleryItemImage(item);
         items.push(savedItem);

@@ -12,6 +12,14 @@ const nodes = {
   mascotBtn: document.querySelector("#mascotBtn"),
   reversePromptBtn: document.querySelector("#reversePromptBtn"),
   clearPromptBtn: document.querySelector("#clearPromptBtn"),
+  visualReuseBtn: document.querySelector("#visualReuseBtn"),
+  visualReusePanel: document.querySelector("#visualReusePanel"),
+  visualReuseAssetType: document.querySelector("#visualReuseAssetType"),
+  visualReuseStrength: document.querySelector("#visualReuseStrength"),
+  visualReuseStyle: document.querySelector("#visualReuseStyle"),
+  visualReuseTextMode: document.querySelector("#visualReuseTextMode"),
+  visualReuseNotes: document.querySelector("#visualReuseNotes"),
+  visualReuseGenerateBtn: document.querySelector("#visualReuseGenerateBtn"),
   textToImageModeBtn: document.querySelector("#textToImageModeBtn"),
   imageToImageModeBtn: document.querySelector("#imageToImageModeBtn"),
   apiToggleBtn: document.querySelector("#apiToggleBtn"),
@@ -88,6 +96,7 @@ let apiConfig = null;
 let activeLightboxItem = null;
 let activePageLightboxTabId = 0;
 let generationMode = "text";
+let promptMethod = "none";
 const runningHubAppDemoCache = new Map();
 let promptMeta = {
   source: "",
@@ -269,6 +278,13 @@ function workspaceStateFromDom() {
     prompt: nodes.promptInput.value,
     promptMeta,
     generationMode,
+    visualReuse: {
+      assetType: nodes.visualReuseAssetType?.value || "auto",
+      strength: nodes.visualReuseStrength?.value || "light",
+      style: nodes.visualReuseStyle?.value || "original",
+      textMode: nodes.visualReuseTextMode?.value || "auto",
+      notes: nodes.visualReuseNotes?.value || ""
+    },
     options: {
       sizeMode: nodes.sizeMode.value,
       width: nodes.widthInput.value,
@@ -564,6 +580,13 @@ function loadWorkspaceState() {
       english: state.promptMeta?.english || "",
       structure: state.promptMeta?.structure || ""
     };
+    if (state.visualReuse) {
+      if (nodes.visualReuseAssetType) nodes.visualReuseAssetType.value = state.visualReuse.assetType || "auto";
+      if (nodes.visualReuseStrength) nodes.visualReuseStrength.value = state.visualReuse.strength || "light";
+      if (nodes.visualReuseStyle) nodes.visualReuseStyle.value = state.visualReuse.style || "original";
+      if (nodes.visualReuseTextMode) nodes.visualReuseTextMode.value = state.visualReuse.textMode || "auto";
+      if (nodes.visualReuseNotes) nodes.visualReuseNotes.value = state.visualReuse.notes || "";
+    }
     const hasRestoredImage = Boolean(imageItems.length || state.image?.src || state.images?.length);
     setGenerationMode(state.generationMode === "image" && hasRestoredImage ? "image" : "text", { silent: true });
     if (state.options) {
@@ -1293,6 +1316,8 @@ async function callPromptApi(imageItem = imageState) {
 }
 
 async function reversePrompt() {
+  setPromptMethod("reverse");
+  setVisualReusePanelOpen(false);
   if (shouldUsePromptApi()) {
     try {
       const targets = getPromptTargetImages();
@@ -1334,6 +1359,191 @@ async function reversePrompt() {
   nodes.promptInput.value = "";
   saveWorkspaceState();
   setStatus("请先添加图片并配置反推提示词 API。多图时请点击选择要反推的图片。");
+}
+
+function selectText(node) {
+  return node?.options?.[node.selectedIndex]?.text || "";
+}
+
+function setVisualReusePanelOpen(isOpen) {
+  if (!nodes.visualReusePanel) return;
+  nodes.visualReusePanel.hidden = !isOpen;
+}
+
+function setPromptMethod(method) {
+  promptMethod = method === "reuse" || method === "reverse" ? method : "none";
+  nodes.reversePromptBtn?.setAttribute("aria-selected", method === "reverse" ? "true" : "false");
+  nodes.visualReuseBtn?.setAttribute("aria-selected", method === "reuse" ? "true" : "false");
+  syncGenerationModeTabs();
+}
+
+function visualReuseOptions() {
+  return {
+    assetType: selectText(nodes.visualReuseAssetType) || "按图片自动判断",
+    strength: selectText(nodes.visualReuseStrength) || "轻度复用",
+    style: selectText(nodes.visualReuseStyle) || "保持原图风格",
+    textMode: selectText(nodes.visualReuseTextMode) || "按用途判断",
+    notes: nodes.visualReuseNotes?.value.trim() || "",
+    ratio: nodes.sizePickerText?.textContent || selectText(nodes.sizeMode) || "自适应",
+    generation: generationModeLabel(generationMode)
+  };
+}
+
+function visualReuseInstruction(options) {
+  const reuseRule = {
+    "轻度复用": "只继承色调、光影、氛围、材质方向、商业调性和版式语气；禁止复刻主体、动作、服装、产品位置、原构图骨架和具体文案。",
+    "中度复用": "继承色调、光影、风格、部分版式节奏和部分构图逻辑；避免完全相同动作、机位、文字布局和主体位置。",
+    "高度复用": "可以更接近参考图的主体关系、构图骨架和版式节奏，但仍需避免一比一复制。",
+    "系统化复用": "提取可复用视觉系统，优先生成可批量延展的商业资产提示词，而不是单张近似图。"
+  }[options.strength] || "";
+
+  return [
+    "你是一名资深视觉设计师和 AI 提示词工程师。请基于参考图生成一条可直接用于 AI 生图的中文提示词。",
+    "不要输出完整变量库，不要解释过程，只保留当前任务最相关的判断。",
+    "",
+    `用户目标：${options.assetType}`,
+    `复用强度：${options.strength}`,
+    `风格方向：${options.style}`,
+    `文字处理：${options.textMode}`,
+    `画面比例：${options.ratio}`,
+    `生成方式：${options.generation}`,
+    `补充要求：${options.notes || "无"}`,
+    "",
+    `复用规则：${reuseRule}`,
+    "",
+    "请先内部判断图片类型、视觉 DNA、继承项、变量项和禁止误继承项，然后只输出一条结构化中文提示词。",
+    "提示词必须包含这些段落：主体内容、使用场景、风格继承、变量调整、色彩光影、构图视角、文字要求、负面约束。",
+    "负面约束必须明确避免：复刻参考图构图、复刻主体动作、复刻具体文案、低质感、杂乱背景、主体变形。",
+    "最终只输出中文提示词正文，不要加分析说明。"
+  ].join("\n");
+}
+
+async function callVisualReusePromptApi(imageItem, instruction) {
+  const config = currentApiConfigFromForm();
+  const prompt = config.prompt;
+  const imageUrl = imageItem.dataUrl || imageItem.src;
+
+  if (!imageUrl || imageUrl.startsWith("blob:")) {
+    throw new Error("本地图片需要重新上传一次，才能发送给视觉复用 API。");
+  }
+
+  if (!prompt.baseUrl || (!prompt.apiKey && prompt.provider !== "custom")) {
+    throw new Error("请先在设置里配置反推提示词 API，视觉复用会复用这组看图理解能力。");
+  }
+
+  if (prompt.provider === "gemini") {
+    const dataUrl = await imageSourceAsDataUrl(imageItem);
+    const parsed = parseDataUrl(dataUrl);
+    if (!parsed) {
+      throw new Error("图片需要是可转换为 base64 的格式。");
+    }
+
+    const response = await fetch(baseUrlWithPath(prompt.baseUrl, `/models/${prompt.model}:generateContent`), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": prompt.apiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                inline_data: {
+                  mime_type: parsed.mimeType,
+                  data: parsed.data
+                }
+              },
+              {
+                text: instruction
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    const raw = await response.text();
+    const data = raw ? JSON.parse(raw) : {};
+    if (!response.ok) {
+      throw new Error(friendlyApiErrorMessage(data?.error?.message || `视觉复用请求失败：${response.status}`, prompt.providerLabel));
+    }
+
+    const content = data?.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text || "")
+      .join("")
+      .trim();
+    if (!content) throw new Error("视觉复用 API 没有返回提示词。");
+    return content;
+  }
+
+  const headers = {
+    "Content-Type": "application/json"
+  };
+  if (prompt.apiKey) {
+    headers.Authorization = `Bearer ${prompt.apiKey}`;
+  }
+
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/chat/completions"), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: prompt.model,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: instruction },
+            {
+              type: "image_url",
+              image_url: { url: imageUrl }
+            }
+          ]
+        }
+      ],
+      max_tokens: 900
+    })
+  });
+
+  const raw = await response.text();
+  const data = raw ? JSON.parse(raw) : {};
+  if (!response.ok) {
+    throw new Error(friendlyApiErrorMessage(data?.error?.message || data?.message || `视觉复用请求失败：${response.status}`, prompt.providerLabel));
+  }
+
+  const content = data?.choices?.[0]?.message?.content || data?.output_text || data?.text;
+  if (!content) throw new Error("视觉复用 API 没有返回提示词。");
+  return String(content).trim();
+}
+
+async function generateVisualReusePrompt() {
+  setPromptMethod("reuse");
+  const targets = getPromptTargetImages();
+  if (!targets.length) {
+    setStatus("请先添加一张参考图，再使用视觉复用。");
+    return;
+  }
+
+  const options = visualReuseOptions();
+  const instruction = visualReuseInstruction(options);
+
+  try {
+    setStatus("正在按视觉复用规则分析参考图...");
+    const content = await callVisualReusePromptApi(targets[0], instruction);
+    const meta = await buildBilingualPromptMeta(content);
+    nodes.promptInput.value = meta.chinese || content;
+    promptMeta = {
+      source: nodes.promptInput.value.trim(),
+      chinese: meta.chinese || content,
+      english: meta.english || "",
+      structure: meta.structure || summarizeChineseStructure(content)
+    };
+    setVisualReusePanelOpen(false);
+    saveWorkspaceState();
+    setStatus("已生成视觉复用提示词，可微调后直接生成图片。");
+  } catch (error) {
+    setStatus(error.message || "视觉复用生成失败，请检查反推提示词 API 配置。");
+  }
 }
 
 function translatePrompt() {
@@ -1654,10 +1864,17 @@ function clearPrompt() {
   saveWorkspaceState();
 }
 
+function syncGenerationModeTabs() {
+  const shouldDimGenerationMode = promptMethod === "reuse";
+  nodes.textToImageModeBtn?.setAttribute("aria-selected", !shouldDimGenerationMode && generationMode === "text" ? "true" : "false");
+  nodes.imageToImageModeBtn?.setAttribute("aria-selected", !shouldDimGenerationMode && generationMode === "image" ? "true" : "false");
+  nodes.textToImageModeBtn?.classList.toggle("is-dimmed-by-method", shouldDimGenerationMode);
+  nodes.imageToImageModeBtn?.classList.toggle("is-dimmed-by-method", shouldDimGenerationMode);
+}
+
 function setGenerationMode(mode, options = {}) {
   generationMode = mode === "text" ? "text" : "image";
-  nodes.textToImageModeBtn?.setAttribute("aria-selected", generationMode === "text" ? "true" : "false");
-  nodes.imageToImageModeBtn?.setAttribute("aria-selected", generationMode === "image" ? "true" : "false");
+  syncGenerationModeTabs();
 
   if (!options.silent) {
     setStatus(generationMode === "image"
@@ -4166,8 +4383,28 @@ nodes.mascotBtn?.addEventListener("click", playMascot);
 nodes.pinWindowBtn?.addEventListener("click", openPinnedWindow);
 nodes.textToImageModeBtn?.addEventListener("click", () => setGenerationMode("text"));
 nodes.imageToImageModeBtn?.addEventListener("click", () => setGenerationMode("image"));
-nodes.reversePromptBtn.addEventListener("click", reversePrompt);
-nodes.clearPromptBtn.addEventListener("click", clearPrompt);
+nodes.reversePromptBtn?.addEventListener("click", reversePrompt);
+nodes.visualReuseBtn?.addEventListener("click", () => {
+  const nextOpen = Boolean(nodes.visualReusePanel?.hidden);
+  setPromptMethod(nextOpen ? "reuse" : "none");
+  setVisualReusePanelOpen(Boolean(nextOpen));
+  if (!nextOpen) {
+    nodes.promptInput.focus();
+  }
+});
+nodes.visualReuseGenerateBtn?.addEventListener("click", generateVisualReusePrompt);
+[
+  nodes.visualReuseAssetType,
+  nodes.visualReuseStrength,
+  nodes.visualReuseStyle,
+  nodes.visualReuseTextMode,
+  nodes.visualReuseNotes
+].forEach((node) => {
+  if (!node) return;
+  node.addEventListener("input", saveWorkspaceState);
+  node.addEventListener("change", saveWorkspaceState);
+});
+nodes.clearPromptBtn?.addEventListener("click", clearPrompt);
 nodes.resetAllBtn?.addEventListener("click", resetAll);
 nodes.generateBtn.addEventListener("click", generate);
 nodes.lightboxClose.addEventListener("click", closeLightbox);

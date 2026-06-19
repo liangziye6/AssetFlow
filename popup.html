@@ -169,6 +169,7 @@
             </div>
           </div>
           <div class="image-meta">
+            <button id="reversePromptBtn" class="image-meta-action mode-tab" type="button">反推提示词</button>
             <span id="imageName">未选择图片</span>
             <span id="imageSize">尺寸待获取</span>
           </div>
@@ -184,10 +185,66 @@
                 <button id="textToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="true">文生图</button>
                 <button id="imageToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="false">图生图</button>
               </div>
-              <div class="inline-actions">
-                <button id="reversePromptBtn" type="button">反推提示词</button>
-                <button id="clearPromptBtn" type="button">清空</button>
+              <div class="prompt-method-tabs" role="tablist" aria-label="提示词方式">
+                <button id="visualReuseBtn" class="mode-tab prompt-method" type="button" role="tab" aria-selected="false">视觉复用</button>
               </div>
+            </div>
+            <div id="visualReusePanel" class="visual-reuse-panel" hidden>
+              <div class="visual-reuse-head">
+                <strong>视觉复用</strong>
+                <small>选择目标方向，AI 会只调用当前相关规则生成提示词。</small>
+              </div>
+              <div class="visual-reuse-grid">
+                <label>
+                  <span>使用目标</span>
+                  <select id="visualReuseAssetType">
+                    <option value="auto">按图片自动判断</option>
+                    <option value="xiaohongshu">小红书封面</option>
+                    <option value="ecommerce">电商主图</option>
+                    <option value="brand-kv">品牌 KV</option>
+                    <option value="poster">商业海报</option>
+                    <option value="ip">IP 延展</option>
+                    <option value="ui">UI 界面</option>
+                    <option value="video">视频首帧</option>
+                  </select>
+                </label>
+                <label>
+                  <span>复用强度</span>
+                  <select id="visualReuseStrength">
+                    <option value="light">轻度复用</option>
+                    <option value="medium">中度复用</option>
+                    <option value="high">高度复用</option>
+                    <option value="system">系统化复用</option>
+                  </select>
+                </label>
+                <label>
+                  <span>风格方向</span>
+                  <select id="visualReuseStyle">
+                    <option value="original">保持原图风格</option>
+                    <option value="premium">更高级</option>
+                    <option value="commercial">更商业化</option>
+                    <option value="tech">更科技感</option>
+                    <option value="young">更年轻化</option>
+                    <option value="minimal">更极简</option>
+                    <option value="luxury">更奢华</option>
+                    <option value="future">更未来感</option>
+                  </select>
+                </label>
+                <label>
+                  <span>文字处理</span>
+                  <select id="visualReuseTextMode">
+                    <option value="auto">按用途判断</option>
+                    <option value="with-text">需要直接生成文字</option>
+                    <option value="reserve">只预留文字区域</option>
+                    <option value="none">不需要文字</option>
+                  </select>
+                </label>
+              </div>
+              <label class="visual-reuse-notes">
+                <span>补充要求</span>
+                <textarea id="visualReuseNotes" placeholder="例如：做成暗黑科技风，保留紫色光效，不要复刻原图主体动作。"></textarea>
+              </label>
+              <button id="visualReuseGenerateBtn" class="visual-reuse-generate" type="button">生成复用提示词</button>
             </div>
             <div class="prompt-composer">
               <textarea id="promptInput" placeholder="图片提示词会出现在这里，也可以直接输入中文或英文。"></textarea>

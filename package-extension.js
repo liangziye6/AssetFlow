@@ -22,7 +22,7 @@ const files = [
   "README.md",
 ];
 
-const directories = ["assets", "docs"];
+const directories = ["docs"];
 const assetReferenceFiles = [
   "manifest.json",
   "content.js",
@@ -49,6 +49,7 @@ async function copyIfPresent(relativePath) {
     return;
   }
 
+  await fsp.mkdir(path.dirname(path.join(buildDir, relativePath)), { recursive: true });
   await fsp.copyFile(source, path.join(buildDir, relativePath));
 }
 
@@ -141,6 +142,10 @@ async function main() {
 
   for (const file of files) {
     await copyIfPresent(file);
+  }
+
+  for (const asset of assets) {
+    await copyIfPresent(asset);
   }
 
   for (const directory of directories) {

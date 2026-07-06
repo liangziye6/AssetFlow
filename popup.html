@@ -39,6 +39,8 @@
                 <select id="promptApiProvider">
                   <option value="openai">OpenAI</option>
                   <option value="gemini">Google Gemini</option>
+                  <option value="aliyun">阿里云百炼</option>
+                  <option value="deepseek">DeepSeek</option>
                   <option value="siliconflow">SiliconFlow</option>
                   <option value="custom">自定义</option>
                 </select>
@@ -61,8 +63,19 @@
                   <option value="gpt-4o-mini">GPT-4o mini</option>
                   <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                   <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                  <option value="deepseek-v4-flash">DeepSeek-V4-Flash</option>
+                  <option value="deepseek-v4-pro">DeepSeek-V4-Pro</option>
                   <option value="qwen-vl-plus">Qwen VL Plus</option>
                   <option value="custom">自定义视觉模型</option>
+                </select>
+              </label>
+              <label id="deepSeekThinkingField" class="api-wide custom-model-field" hidden>
+                <span>DeepSeek 模式</span>
+                <select id="deepSeekThinkingMode">
+                  <option value="flash-off">DeepSeek-V4-Flash · 非思考</option>
+                  <option value="flash-on">DeepSeek-V4-Flash · 思考</option>
+                  <option value="pro-off">DeepSeek-V4-Pro · 非思考</option>
+                  <option value="pro-on">DeepSeek-V4-Pro · 思考</option>
                 </select>
               </label>
             </div>
@@ -170,6 +183,9 @@
           </div>
           <div class="image-meta">
             <button id="reversePromptBtn" class="image-meta-action mode-tab" type="button">反推提示词</button>
+            <label class="reverse-detail-switch" title="开启后反推会同步生成中文、英文和提示词结构；关闭时只保留中文提示词以节省调用成本。">
+              <input id="reverseDetailToggle" type="checkbox">
+            </label>
             <span id="imageName">未选择图片</span>
             <span id="imageSize">尺寸待获取</span>
           </div>
@@ -180,19 +196,18 @@
             <button id="mascotBtn" class="mascot-widget" type="button" aria-label="IP 形象助手">
               <img src="assets/fries-mascot-cutout.png" alt="薯条吉祥物">
             </button>
-            <div class="field-head">
-              <div class="mode-tabs" role="tablist" aria-label="生图方式">
-                <button id="textToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="true">文生图</button>
-                <button id="imageToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="false">图生图</button>
+            <div class="prompt-composer">
+              <div class="field-head">
+                <div class="mode-tabs prompt-mode-tabs" role="tablist" aria-label="生图方式">
+                  <button id="textToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="true">文生图</button>
+                  <button id="imageToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="false">图生图</button>
+                  <button id="visualReuseBtn" class="mode-tab prompt-method" type="button" role="tab" aria-selected="false">视觉复用</button>
+                </div>
               </div>
-              <div class="prompt-method-tabs" role="tablist" aria-label="提示词方式">
-                <button id="visualReuseBtn" class="mode-tab prompt-method" type="button" role="tab" aria-selected="false">视觉复用</button>
-              </div>
-            </div>
-            <div id="visualReusePanel" class="visual-reuse-panel" hidden>
+              <div id="visualReusePanel" class="visual-reuse-panel" hidden>
               <div class="visual-reuse-head">
                 <strong>视觉复用</strong>
-                <small>选择目标方向，AI 会只调用当前相关规则生成提示词。</small>
+                <small>首页输出 12 项结构化执行提示词；手动标签默认高强度继承，补充要求才作为变化开关。</small>
               </div>
               <div class="visual-reuse-grid">
                 <label>
@@ -203,28 +218,39 @@
                     <option value="ecommerce">电商主图</option>
                     <option value="brand-kv">品牌 KV</option>
                     <option value="poster">商业海报</option>
+                    <option value="advertising">广告视觉</option>
                     <option value="ip">IP 延展</option>
                     <option value="ui">UI 界面</option>
                     <option value="video">视频首帧</option>
+                    <option value="event-kv">活动主视觉</option>
+                    <option value="product">产品宣传图</option>
+                    <option value="social">社媒图</option>
                   </select>
                 </label>
                 <label>
-                  <span>复用强度</span>
+                  <span>复用模式</span>
                   <select id="visualReuseStrength">
-                    <option value="light">轻度复用</option>
-                    <option value="medium">中度复用</option>
-                    <option value="high">高度复用</option>
-                    <option value="system">系统化复用</option>
+                    <option value="precise_inherit">精准继承</option>
+                    <option value="balanced_reuse">平衡复用</option>
+                    <option value="creative_rewrite">创意改写</option>
                   </select>
                 </label>
                 <label>
                   <span>风格方向</span>
                   <select id="visualReuseStyle">
                     <option value="original">保持原图风格</option>
+                    <option value="auto">按参考图自动判断</option>
                     <option value="premium">更高级</option>
                     <option value="commercial">更商业化</option>
+                    <option value="fashion">更时尚</option>
                     <option value="tech">更科技感</option>
                     <option value="young">更年轻化</option>
+                    <option value="stable">更稳重</option>
+                    <option value="impact">更有视觉冲击</option>
+                    <option value="cinematic">更电影感</option>
+                    <option value="light">更轻量</option>
+                    <option value="real">更真实</option>
+                    <option value="artistic">更艺术化</option>
                     <option value="minimal">更极简</option>
                     <option value="luxury">更奢华</option>
                     <option value="future">更未来感</option>
@@ -237,16 +263,21 @@
                     <option value="with-text">需要直接生成文字</option>
                     <option value="reserve">只预留文字区域</option>
                     <option value="none">不需要文字</option>
+                    <option value="enhance-title">强化标题表现</option>
+                    <option value="weaken">弱化文字</option>
+                    <option value="generate-title-style">生成标题风格</option>
+                    <option value="replace-copy">替换原文案</option>
+                    <option value="typography-only">只参考字体</option>
+                    <option value="title-position">保留标题位置逻辑</option>
                   </select>
                 </label>
               </div>
               <label class="visual-reuse-notes">
                 <span>补充要求</span>
-                <textarea id="visualReuseNotes" placeholder="例如：做成暗黑科技风，保留紫色光效，不要复刻原图主体动作。"></textarea>
+                <textarea id="visualReuseNotes" placeholder="填写需要改变或特别强调的地方。例如：主体动作保持一致，但服装改成黑色；标题换成 FUTURE VISION；线条只做辅助，不要成为主体。"></textarea>
               </label>
               <button id="visualReuseGenerateBtn" class="visual-reuse-generate" type="button">生成复用提示词</button>
-            </div>
-            <div class="prompt-composer">
+              </div>
               <textarea id="promptInput" placeholder="图片提示词会出现在这里，也可以直接输入中文或英文。"></textarea>
               <div id="promptResizeHandle" class="prompt-resize-handle" role="separator" aria-label="调整提示词文本框高度"></div>
               <div class="prompt-toolbar">
@@ -299,6 +330,7 @@
                   <option value="square">1024 × 1024</option>
                   <option value="portrait">1024 × 1536</option>
                   <option value="landscape">1536 × 1024</option>
+                  <option value="21-9">21:9 · 1792 × 768</option>
                   <option value="16-9">16:9 · 1536 × 864</option>
                   <option value="9-16">9:16 · 864 × 1536</option>
                   <option value="3-4">3:4 · 1152 × 1536</option>
@@ -341,6 +373,11 @@
           <small id="galleryMeta">图库为空</small>
         </div>
         <div id="galleryGrid" class="gallery-grid"></div>
+        <div id="galleryPager" class="gallery-pager" hidden>
+          <button id="galleryPrevBtn" class="gallery-page-btn" type="button">上一页</button>
+          <span id="galleryPageText"></span>
+          <button id="galleryNextBtn" class="gallery-page-btn" type="button">下一页</button>
+        </div>
       </section>
 
       <div id="lightbox" class="lightbox" hidden>

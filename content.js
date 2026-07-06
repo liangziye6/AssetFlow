@@ -4,6 +4,7 @@
 
   const MAX_IMAGES = 80;
   const MAX_TEXT = 180;
+  const VIEWER_THUMB_PAGE_SIZE = 20;
   const VIEWER_ID = "image-spark-page-viewer";
   const ENABLE_EAGLE_INTEGRATION = true;
   let lastContextImage = null;
@@ -11,7 +12,17 @@
   let viewerState = {
     items: [],
     activeIndex: 0,
+    thumbPage: 1,
     zoom: 1,
+    panX: 0,
+    panY: 0,
+    spacePressed: false,
+    panning: false,
+    panStartX: 0,
+    panStartY: 0,
+    panOriginX: 0,
+    panOriginY: 0,
+    panClickSuppressed: false,
     imageExpanded: false,
     eagle: {
       mode: "protocol",
@@ -341,10 +352,57 @@
       .slice(0, 80) || "image-spark";
   }
 
+  function viewerSourceLabel(item = {}) {
+    const source = String(item.source || item.generationSource || "").trim();
+    if (source === "reuse" || source === "visual-reuse") return "视觉复用";
+    return item.mode === "image" ? "图生图" : "文生图";
+  }
+
   function closeViewer() {
     document.getElementById(VIEWER_ID)?.remove();
     document.documentElement.style.removeProperty("overflow");
     viewerState.imageExpanded = false;
+    viewerState.spacePressed = false;
+    viewerState.panning = false;
+  }
+
+  function resetViewerPan() {
+    viewerState.panX = 0;
+    viewerState.panY = 0;
+  }
+
+  function updateViewerPanUi() {
+    const host = document.getElementById(VIEWER_ID);
+    const shadow = host?.shadowRoot;
+    const stage = shadow?.querySelector(".stage");
+    const image = shadow?.querySelector(".main-image");
+    if (!stage || !image) return;
+
+    image.style.transform = `translate(${viewerState.panX}px, ${viewerState.panY}px) scale(${viewerState.zoom})`;
+    image.style.cursor = viewerState.panning
+      ? "grabbing"
+      : viewerState.spacePressed
+        ? "grab"
+        : viewerState.zoom > 1
+          ? "zoom-out"
+          : "zoom-in";
+    stage.classList.toggle("is-pan-ready", Boolean(viewerState.spacePressed));
+    stage.classList.toggle("is-panning", Boolean(viewerState.panning));
+
+    const zoomLayer = shadow?.querySelector(".image-zoom");
+    const zoomImage = shadow?.querySelector(".image-zoom img");
+    if (zoomLayer && zoomImage) {
+      zoomImage.style.transform = `translate(${viewerState.panX}px, ${viewerState.panY}px) scale(${viewerState.zoom})`;
+      zoomImage.style.cursor = viewerState.panning
+        ? "grabbing"
+        : viewerState.spacePressed
+          ? "grab"
+          : "zoom-out";
+      zoomLayer.classList.toggle("is-pan-ready", Boolean(viewerState.spacePressed));
+      zoomLayer.classList.toggle("is-panning", Boolean(viewerState.panning));
+      const zoomReadout = zoomLayer.querySelector(".zoom-readout");
+      if (zoomReadout) zoomReadout.textContent = `${Math.round(viewerState.zoom * 100)}%`;
+    }
   }
 
   function languageBlocks(prompt, item = {}) {
@@ -430,6 +488,54 @@
     });
   }
 
+  function hasViewerImage(item) {
+    return Boolean(item?.url || item?.localStoreId);
+  }
+
+  async function resolveViewerImageUrl(item, variant = "full") {
+    if (!item) return "";
+    if (variant === "thumbnail" && item.thumbnailUrl) return item.thumbnailUrl;
+    if (variant !== "thumbnail" && item.url) return item.url;
+    if (!item.localStoreId) return item.url || item.originalUrl || "";
+
+    const response = await sendRuntimeMessage({
+      type: "IMAGE_SPARK_GET_LOCAL_IMAGE",
+      payload: {
+        id: item.localStoreId,
+        variant
+      }
+    });
+    const dataUrl = response?.dataUrl || "";
+    if (dataUrl) {
+      if (variant === "thumbnail") {
+        item.thumbnailUrl = dataUrl;
+      } else {
+        item.url = dataUrl;
+      }
+      return dataUrl;
+    }
+    return item.url || item.originalUrl || "";
+  }
+
+  function applyViewerImage(image, item, variant = "full") {
+    if (!image || !item) return;
+    const token = `${item.galleryId || item.localStoreId || item.index || ""}-${variant}-${Date.now()}-${Math.random()}`;
+    image.dataset.imageToken = token;
+    const immediate = item.localStoreId
+      ? (variant === "thumbnail" ? item.thumbnailUrl : item.url)
+      : (variant === "thumbnail" ? (item.thumbnailUrl || item.url || item.originalUrl) : (item.url || item.originalUrl));
+    if (immediate) {
+      image.src = immediate;
+    } else {
+      image.removeAttribute("src");
+    }
+    resolveViewerImageUrl(item, variant).then((url) => {
+      if (url && image.dataset.imageToken === token) {
+        image.src = url;
+      }
+    });
+  }
+
   function renderPromptCard(root, title, text, className = "") {
     const card = document.createElement("section");
     card.className = `prompt-card ${className}`.trim();
@@ -438,13 +544,33 @@
     head.className = "prompt-card-head";
     const label = document.createElement("span");
     label.textContent = title;
+    const tools = document.createElement("div");
+    tools.className = "prompt-card-tools";
     const copy = document.createElement("button");
     copy.className = "copy-text";
     copy.type = "button";
     copy.setAttribute("aria-label", `复制${title}`);
     copy.title = `复制${title}`;
     copy.addEventListener("click", () => copyText(text));
-    head.append(label, copy);
+    const collapse = document.createElement("button");
+    collapse.className = "collapse-text";
+    collapse.type = "button";
+    collapse.setAttribute("aria-label", `收起${title}`);
+    collapse.setAttribute("aria-expanded", "true");
+    collapse.title = "收起/展开";
+    const setCollapsed = (isCollapsed) => {
+      card.classList.toggle("is-collapsed", isCollapsed);
+      collapse.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+      collapse.setAttribute("aria-label", `${isCollapsed ? "展开" : "收起"}${title}`);
+    };
+    const toggleCollapsed = () => setCollapsed(!card.classList.contains("is-collapsed"));
+    collapse.addEventListener("click", toggleCollapsed);
+    head.addEventListener("dblclick", (event) => {
+      if (event.target.closest("button")) return;
+      toggleCollapsed();
+    });
+    tools.append(copy, collapse);
+    head.append(label, tools);
 
     const body = document.createElement("pre");
     body.textContent = text;
@@ -460,71 +586,138 @@
     root.innerHTML = "";
     const prompt = item.prompt || "无提示词";
     const blocks = languageBlocks(prompt, item);
-    renderPromptCard(root, "中文", blocks.chinese, "is-language");
-    renderPromptCard(root, "ENGLISH", blocks.english, "is-language");
+    const panels = [
+      { title: "中文", text: blocks.chinese || item.promptCn || prompt || "暂无中文提示词。" }
+    ];
+    if (item.promptEn) {
+      panels.push({ title: "ENGLISH", text: item.promptEn });
+    }
+    if (item.promptStructure) {
+      const structureText = promptSections(item.promptStructure)
+        .map((section) => `${section.title}：\n${section.text}`)
+        .join("\n\n") || item.promptStructure;
+      panels.push({ title: "提示词结构", text: structureText || "暂无提示词结构。" });
+    }
 
-    const template = document.createElement("section");
-    template.className = "prompt-template";
+    const card = document.createElement("section");
+    card.className = "prompt-switch-card";
     const head = document.createElement("div");
-    head.className = "prompt-template-head";
-    const title = document.createElement("span");
-    title.textContent = "提示词结构";
+    head.className = "prompt-switch-head";
+    const tabs = document.createElement("div");
+    tabs.className = "prompt-switch-tabs";
+    tabs.setAttribute("role", "tablist");
+    tabs.dataset.count = String(panels.length);
+    tabs.style.setProperty("--active-index", "0");
+    tabs.style.setProperty("--panel-count", String(panels.length));
     const copy = document.createElement("button");
     copy.className = "copy-text";
     copy.type = "button";
-    copy.setAttribute("aria-label", "复制提示词结构");
-    copy.title = "复制提示词结构";
-    const structureSource = item.promptStructure || item.promptCn || prompt;
-    copy.addEventListener("click", () => copyText(promptSections(structureSource).map((section) => `${section.title}：${section.text}`).join("\n\n")));
-    head.append(title, copy);
-    template.append(head);
-
-    const body = document.createElement("div");
-    body.className = "prompt-template-body";
-    promptSections(structureSource).forEach((section) => {
-      const row = document.createElement("div");
-      row.className = "prompt-section-row";
-      const sectionTitle = document.createElement("strong");
-      sectionTitle.textContent = section.title;
-      const sectionText = document.createElement("p");
-      sectionText.textContent = section.text;
-      row.append(sectionTitle, sectionText);
-      body.append(row);
+    copy.setAttribute("aria-label", "复制当前提示词");
+    copy.title = "复制当前提示词";
+    const body = document.createElement("pre");
+    body.className = "prompt-switch-body";
+    let activeIndex = 0;
+    const setActivePanel = (nextIndex) => {
+      activeIndex = Math.max(0, Math.min(nextIndex, panels.length - 1));
+      tabs.style.setProperty("--active-index", String(activeIndex));
+      tabs.querySelectorAll(".prompt-switch-tab").forEach((button, buttonIndex) => {
+        button.setAttribute("aria-selected", buttonIndex === activeIndex ? "true" : "false");
+      });
+      body.textContent = panels[activeIndex].text;
+      body.scrollTop = 0;
+    };
+    panels.forEach((panel, panelIndex) => {
+      const tab = document.createElement("button");
+      tab.className = "prompt-switch-tab";
+      tab.type = "button";
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", panelIndex === 0 ? "true" : "false");
+      tab.textContent = panel.title;
+      tab.addEventListener("click", () => setActivePanel(panelIndex));
+      tabs.append(tab);
     });
-    template.append(body);
-    root.append(template);
+    copy.addEventListener("click", () => copyText(panels[activeIndex].text));
+    head.append(tabs, copy);
+    card.append(head, body);
+    root.append(card);
+    setActivePanel(0);
+  }
+
+  function renderViewerThumbs() {
+    const host = document.getElementById(VIEWER_ID);
+    const shadow = host?.shadowRoot;
+    const thumbs = shadow?.querySelector(".thumbs");
+    if (!thumbs) return;
+
+    const totalItems = viewerState.items.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / VIEWER_THUMB_PAGE_SIZE));
+    viewerState.thumbPage = Math.max(1, Math.min(Number(viewerState.thumbPage) || 1, totalPages));
+
+    const pageStart = (viewerState.thumbPage - 1) * VIEWER_THUMB_PAGE_SIZE;
+    const pageItems = viewerState.items.slice(pageStart, pageStart + VIEWER_THUMB_PAGE_SIZE);
+    thumbs.innerHTML = "";
+    pageItems.forEach((item, offset) => {
+      const index = pageStart + offset;
+      const button = document.createElement("button");
+      button.className = "thumb";
+      button.type = "button";
+      button.title = `${item.model} - ${item.index}`;
+      button.dataset.label = viewerSourceLabel(item);
+      button.setAttribute("aria-current", index === viewerState.activeIndex ? "true" : "false");
+      button.addEventListener("click", () => setActiveViewerItem(index));
+      const img = document.createElement("img");
+      img.alt = item.index || `#${index + 1}`;
+      button.append(img);
+      applyViewerImage(img, item, "thumbnail");
+      thumbs.append(button);
+    });
+
+    const pager = shadow?.querySelector(".thumbs-pager");
+    if (!pager) return;
+    pager.hidden = totalPages <= 1;
+    const info = pager.querySelector(".thumb-page-info");
+    const prev = pager.querySelector(".thumb-page-prev");
+    const next = pager.querySelector(".thumb-page-next");
+    if (info) info.textContent = `${viewerState.thumbPage} / ${totalPages}`;
+    if (prev) prev.disabled = viewerState.thumbPage <= 1;
+    if (next) next.disabled = viewerState.thumbPage >= totalPages;
   }
 
   function setActiveViewerItem(index) {
     viewerState.activeIndex = Math.max(0, Math.min(index, viewerState.items.length - 1));
+    viewerState.thumbPage = Math.floor(viewerState.activeIndex / VIEWER_THUMB_PAGE_SIZE) + 1;
     const host = document.getElementById(VIEWER_ID);
     if (!host?.shadowRoot) return;
 
     closeViewerImageZoom();
     const item = viewerState.items[viewerState.activeIndex];
-    host.shadowRoot.querySelector(".main-image").src = item.url;
+    const mainImage = host.shadowRoot.querySelector(".main-image");
+    mainImage.alt = `${item.model} ${item.index}`;
+    applyViewerImage(mainImage, item, "full");
     host.shadowRoot.querySelector(".stage-title").textContent = `${item.model} · ${item.width} × ${item.height} · ${item.index}`;
+    resetViewerPan();
     setViewerZoom(1);
     renderPromptPanels(item);
-    host.shadowRoot.querySelectorAll(".thumb").forEach((button, buttonIndex) => {
-      button.setAttribute("aria-current", buttonIndex === viewerState.activeIndex ? "true" : "false");
-    });
+    renderViewerThumbs();
   }
 
   function openViewerImageZoom() {
     const host = document.getElementById(VIEWER_ID);
     const shadow = host?.shadowRoot;
     const item = viewerState.items[viewerState.activeIndex];
-    if (!shadow || !item?.url) return;
+    if (!shadow || !hasViewerImage(item)) return;
 
     const zoomLayer = shadow.querySelector(".image-zoom");
     const zoomImage = shadow.querySelector(".image-zoom img");
     if (!zoomLayer || !zoomImage) return;
 
-    zoomImage.src = item.url;
     zoomImage.alt = `${item.model} ${item.index}`;
+    applyViewerImage(zoomImage, item, "full");
+    const zoomReadout = shadow.querySelector(".image-zoom .zoom-readout");
+    if (zoomReadout) zoomReadout.textContent = `${Math.round(viewerState.zoom * 100)}%`;
     zoomLayer.hidden = false;
     viewerState.imageExpanded = true;
+    updateViewerPanUi();
     zoomLayer.focus({ preventScroll: true });
   }
 
@@ -540,6 +733,7 @@
 
     zoomLayer.hidden = true;
     zoomImage?.removeAttribute("src");
+    zoomImage?.style.removeProperty("transform");
     viewerState.imageExpanded = false;
     return true;
   }
@@ -547,20 +741,28 @@
   function setViewerZoom(value) {
     viewerState.zoom = Math.max(0.5, Math.min(4, value));
     const host = document.getElementById(VIEWER_ID);
-    const image = host?.shadowRoot?.querySelector(".main-image");
+    const shadow = host?.shadowRoot;
+    const image = shadow?.querySelector(".main-image");
     if (!image) return;
-    image.style.transform = `scale(${viewerState.zoom})`;
     image.style.cursor = viewerState.zoom > 1 ? "zoom-out" : "zoom-in";
+    const percent = `${Math.round(viewerState.zoom * 100)}%`;
+    const stage = shadow.querySelector(".stage");
+    const readout = shadow.querySelector(".stage .zoom-readout");
+    if (readout) readout.textContent = percent;
+    stage?.classList.toggle("is-zoomed", viewerState.zoom > 1.01);
+    updateViewerPanUi();
   }
 
   async function downloadViewerImage() {
     const item = viewerState.items[viewerState.activeIndex];
-    if (!item?.url) return;
+    if (!hasViewerImage(item)) return;
+    const imageUrl = await resolveViewerImageUrl(item, "full");
+    if (!imageUrl) return;
 
     const filename = `${safeFilename(`${item.model}-${item.index}`)}.png`;
-    if (!item.url.startsWith("data:")) {
+    if (!imageUrl.startsWith("data:")) {
       try {
-        const response = await fetch(item.url);
+        const response = await fetch(imageUrl);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
@@ -572,7 +774,7 @@
       }
     }
 
-    triggerDownload(item.url, filename);
+    triggerDownload(imageUrl, filename);
   }
 
   function triggerDownload(url, filename) {
@@ -587,7 +789,8 @@
 
   async function collectViewerImageToEagle() {
     const item = viewerState.items[viewerState.activeIndex];
-    if (!item?.url) return;
+    if (!hasViewerImage(item)) return;
+    await resolveViewerImageUrl(item, "full");
 
     if (await collectViewerImageToEagleApi(item)) {
       return;
@@ -662,7 +865,7 @@
 
   function openViewer(payload) {
     const items = Array.isArray(payload?.items)
-      ? payload.items.filter((item) => item?.url).slice(0, 24)
+      ? payload.items.filter(hasViewerImage).slice(0, 24)
       : [];
     if (!items.length) return false;
 
@@ -670,7 +873,17 @@
     viewerState = {
       items,
       activeIndex: Math.max(0, Math.min(Number(payload?.activeIndex) || 0, items.length - 1)),
+      thumbPage: 1,
       zoom: 1,
+      panX: 0,
+      panY: 0,
+      spacePressed: false,
+      panning: false,
+      panStartX: 0,
+      panStartY: 0,
+      panOriginX: 0,
+      panOriginY: 0,
+      panClickSuppressed: false,
       imageExpanded: false,
       eagle: {
         mode: payload?.eagle?.mode || "protocol",
@@ -690,7 +903,7 @@
           inset: 0;
           z-index: 2147483647;
           color-scheme: dark;
-          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-family: Manrope, Inter, "Noto Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
         * {
           box-sizing: border-box;
@@ -728,6 +941,7 @@
           color: #f7f7fb;
           background: rgba(4, 5, 12, 0.9);
           backdrop-filter: blur(18px);
+          font-family: Manrope, Inter, "Noto Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
         .actions {
           position: sticky;
@@ -795,7 +1009,9 @@
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(300px, 430px);
           gap: 14px;
+          height: 100%;
           min-height: 0;
+          overflow: hidden;
         }
         .stage {
           position: relative;
@@ -807,6 +1023,49 @@
           border-radius: 14px;
           background: rgba(255, 255, 255, 0.035);
           place-items: center;
+        }
+        .stage.is-pan-ready,
+        .stage.is-pan-ready .main-image,
+        .image-zoom.is-pan-ready,
+        .image-zoom.is-pan-ready img {
+          cursor: grab;
+        }
+        .stage.is-panning,
+        .stage.is-panning .main-image,
+        .image-zoom.is-panning,
+        .image-zoom.is-panning img {
+          cursor: grabbing;
+        }
+        .stage.is-panning .main-image,
+        .image-zoom.is-panning img {
+          transition: none;
+        }
+        .zoom-readout {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          z-index: 3;
+          min-width: 54px;
+          padding: 7px 10px;
+          border: 1px solid rgba(255, 255, 255, 0.32);
+          border-radius: 999px;
+          color: rgba(255, 255, 255, 0.94);
+          background: rgba(255, 255, 255, 0.22);
+          box-shadow:
+            0 12px 34px rgba(0, 0, 0, 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+          font-size: 12px;
+          font-weight: 850;
+          text-align: center;
+          opacity: 0;
+          pointer-events: none;
+          transform: translate(-50%, -50%) scale(0.96);
+          transition: opacity 160ms ease, transform 160ms ease;
+          backdrop-filter: blur(14px);
+        }
+        .stage.is-zoomed .zoom-readout {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
         }
         .stage-title {
           position: absolute;
@@ -851,13 +1110,20 @@
           object-fit: contain;
           border-radius: 12px;
           box-shadow: 0 28px 110px rgba(0, 0, 0, 0.58);
+          transform-origin: center center;
+          transition: transform 120ms ease;
           cursor: zoom-out;
         }
+        .image-zoom .zoom-readout {
+          opacity: 1;
+        }
         .side {
-          display: grid;
-          grid-template-rows: minmax(0, 1fr) minmax(132px, auto);
+          display: flex;
+          flex-direction: column;
           gap: 12px;
+          height: 100%;
           min-height: 0;
+          overflow: hidden;
         }
         .panel {
           min-width: 0;
@@ -873,16 +1139,114 @@
         }
         .prompt-stack {
           display: grid;
+          grid-auto-rows: minmax(0, 1fr);
+          align-content: start;
           gap: 12px;
+          flex: 1 1 auto;
           min-height: 0;
+          max-height: none;
           overflow: auto;
         }
-        .prompt-card,
-        .prompt-template {
+        .prompt-switch-card {
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          height: 100%;
+          min-height: 0;
           overflow: hidden;
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 12px;
           background: rgba(255, 255, 255, 0.055);
+        }
+        .prompt-switch-head {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          align-items: center;
+          min-height: 42px;
+          padding: 7px 8px 7px 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.04);
+        }
+        .prompt-switch-tabs {
+          --active-index: 0;
+          --panel-count: 1;
+          position: relative;
+          display: grid;
+          justify-self: start;
+          grid-template-columns: repeat(var(--panel-count), max-content);
+          width: max-content;
+          max-width: 100%;
+          min-width: 0;
+          height: 30px;
+          padding: 3px;
+          overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 999px;
+          background: rgba(4, 5, 10, 0.52);
+        }
+        .prompt-switch-tabs::before {
+          content: "";
+          position: absolute;
+          inset: 3px auto 3px 3px;
+          width: calc((100% - 6px) / var(--panel-count));
+          border-radius: 999px;
+          background: linear-gradient(110deg, rgba(168, 85, 247, 0.68), rgba(59, 130, 246, 0.58));
+          box-shadow: 0 8px 26px rgba(59, 130, 246, 0.18);
+          transform: translateX(calc(var(--active-index) * 100%));
+          transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .prompt-switch-tab {
+          position: relative;
+          z-index: 1;
+          min-width: 0;
+          height: 100%;
+          padding: 0 18px;
+          border: 0;
+          border-radius: 999px;
+          color: rgba(235, 236, 248, 0.62);
+          background: transparent;
+          font-size: 11px;
+          font-weight: 800;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+        .prompt-switch-tab[aria-selected="true"] {
+          color: #ffffff;
+        }
+        .prompt-switch-tabs[data-count="1"] .prompt-switch-tab {
+          min-width: 92px;
+        }
+        .prompt-switch-tabs[data-count="2"] .prompt-switch-tab {
+          min-width: 92px;
+        }
+        .prompt-switch-tabs[data-count="3"] {
+          width: min(100%, 300px);
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .prompt-switch-tabs[data-count="3"] .prompt-switch-tab {
+          padding: 0 10px;
+        }
+        .prompt-switch-body {
+          margin: 0;
+          padding: 15px 16px;
+          max-height: none;
+          min-height: 0;
+          overflow: auto;
+          color: #f7f7fb;
+          font-size: 13px;
+          line-height: 1.72;
+          white-space: pre-wrap;
+          font-family: "Roboto Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        }
+        .prompt-card,
+        .prompt-template {
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.055);
+          transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
         }
         .prompt-card-head,
         .prompt-template-head {
@@ -899,6 +1263,16 @@
           font-weight: 800;
           letter-spacing: 0;
         }
+        .prompt-card-head > span,
+        .prompt-template-head > span {
+          min-width: 0;
+        }
+        .prompt-card-tools {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          margin-left: auto;
+        }
         .prompt-card pre {
           margin: 0;
           padding: 14px;
@@ -908,7 +1282,8 @@
           font-size: 13px;
           line-height: 1.65;
           white-space: pre-wrap;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          font-family: "Roboto Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          transition: max-height 220ms ease, opacity 160ms ease, padding 180ms ease;
         }
         .prompt-card:not(.is-language) pre {
           font-family: inherit;
@@ -918,19 +1293,36 @@
           width: 28px;
           height: 28px;
           padding: 0;
-          border-color: transparent;
+          border: 0;
           border-radius: 8px;
           color: #ffffff;
-          background: transparent;
+          background: transparent !important;
+          box-shadow: none;
+          appearance: none;
+          backdrop-filter: none;
           font-size: 12px;
+          transition: background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+        }
+        .collapse-text {
+          position: relative;
+          width: 28px;
+          height: 28px;
+          padding: 0;
+          border: 0;
+          border-radius: 8px;
+          color: rgba(247, 247, 251, 0.86);
+          background: transparent !important;
+          box-shadow: none;
+          appearance: none;
+          backdrop-filter: none;
+          transition: background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
         }
         .copy-text:hover,
-        .copy-text:focus-visible {
-          border-color: rgba(196, 181, 253, 0.52);
-          background:
-            radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.2), transparent 9rem),
-            linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)),
-            rgba(12, 12, 22, 0.52);
+        .copy-text:focus-visible,
+        .collapse-text:hover,
+        .collapse-text:focus-visible {
+          background: transparent !important;
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
         }
         .copy-text::before {
           content: "";
@@ -944,15 +1336,39 @@
           opacity: 0.86;
           transform: translate(-50%, -50%);
         }
-        .prompt-template {
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-          max-height: 420px;
+        .collapse-text::before {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 14px;
+          height: 14px;
+          background: currentColor;
+          mask: url("${chrome.runtime.getURL("assets/chevron-down.svg")}") center / contain no-repeat;
+          transform: translate(-50%, -50%) rotate(0deg);
+          transition: transform 160ms ease;
+        }
+        .prompt-card.is-collapsed .collapse-text::before,
+        .prompt-template.is-collapsed .collapse-text::before {
+          transform: translate(-50%, -50%) rotate(-90deg);
+        }
+        .prompt-card.is-collapsed pre,
+        .prompt-template.is-collapsed .prompt-template-body {
+          max-height: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          opacity: 0;
           overflow: hidden;
+        }
+        .prompt-template {
+          max-height: 420px;
         }
         .prompt-template-body {
           min-height: 0;
+          max-height: 382px;
           overflow: auto;
+          opacity: 1;
+          transition: max-height 220ms ease, opacity 160ms ease;
         }
         .prompt-section-row {
           display: grid;
@@ -974,12 +1390,22 @@
           line-height: 1.55;
           white-space: pre-wrap;
         }
+        .thumbs-panel {
+          display: grid;
+          grid-template-rows: auto auto;
+          align-content: start;
+          gap: 10px;
+          flex: 0 0 auto;
+          min-height: 0;
+          overflow: visible;
+        }
         .thumbs {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           align-content: start;
           gap: 8px;
-          overflow: auto;
+          min-height: 0;
+          overflow: visible;
         }
         .thumbs::before {
           content: "已生成";
@@ -999,6 +1425,15 @@
           border-radius: 8px;
           aspect-ratio: 1;
           background: rgba(255, 255, 255, 0.06);
+          transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+          transform-origin: center center;
+          cursor: zoom-in;
+        }
+        .thumb:hover {
+          z-index: 2;
+          transform: translateY(-2px) scale(1.04);
+          border-color: rgba(196, 181, 253, 0.42);
+          box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
         }
         .thumb[aria-current="true"] {
           border-color: transparent;
@@ -1014,11 +1449,90 @@
           height: 100%;
           object-fit: cover;
         }
+        .thumb::after {
+          content: none;
+          position: absolute;
+          left: 7px;
+          top: 7px;
+          z-index: 1;
+          min-width: 42px;
+          padding: 3px 8px;
+          border: 1px solid rgba(255, 255, 255, 0.32);
+          border-radius: 999px;
+          color: #ffffff;
+          background: rgba(4, 7, 16, 0.48);
+          font-size: 10px;
+          font-weight: 850;
+          line-height: 1.2;
+          backdrop-filter: blur(10px);
+        }
+        .thumbs-pager {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          min-height: 28px;
+        }
+        .thumbs-pager[hidden] {
+          display: none;
+        }
+        .thumb-page-btn {
+          width: 28px;
+          height: 28px;
+          padding: 0;
+          border: 0;
+          border-radius: 999px;
+          background: transparent;
+          color: rgba(247, 247, 251, 0.82);
+          box-shadow: none;
+          backdrop-filter: none;
+        }
+        .thumb-page-btn:hover:not(:disabled),
+        .thumb-page-btn:focus-visible:not(:disabled) {
+          background: rgba(255, 255, 255, 0.08);
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+        }
+        .thumb-page-btn:disabled {
+          opacity: 0.32;
+          cursor: default;
+        }
+        .thumb-page-info {
+          min-width: 44px;
+          text-align: center;
+          color: rgba(230, 229, 245, 0.68);
+          font-size: 11px;
+          font-weight: 800;
+        }
         @media (max-width: 860px) {
           .viewer { padding: 12px; }
-          .layout { grid-template-columns: minmax(0, 1fr); }
+          .layout {
+            grid-template-columns: minmax(0, 1fr);
+            height: auto;
+            overflow: visible;
+          }
           .main-image { max-height: 68vh; }
-          .prompt-stack { max-height: none; }
+          .side {
+            height: auto;
+            overflow: visible;
+          }
+          .prompt-stack {
+            grid-auto-rows: max-content;
+            flex: 0 1 auto;
+            max-height: none;
+            overflow: visible;
+          }
+          .prompt-switch-card {
+            height: auto;
+          }
+          .prompt-switch-body {
+            max-height: none;
+          }
+          .thumbs-panel {
+            flex: 0 1 auto;
+          }
+          .thumbs {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
         }
       </style>
       <div class="viewer" role="dialog" aria-modal="true" aria-label="Image Spark 图片预览">
@@ -1032,13 +1546,22 @@
           <div class="stage">
             <div class="stage-title"></div>
             <img class="main-image" alt="放大预览">
+            <div class="zoom-readout" aria-live="polite">100%</div>
           </div>
           <div class="image-zoom" hidden tabindex="-1" role="dialog" aria-modal="true" aria-label="图片放大预览">
             <img alt="整屏图片预览">
+            <div class="zoom-readout" aria-live="polite">100%</div>
           </div>
           <div class="side">
             <div class="prompt-stack"></div>
-            <div class="panel thumbs"></div>
+            <div class="panel thumbs-panel">
+              <div class="thumbs"></div>
+              <div class="thumbs-pager" hidden>
+                <button class="thumb-page-btn thumb-page-prev" type="button" aria-label="Previous page">&lsaquo;</button>
+                <span class="thumb-page-info"></span>
+                <button class="thumb-page-btn thumb-page-next" type="button" aria-label="Next page">&rsaquo;</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1048,29 +1571,106 @@
     shadow.querySelector(".close").addEventListener("click", closeViewer);
     shadow.querySelector(".download").addEventListener("click", downloadViewerImage);
     shadow.querySelector(".eagle")?.addEventListener("click", collectViewerImageToEagle);
-    shadow.querySelector(".stage").addEventListener("wheel", (event) => {
+    const stage = shadow.querySelector(".stage");
+    const zoomLayer = shadow.querySelector(".image-zoom");
+    const bindViewerPanSurface = (surface) => {
+      if (!surface) return;
+      surface.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        setViewerZoom(viewerState.zoom + (event.deltaY < 0 ? 0.12 : -0.12));
+      }, { passive: false });
+      surface.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || !viewerState.spacePressed) return;
+        event.preventDefault();
+        event.stopPropagation();
+        viewerState.panning = true;
+        viewerState.panClickSuppressed = false;
+        viewerState.panStartX = event.clientX;
+        viewerState.panStartY = event.clientY;
+        viewerState.panOriginX = viewerState.panX;
+        viewerState.panOriginY = viewerState.panY;
+        surface.setPointerCapture?.(event.pointerId);
+        updateViewerPanUi();
+      });
+      surface.addEventListener("pointermove", (event) => {
+        if (!viewerState.panning) return;
+        if ((event.buttons & 1) !== 1) {
+          viewerState.panning = false;
+          updateViewerPanUi();
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        viewerState.panX = viewerState.panOriginX + event.clientX - viewerState.panStartX;
+        viewerState.panY = viewerState.panOriginY + event.clientY - viewerState.panStartY;
+        viewerState.panClickSuppressed = true;
+        updateViewerPanUi();
+      });
+      surface.addEventListener("pointerup", (event) => stopViewerPan(surface, event));
+      surface.addEventListener("pointercancel", (event) => stopViewerPan(surface, event));
+      surface.addEventListener("mouseleave", () => {
+        if (!viewerState.panning) return;
+        viewerState.panning = false;
+        updateViewerPanUi();
+      });
+      surface.addEventListener("contextmenu", (event) => {
+        if (!viewerState.spacePressed && !viewerState.panning && !viewerState.panClickSuppressed) return;
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    };
+    const stopViewerPan = (surface, event) => {
+      if (!viewerState.panning) return;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      viewerState.panning = false;
+      if (event?.pointerId !== undefined) surface?.releasePointerCapture?.(event.pointerId);
+      updateViewerPanUi();
+    };
+    bindViewerPanSurface(stage);
+    bindViewerPanSurface(zoomLayer);
+    let mainImageClickTimer = 0;
+    const mainImage = shadow.querySelector(".main-image");
+    const zoomImage = shadow.querySelector(".image-zoom img");
+    mainImage.draggable = false;
+    zoomImage.draggable = false;
+    mainImage.addEventListener("dragstart", (event) => event.preventDefault());
+    zoomImage.addEventListener("dragstart", (event) => event.preventDefault());
+    mainImage.addEventListener("click", () => {
+      window.clearTimeout(mainImageClickTimer);
+      mainImageClickTimer = window.setTimeout(openViewerImageZoom, 180);
+    });
+    mainImage.addEventListener("dblclick", (event) => {
       event.preventDefault();
-      setViewerZoom(viewerState.zoom + (event.deltaY < 0 ? 0.12 : -0.12));
-    }, { passive: false });
-    shadow.querySelector(".main-image").addEventListener("click", openViewerImageZoom);
-    shadow.querySelector(".main-image").addEventListener("dblclick", () => setViewerZoom(1));
-    shadow.querySelector(".image-zoom").addEventListener("click", closeViewerImageZoom);
+      window.clearTimeout(mainImageClickTimer);
+      resetViewerPan();
+      setViewerZoom(1);
+    });
+    stage.addEventListener("dblclick", (event) => {
+      if (event.target.closest?.("button")) return;
+      event.preventDefault();
+      window.clearTimeout(mainImageClickTimer);
+      resetViewerPan();
+      setViewerZoom(1);
+    });
+    zoomLayer.addEventListener("click", () => {
+      if (viewerState.panClickSuppressed) {
+        viewerState.panClickSuppressed = false;
+        return;
+      }
+      closeViewerImageZoom();
+    });
     shadow.querySelector(".viewer").addEventListener("click", (event) => {
       if (event.target.classList.contains("viewer")) closeViewer();
     });
-
-    const thumbs = shadow.querySelector(".thumbs");
-    items.forEach((item, index) => {
-      const button = document.createElement("button");
-      button.className = "thumb";
-      button.type = "button";
-      button.title = `${item.model} · ${item.index}`;
-      button.addEventListener("click", () => setActiveViewerItem(index));
-      const img = document.createElement("img");
-      img.src = item.url;
-      img.alt = item.index || `#${index + 1}`;
-      button.append(img);
-      thumbs.append(button);
+    shadow.querySelector(".thumb-page-prev")?.addEventListener("click", () => {
+      viewerState.thumbPage = Math.max(1, viewerState.thumbPage - 1);
+      renderViewerThumbs();
+    });
+    shadow.querySelector(".thumb-page-next")?.addEventListener("click", () => {
+      const totalPages = Math.max(1, Math.ceil(viewerState.items.length / VIEWER_THUMB_PAGE_SIZE));
+      viewerState.thumbPage = Math.min(totalPages, viewerState.thumbPage + 1);
+      renderViewerThumbs();
     });
 
     document.documentElement.append(host);
@@ -1080,6 +1680,16 @@
   }
 
   document.addEventListener("keydown", (event) => {
+    const viewerOpen = Boolean(document.getElementById(VIEWER_ID));
+    if (viewerOpen && (event.code === "Space" || event.key === " ")) {
+      const target = event.target;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      event.preventDefault();
+      viewerState.spacePressed = true;
+      updateViewerPanUi();
+      return;
+    }
+
     if (event.key === "Escape" && document.getElementById(VIEWER_ID)) {
       if (closeViewerImageZoom()) {
         event.preventDefault();
@@ -1087,6 +1697,16 @@
       }
       closeViewer();
     }
+  });
+
+  document.addEventListener("keyup", (event) => {
+    if (!document.getElementById(VIEWER_ID)) return;
+    if (event.code !== "Space" && event.key !== " ") return;
+    event.preventDefault();
+    if (viewerState.panning) viewerState.panClickSuppressed = true;
+    viewerState.spacePressed = false;
+    viewerState.panning = false;
+    updateViewerPanUi();
   });
 
   document.addEventListener("contextmenu", (event) => {

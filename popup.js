@@ -6,11 +6,13 @@ const nodes = {
   imageName: document.querySelector("#imageName"),
   imageSize: document.querySelector("#imageSize"),
   clearImageBtn: document.querySelector("#clearImageBtn"),
+  promptComposer: document.querySelector(".prompt-composer"),
   promptInput: document.querySelector("#promptInput"),
   promptResizeHandle: document.querySelector("#promptResizeHandle"),
   copyPromptBtn: document.querySelector("#copyPromptBtn"),
   mascotBtn: document.querySelector("#mascotBtn"),
   reversePromptBtn: document.querySelector("#reversePromptBtn"),
+  reverseDetailToggle: document.querySelector("#reverseDetailToggle"),
   clearPromptBtn: document.querySelector("#clearPromptBtn"),
   visualReuseBtn: document.querySelector("#visualReuseBtn"),
   visualReusePanel: document.querySelector("#visualReusePanel"),
@@ -46,6 +48,10 @@ const nodes = {
   statusText: document.querySelector("#statusText"),
   galleryMeta: document.querySelector("#galleryMeta"),
   galleryGrid: document.querySelector("#galleryGrid"),
+  galleryPager: document.querySelector("#galleryPager"),
+  galleryPrevBtn: document.querySelector("#galleryPrevBtn"),
+  galleryNextBtn: document.querySelector("#galleryNextBtn"),
+  galleryPageText: document.querySelector("#galleryPageText"),
   lightbox: document.querySelector("#lightbox"),
   lightboxClose: document.querySelector("#lightboxClose"),
   lightboxImage: document.querySelector("#lightboxImage"),
@@ -63,6 +69,8 @@ const nodes = {
   imageApiBaseUrl: document.querySelector("#imageApiBaseUrl"),
   imageApiKey: document.querySelector("#imageApiKey"),
   promptModelSelect: document.querySelector("#promptModelSelect"),
+  deepSeekThinkingField: document.querySelector("#deepSeekThinkingField"),
+  deepSeekThinkingMode: document.querySelector("#deepSeekThinkingMode"),
   apiImageModelSelect: document.querySelector("#apiImageModelSelect"),
   runningHubApiModeField: document.querySelector("#runningHubApiModeField"),
   runningHubApiMode: document.querySelector("#runningHubApiMode"),
@@ -89,6 +97,7 @@ let selectedImageIds = new Set();
 let lastConsumedContextImageKey = "";
 
 let generationTimer = 0;
+let pendingGenerationResumeTimer = 0;
 let progressSmoothingFrame = 0;
 let progressSmoothingLastTime = 0;
 let galleryItems = [];
@@ -97,13 +106,28 @@ let activeLightboxItem = null;
 let activePageLightboxTabId = 0;
 let generationMode = "text";
 let promptMethod = "none";
+let galleryImageObserver = null;
 const runningHubAppDemoCache = new Map();
-let promptMeta = {
-  source: "",
-  chinese: "",
-  english: "",
-  structure: ""
-};
+let promptMeta = emptyPromptMeta();
+let reversePromptDetailed = false;
+let galleryPage = 1;
+const GALLERY_PAGE_SIZE_SINGLE = 3;
+const GALLERY_PAGE_SIZE_DOUBLE = 4;
+const GALLERY_PAGE_SIZE_WIDE = 6;
+let galleryPageSize = GALLERY_PAGE_SIZE_SINGLE;
+
+function emptyPromptMeta(extra = {}) {
+  return {
+    source: "",
+    chinese: "",
+    english: "",
+    structure: "",
+    roleCheck: "",
+    selfCheck: "",
+    visualReuseFingerprint: "",
+    ...extra
+  };
+}
 
 function generationModeLabel(mode) {
   return mode === "image" ? "图生图" : "文生图";
@@ -113,14 +137,196 @@ function normalizeGalleryMode(value) {
   return value === "text" ? "text" : "image";
 }
 
+function normalizeGallerySource(value, mode) {
+  const source = String(value || "").trim();
+  if (source === "reuse" || source === "visual-reuse") return "reuse";
+  if (source === "image" || source === "text") return source;
+  return normalizeGalleryMode(mode);
+}
+
+function gallerySourceLabel(item = {}) {
+  return normalizeGallerySource(item.source || item.generationSource, item.mode) === "reuse"
+    ? "视觉复用"
+    : generationModeLabel(item.mode);
+}
+
 const API_STORAGE_KEY = "imageSparkApiConfig";
 const APP_STATE_KEY = "imageSparkWorkspaceState";
 const GALLERY_STORAGE_KEY = "imageSparkGalleryItems";
+const PENDING_GENERATION_TASKS_KEY = "imageSparkPendingGenerationTasks";
+const COMPLETED_GENERATION_RESULTS_KEY = "imageSparkCompletedGenerationResults";
 const PENDING_CONTEXT_IMAGE_KEY = "imageSparkPendingContextImage";
 const LOCAL_IMAGE_DB_NAME = "imageSparkLocalImages";
-const LOCAL_IMAGE_DB_VERSION = 1;
+const LOCAL_IMAGE_DB_VERSION = 2;
 const LOCAL_IMAGE_STORE = "images";
+const LOCAL_GALLERY_STORE = "gallery";
 const MAX_UPLOAD_IMAGES = 4;
+
+function chromeStorageLocalGet(keys) {
+  return new Promise((resolve) => {
+    if (!window.chrome?.storage?.local) {
+      resolve({});
+      return;
+    }
+    chrome.storage.local.get(keys, (result) => {
+      resolve(chrome.runtime?.lastError ? {} : (result || {}));
+    });
+  });
+}
+
+function chromeStorageLocalSet(items) {
+  return new Promise((resolve) => {
+    if (!window.chrome?.storage?.local) {
+      resolve(false);
+      return;
+    }
+    chrome.storage.local.set(items, () => {
+      resolve(!chrome.runtime?.lastError);
+    });
+  });
+}
+
+function chromeStorageLocalRemove(keys) {
+  return new Promise((resolve) => {
+    if (!window.chrome?.storage?.local) {
+      resolve(false);
+      return;
+    }
+    chrome.storage.local.remove(keys, () => {
+      resolve(!chrome.runtime?.lastError);
+    });
+  });
+}
+
+function notifyBackgroundPendingTasksUpdated() {
+  try {
+    window.chrome?.runtime?.sendMessage?.({ type: "IMAGE_SPARK_PENDING_TASKS_UPDATED" }, () => {
+      void chrome.runtime?.lastError;
+    });
+  } catch {
+    // Local preview has no extension background page.
+  }
+}
+
+function mirrorApiConfigToExtensionStorage(config) {
+  if (!config) return;
+  chromeStorageLocalSet({ [API_STORAGE_KEY]: config });
+}
+
+function mirrorPendingGenerationTasksToExtensionStorage(tasks) {
+  const list = Array.isArray(tasks) ? tasks : [];
+  const action = list.length
+    ? chromeStorageLocalSet({ [PENDING_GENERATION_TASKS_KEY]: list })
+    : chromeStorageLocalRemove(PENDING_GENERATION_TASKS_KEY);
+  action.then(notifyBackgroundPendingTasksUpdated);
+}
+
+function currentImageUploadLimit() {
+  return promptMethod === "reuse" ? MAX_UPLOAD_IMAGES : 1;
+}
+
+function currentImageUploadLimitLabel() {
+  return promptMethod === "reuse" ? `最多 ${MAX_UPLOAD_IMAGES} 张` : "当前模式仅支持 1 张";
+}
+
+function syncImageUploadLimitUi() {
+  if (nodes.fileInput) {
+    nodes.fileInput.multiple = currentImageUploadLimit() > 1;
+  }
+  nodes.dropZone?.dataset && (nodes.dropZone.dataset.uploadLimit = String(currentImageUploadLimit()));
+}
+
+function revokeImageItemObjectUrls(items) {
+  (items || []).forEach((item) => {
+    if (item?.objectUrl) {
+      URL.revokeObjectURL(item.objectUrl);
+    }
+  });
+}
+
+function trimImagesToCurrentModeLimit({ silent = false } = {}) {
+  const limit = currentImageUploadLimit();
+  if (imageItems.length <= limit) return false;
+
+  const active = imageItems.find((item) => item.id === activeImageId) || imageItems[0];
+  const kept = active ? [active] : imageItems.slice(0, limit);
+  const keptIds = new Set(kept.map((item) => item.id));
+  revokeImageItemObjectUrls(imageItems.filter((item) => !keptIds.has(item.id)));
+  imageItems = kept.slice(0, limit);
+  activeImageId = imageItems[0]?.id || "";
+  selectedImageIds = new Set(activeImageId ? [activeImageId] : []);
+  syncActiveImageState();
+  saveWorkspaceState();
+
+  if (!silent) {
+    setStatus("当前模式仅支持 1 张图片，已保留当前选中的图片。");
+  }
+  return true;
+}
+const VISUAL_REUSE_IMAGE_ROLES = [
+  {
+    value: "subject",
+    label: "主体参考",
+    prompt: "Subject reference: inherit the subject type, pose, action, outfit structure, hair silhouette, body angle, expression mood, gesture, props, subject scale, and camera relationship inside this role. At high strength, do not change pose, outfit structure, or subject mood unless the user explicitly asks."
+  },
+  {
+    value: "composition",
+    label: "构图参考",
+    prompt: "Composition reference: inherit the framing, subject placement, subject scale, visual center, whitespace direction, camera angle, depth relationship, and composition skeleton inside this role. At high strength, do not change core framing unless the user explicitly asks."
+  },
+  {
+    value: "layout",
+    label: "排版参考",
+    prompt: "Layout reference: inherit the title area, title scale, text hierarchy, text direction, information zones, spacing rhythm, and text-image relationship inside this role. At high strength, do not remove or weaken the title area unless the user chooses no text."
+  },
+  {
+    value: "typography",
+    label: "字体参考",
+    prompt: "Typography reference: inherit font feeling, weight, width, compression, title scale, deformation style, text impact, material feeling, and relationship with the subject. Do not copy original wording, brand names, logos, or trademark text unless explicitly requested."
+  },
+  {
+    value: "style",
+    label: "风格参考",
+    prompt: "Style reference: inherit the overall aesthetic, commercial polish, artistic direction, rendering style, visual language, and design maturity. Do not copy unnecessary subjects or brand identifiers."
+  },
+  {
+    value: "color_material",
+    label: "色彩质感",
+    prompt: "Color and material reference: inherit the main palette, secondary colors, color ratio, contrast, saturation, brightness, lighting direction, highlight style, shadow style, texture, grain, material, and atmosphere. At high strength, do not change the main color system unless the user asks."
+  },
+  {
+    value: "decoration",
+    label: "装饰参考",
+    prompt: "Decoration reference: inherit decoration type, line language, light trails, particles, geometric accents, decoration density, and relationship with the subject. Decoration must always remain secondary and must never become the main subject, dominate composition, or occupy the core visual center."
+  },
+  {
+    value: "auxiliary",
+    label: "辅助参考",
+    prompt: "Auxiliary reference: use small props, local details, and secondary visual features. It must not override subject, composition, layout, typography, color, or style references."
+  },
+  {
+    value: "auto",
+    label: "自动分析",
+    prompt: "Auto analysis reference: decide which small secondary traits are useful, but never override explicit Subject, Composition, Layout, Typography, Color / Material, Style, or Decoration references."
+  }
+];
+const VISUAL_REUSE_ROLE_ALIASES = {
+  primary: "subject",
+  color: "color_material",
+  support: "auxiliary",
+  analyze: "auto"
+};
+const VISUAL_REUSE_FALLBACK_ROLES = [
+  ["subject"],
+  ["layout", "typography"],
+  ["decoration"],
+  ["auto"]
+];
+const VISUAL_REUSE_WEIGHT_OPTIONS = [
+  { value: "high", label: "高", prompt: "High strength: accurately inherit the selected role traits and keep them as close to the reference as possible." },
+  { value: "medium", label: "中", prompt: "Medium strength: preserve core traits while allowing controlled local changes." },
+  { value: "low", label: "低", prompt: "Low strength: borrow only the general direction and allow clear changes." }
+];
 const ENABLE_EAGLE_INTEGRATION = true;
 const RUNNINGHUB_G2_MODEL = "runninghub-rhart-image-g-2";
 const RUNNINGHUB_API_MODE_CONSUMER = "consumer";
@@ -142,6 +348,7 @@ const SIZE_OPTIONS = {
   square: { label: "1:1", ratio: "1:1", resolution: "1k", width: 1024, height: 1024 },
   portrait: { label: "2:3", ratio: "2:3", resolution: "1k", width: 1024, height: 1536 },
   landscape: { label: "3:2", ratio: "3:2", resolution: "1k", width: 1536, height: 1024 },
+  "21-9": { label: "21:9", ratio: "21:9", resolution: "1k", width: 1792, height: 768 },
   "16-9": { label: "16:9", ratio: "16:9", resolution: "1k", width: 1536, height: 864 },
   "9-16": { label: "9:16", ratio: "9:16", resolution: "1k", width: 864, height: 1536 },
   "3-4": { label: "3:4", ratio: "3:4", resolution: "1k", width: 1152, height: 1536 },
@@ -152,15 +359,28 @@ const SIZE_OPTIONS = {
 };
 const RATIO_OPTIONS = [
   { value: "auto", label: "自适应" },
-  { value: "square", label: "1:1" },
-  { value: "portrait", label: "2:3" },
-  { value: "landscape", label: "3:2" },
+  { value: "21-9", label: "21:9" },
   { value: "16-9", label: "16:9" },
-  { value: "9-16", label: "9:16" },
-  { value: "3-4", label: "3:4" },
+  { value: "landscape", label: "3:2" },
   { value: "4-3", label: "4:3" },
+  { value: "square", label: "1:1" },
+  { value: "3-4", label: "3:4" },
+  { value: "portrait", label: "2:3" },
+  { value: "9-16", label: "9:16" },
   { value: "custom", label: "自定义" }
 ];
+const RATIO_ICON_SIZES = {
+  auto: [18, 18],
+  "21-9": [28, 8],
+  "16-9": [26, 10],
+  landscape: [24, 14],
+  "4-3": [22, 16],
+  square: [18, 18],
+  "3-4": [16, 22],
+  portrait: [14, 24],
+  "9-16": [12, 26],
+  custom: [20, 14]
+};
 const RESOLUTION_OPTIONS = [
   { value: "auto", label: "自适应" },
   { value: "square", label: "1k" },
@@ -238,11 +458,10 @@ function setStatus(text) {
   nodes.statusText.textContent = text;
 }
 
-function syncPointerGlow(event) {
-  const x = `${Math.round((event.clientX / Math.max(1, window.innerWidth)) * 100)}%`;
-  const y = `${Math.round((event.clientY / Math.max(1, window.innerHeight)) * 100)}%`;
-  document.documentElement.style.setProperty("--mx", x);
-  document.documentElement.style.setProperty("--my", y);
+function setPromptThinking(active) {
+  if (!nodes.promptComposer) return;
+  nodes.promptComposer.classList.toggle("is-thinking", Boolean(active));
+  nodes.promptComposer.setAttribute("aria-busy", active ? "true" : "false");
 }
 
 function playMascot() {
@@ -271,16 +490,24 @@ function workspaceStateFromDom() {
       src: item.dataUrl || item.src,
       name: item.name,
       width: item.width,
-      height: item.height
+      height: item.height,
+      visualReuseRoles: normalizeVisualReuseRoles(item.visualReuseRoles || item.visualReuseRole),
+      visualReuseRole: "",
+      visualReuseWeight: normalizeVisualReuseWeight(item.visualReuseWeight),
+      visualReuseWeightManual: Boolean(item.visualReuseWeightManual),
+      visualReuseLocked: item.visualReuseLocked !== false,
+      visualReuseRolesManual: Boolean(item.visualReuseRolesManual)
     })),
     activeImageId,
     selectedImageIds: [...selectedImageIds],
     prompt: nodes.promptInput.value,
     promptMeta,
+    reversePromptDetailed,
     generationMode,
+    promptMethod,
     visualReuse: {
       assetType: nodes.visualReuseAssetType?.value || "auto",
-      strength: nodes.visualReuseStrength?.value || "light",
+      strength: normalizeVisualReuseMode(nodes.visualReuseStrength?.value),
       style: nodes.visualReuseStyle?.value || "original",
       textMode: nodes.visualReuseTextMode?.value || "auto",
       notes: nodes.visualReuseNotes?.value || ""
@@ -292,7 +519,7 @@ function workspaceStateFromDom() {
       count: nodes.countInput.value,
       model: nodes.modelSelect.value
     },
-    gallery: serializeGalleryItems(galleryItems)
+    gallery: []
   };
 }
 
@@ -310,6 +537,7 @@ function serializeGalleryItems(items) {
     delete next.lastProgressPaintAt;
     delete next.progressLabel;
     delete next.localObjectUrl;
+    delete next.thumbnailObjectUrl;
     if (next.localStoreId) {
       next.url = next.originalUrl || next.url || "";
     }
@@ -322,7 +550,6 @@ function saveWorkspaceState() {
   try {
     const state = workspaceStateFromDom();
     localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
-    localStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(serializeGalleryItems(galleryItems)));
   } catch {
     setStatus("当前图片或图库过大，浏览器本地存储失败。");
   }
@@ -339,6 +566,85 @@ function clearGalleryStorage() {
   } catch {
     localStorage.removeItem(APP_STATE_KEY);
   }
+}
+
+function loadPendingGenerationTasks() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PENDING_GENERATION_TASKS_KEY) || "[]");
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((task) => task && task.taskId && task.provider && task.generationId)
+      .map((task) => ({
+        ...task,
+        createdAt: Number(task.createdAt) || Date.now(),
+        width: Number(task.width) || 1024,
+        height: Number(task.height) || 1024,
+        count: Math.max(1, Number(task.count) || 1),
+        mode: normalizeGalleryMode(task.mode),
+        source: normalizeGallerySource(task.source || task.generationSource, task.mode)
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function savePendingGenerationTasks(tasks) {
+  const list = Array.isArray(tasks) ? tasks.filter((task) => task?.taskId && task?.generationId) : [];
+  if (!list.length) {
+    localStorage.removeItem(PENDING_GENERATION_TASKS_KEY);
+    mirrorPendingGenerationTasksToExtensionStorage([]);
+    return;
+  }
+  const trimmed = list.slice(-24);
+  localStorage.setItem(PENDING_GENERATION_TASKS_KEY, JSON.stringify(trimmed));
+  mirrorPendingGenerationTasksToExtensionStorage(trimmed);
+}
+
+function upsertPendingGenerationTask(task) {
+  if (!task?.taskId || !task?.generationId) return "";
+  const id = task.id || `${task.provider || "api"}-${task.taskId}-${task.generationId}`;
+  const nextTask = {
+    ...task,
+    id,
+    createdAt: Number(task.createdAt) || Date.now(),
+    count: Math.max(1, Number(task.count) || 1)
+  };
+  const tasks = loadPendingGenerationTasks().filter((item) => item.id !== id);
+  tasks.push(nextTask);
+  savePendingGenerationTasks(tasks);
+  return id;
+}
+
+function removePendingGenerationTask(match) {
+  if (!match) return;
+  const tasks = loadPendingGenerationTasks().filter((task) => {
+    if (match.id && task.id === match.id) return false;
+    if (match.generationId && task.generationId === match.generationId) return false;
+    if (match.provider && match.taskId && task.provider === match.provider && task.taskId === match.taskId) return false;
+    return true;
+  });
+  savePendingGenerationTasks(tasks);
+}
+
+class PendingGenerationTaskError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "PendingGenerationTaskError";
+    this.isPendingGenerationTask = true;
+  }
+}
+
+function isPendingGenerationTaskError(error) {
+  if (error?.isPendingGenerationTask || error?.name === "PendingGenerationTaskError") return true;
+  return /仍在处理中|仍在生成|稍后重试|processing|running/i.test(error?.message || "");
+}
+
+function schedulePendingGenerationResume(delayMs = 90000) {
+  if (pendingGenerationResumeTimer || !loadPendingGenerationTasks().length) return;
+  pendingGenerationResumeTimer = window.setTimeout(() => {
+    pendingGenerationResumeTimer = 0;
+    resumePendingGenerationTasks();
+  }, delayMs);
 }
 
 function normalizeGalleryItems(items) {
@@ -360,6 +666,8 @@ function normalizeGalleryItems(items) {
       localPath: item.localPath || "",
       localStoreId: item.localStoreId || "",
       localMimeType: item.localMimeType || "",
+      galleryId: item.galleryId || item.localStoreId || "",
+      thumbnailObjectUrl: item.thumbnailObjectUrl || "",
       isGenerating: false
     }));
 }
@@ -390,6 +698,7 @@ function loadStoredGalleryItems(stateGallery = []) {
 function imageItemFromSource(image, index = 0) {
   if (!image?.src) return null;
   const src = image.src;
+  const visualReuseRoles = normalizeVisualReuseRoles(image.visualReuseRoles || image.visualReuseRole);
   return {
     id: image.id || `image-${Date.now()}-${index}`,
     src,
@@ -397,7 +706,13 @@ function imageItemFromSource(image, index = 0) {
     width: Number(image.width) || 0,
     height: Number(image.height) || 0,
     dataUrl: src.startsWith("data:image/") ? src : "",
-    objectUrl: ""
+    objectUrl: "",
+    visualReuseRoles,
+    visualReuseRole: "",
+    visualReuseWeight: normalizeVisualReuseWeight(image.visualReuseWeight),
+    visualReuseWeightManual: Boolean(image.visualReuseWeightManual),
+    visualReuseLocked: image.visualReuseLocked !== false,
+    visualReuseRolesManual: Boolean(image.visualReuseRolesManual || image.visualReuseRole || visualReuseRoles.length)
   };
 }
 
@@ -461,6 +776,38 @@ function renderImageStack() {
     card.setAttribute("aria-label", `选择图片 ${index + 1}：${item.name}`);
     card.tabIndex = 0;
     card.title = `${item.name}${item.width && item.height ? ` · ${item.width} × ${item.height}` : ""}。按 Ctrl/Shift 点击可多选批量反推。`;
+    card.draggable = imageItems.length > 1;
+    card.dataset.imageId = item.id;
+    card.addEventListener("dragstart", (event) => {
+      closeVisualReuseRoleEditors();
+      event.stopPropagation();
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-image-spark-image-id", item.id);
+      event.dataTransfer.setData("text/plain", item.id);
+      requestAnimationFrame(() => card.classList.add("is-dragging"));
+    });
+    card.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move";
+      card.classList.add("is-dragover");
+    });
+    card.addEventListener("dragleave", () => {
+      card.classList.remove("is-dragover");
+    });
+    card.addEventListener("drop", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      card.classList.remove("is-dragover");
+      const draggedId = event.dataTransfer.getData("application/x-image-spark-image-id")
+        || event.dataTransfer.getData("text/plain");
+      reorderImageItem(draggedId, item.id);
+    });
+    card.addEventListener("dragend", () => {
+      document.querySelectorAll(".image-thumb.is-dragging, .image-thumb.is-dragover").forEach((node) => {
+        node.classList.remove("is-dragging", "is-dragover");
+      });
+    });
     card.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -498,6 +845,129 @@ function renderImageStack() {
     const badge = document.createElement("span");
     badge.textContent = `#${index + 1}`;
 
+    const roleEditor = document.createElement("div");
+    roleEditor.className = "visual-reuse-role-editor";
+    roleEditor.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
+    const roleButton = document.createElement("button");
+    roleButton.className = "visual-reuse-role-button";
+    roleButton.type = "button";
+    roleButton.title = `图 ${index + 1} 的视觉复用角色`;
+    roleButton.setAttribute("aria-haspopup", "true");
+    roleButton.setAttribute("aria-expanded", "false");
+    updateVisualReuseRoleButton(roleButton, item, index);
+    roleButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const willOpen = !roleEditor.classList.contains("is-open");
+      closeVisualReuseRoleEditors();
+      roleEditor.classList.toggle("is-open", willOpen);
+      roleButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+
+    const roleMenu = document.createElement("div");
+    roleMenu.className = "visual-reuse-role-menu";
+    roleMenu.setAttribute("role", "menu");
+    roleMenu.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
+    const roleList = document.createElement("div");
+    roleList.className = "visual-reuse-role-list";
+    const syncRoleOptionLimit = () => {
+      const checkedCount = roleList.querySelectorAll("input:checked").length;
+      roleList.querySelectorAll("input").forEach((input) => {
+        input.disabled = checkedCount >= 2 && !input.checked;
+      });
+    };
+    const effectiveRoles = effectiveVisualReuseRoles(item, index);
+    VISUAL_REUSE_IMAGE_ROLES.forEach((role) => {
+      const row = document.createElement("label");
+      row.className = "visual-reuse-role-option";
+
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = role.value;
+      input.checked = effectiveRoles.includes(role.value);
+      input.addEventListener("change", () => {
+        let checkedRoles = [...roleList.querySelectorAll("input:checked")]
+          .map((node) => node.value)
+          .filter(Boolean);
+        if (checkedRoles.length > 2) {
+          input.checked = false;
+          checkedRoles = [...roleList.querySelectorAll("input:checked")]
+            .map((node) => node.value)
+            .filter(Boolean);
+          setStatus("每张参考图最多选择 2 个标签，避免角色冲突。");
+        }
+        item.visualReuseRoles = checkedRoles;
+        item.visualReuseRole = "";
+        item.visualReuseRolesManual = checkedRoles.length > 0;
+        if (!item.visualReuseWeightManual) {
+          item.visualReuseWeight = item.visualReuseRolesManual ? "high" : "";
+          weightSelect.value = item.visualReuseWeight || defaultVisualReuseWeight(index, checkedRoles, false);
+        }
+        updateVisualReuseRoleButton(roleButton, item, index);
+        syncRoleOptionLimit();
+        clearGeneratedPromptForReferenceChange("参考图标签已变化，请重新生成复用提示词。");
+        saveWorkspaceState();
+      });
+
+      const label = document.createElement("span");
+      label.textContent = role.label;
+      row.append(input, label);
+      roleList.append(row);
+    });
+    syncRoleOptionLimit();
+
+    const roleFooter = document.createElement("div");
+    roleFooter.className = "visual-reuse-role-footer";
+
+    const weightLabel = document.createElement("label");
+    weightLabel.className = "visual-reuse-mini-field";
+    const weightText = document.createElement("span");
+    weightText.textContent = "强度";
+    const weightSelect = document.createElement("select");
+    weightSelect.className = "visual-reuse-weight-select";
+    VISUAL_REUSE_WEIGHT_OPTIONS.forEach((weight) => {
+      const option = document.createElement("option");
+      option.value = weight.value;
+      option.textContent = weight.label;
+      weightSelect.append(option);
+    });
+    const initialWeight = item.visualReuseWeightManual && item.visualReuseWeight
+      ? item.visualReuseWeight
+      : defaultVisualReuseWeight(index, effectiveRoles, item.visualReuseRolesManual);
+    item.visualReuseWeight = initialWeight;
+    weightSelect.value = initialWeight;
+    weightSelect.addEventListener("change", () => {
+      item.visualReuseWeight = normalizeVisualReuseWeight(weightSelect.value);
+      item.visualReuseWeightManual = true;
+      clearGeneratedPromptForReferenceChange("复用强度已变化，请重新生成复用提示词。");
+      saveWorkspaceState();
+    });
+    weightLabel.append(weightText, weightSelect);
+
+    const lockLabel = document.createElement("label");
+    lockLabel.className = "visual-reuse-lock-field";
+    const lockInput = document.createElement("input");
+    lockInput.type = "checkbox";
+    lockInput.checked = item.visualReuseLocked !== false;
+    lockInput.addEventListener("change", () => {
+      item.visualReuseLocked = lockInput.checked;
+      clearGeneratedPromptForReferenceChange("参考图锁定状态已变化，请重新生成复用提示词。");
+      saveWorkspaceState();
+    });
+    const lockText = document.createElement("span");
+    lockText.textContent = "锁定";
+    lockLabel.append(lockInput, lockText);
+
+    roleFooter.append(weightLabel, lockLabel);
+    roleMenu.append(roleList, roleFooter);
+    roleEditor.append(roleButton, roleMenu);
+
     const removeButton = document.createElement("button");
     removeButton.className = "image-delete";
     removeButton.type = "button";
@@ -509,9 +979,63 @@ function renderImageStack() {
       removeImageItem(item.id);
     });
 
-    card.append(img, badge, removeButton);
+    card.append(img, roleEditor, badge, removeButton);
     nodes.imageStack.append(card);
   });
+}
+
+function visualReuseReferenceFingerprint(items = imageItems) {
+  return normalizeVisualReuseImages(items).map((item, index) => {
+    const roles = effectiveVisualReuseRoles(item, index).join("+");
+    const manualRoles = item.visualReuseRolesManual ? "manual" : "default";
+    const weight = item.visualReuseWeightManual
+      ? normalizeVisualReuseWeight(item.visualReuseWeight)
+      : defaultVisualReuseWeight(index, effectiveVisualReuseRoles(item, index), item.visualReuseRolesManual);
+    return [
+      index + 1,
+      item.id || "",
+      item.name || "",
+      item.width || 0,
+      item.height || 0,
+      roles,
+      manualRoles,
+      weight,
+      item.visualReuseLocked !== false ? "locked" : "unlocked"
+    ].join("::");
+  }).join("||");
+}
+
+function clearGeneratedPromptForReferenceChange(message = "参考图已变化，请重新生成提示词。") {
+  if (isRestoringState || (promptMethod !== "reuse" && promptMethod !== "reverse")) return false;
+  const hasPrompt = Boolean(nodes.promptInput?.value?.trim());
+  const hasMeta = Boolean(promptMeta.source || promptMeta.chinese || promptMeta.english || promptMeta.structure);
+  if (!hasPrompt && !hasMeta) return false;
+  nodes.promptInput.value = "";
+  promptMeta = emptyPromptMeta({
+    visualReuseFingerprint: promptMethod === "reuse" ? visualReuseReferenceFingerprint() : ""
+  });
+  setStatus(message);
+  return true;
+}
+
+function reorderImageItem(sourceId, targetId) {
+  if (!sourceId || !targetId || sourceId === targetId) return false;
+  const fromIndex = imageItems.findIndex((item) => item.id === sourceId);
+  const toIndex = imageItems.findIndex((item) => item.id === targetId);
+  if (fromIndex < 0 || toIndex < 0) return false;
+
+  const [moved] = imageItems.splice(fromIndex, 1);
+  imageItems.splice(toIndex, 0, moved);
+  selectedImageIds = new Set([...selectedImageIds].filter((id) => imageItems.some((item) => item.id === id)));
+  if (!selectedImageIds.size) {
+    selectedImageIds.add(moved.id);
+  }
+  activeImageId = imageItems.some((item) => item.id === activeImageId) ? activeImageId : moved.id;
+  clearGeneratedPromptForReferenceChange("参考图顺序已变化，请重新生成复用提示词。");
+  syncActiveImageState();
+  saveWorkspaceState();
+  setStatus("参考图顺序已更新，请重新生成复用提示词。");
+  return true;
 }
 
 function removeImageItem(id) {
@@ -533,6 +1057,7 @@ function removeImageItem(id) {
     clearPendingContextImageIfMatches();
     lastConsumedContextImageKey = "";
   }
+  clearGeneratedPromptForReferenceChange(imageItems.length ? "参考图已删除，请重新生成提示词。" : "图片已清空，提示词已重置。");
   saveWorkspaceState();
   setStatus(imageItems.length ? "图片已删除。" : "图片已清空。");
 }
@@ -565,6 +1090,12 @@ function loadWorkspaceState() {
   try {
     isRestoringState = true;
     const state = JSON.parse(raw);
+    promptMethod = state.promptMethod === "reuse" || state.promptMethod === "reverse" ? state.promptMethod : "none";
+    reversePromptDetailed = Boolean(state.reversePromptDetailed);
+    if (nodes.reverseDetailToggle) {
+      nodes.reverseDetailToggle.checked = reversePromptDetailed;
+    }
+    setVisualReusePanelOpen(promptMethod === "reuse");
     applyRestoredImage(state.image, state.images, state.activeImageId);
     if (Array.isArray(state.selectedImageIds)) {
       selectedImageIds = new Set(state.selectedImageIds.filter((id) => imageItems.some((item) => item.id === id)));
@@ -578,17 +1109,25 @@ function loadWorkspaceState() {
       source: state.promptMeta?.source || state.prompt || "",
       chinese: state.promptMeta?.chinese || "",
       english: state.promptMeta?.english || "",
-      structure: state.promptMeta?.structure || ""
+      structure: state.promptMeta?.structure || "",
+      roleCheck: state.promptMeta?.roleCheck || "",
+      selfCheck: state.promptMeta?.selfCheck || "",
+      visualReuseFingerprint: state.promptMeta?.visualReuseFingerprint || ""
     };
+    if (!reversePromptDetailed) {
+      promptMeta.english = "";
+      promptMeta.structure = "";
+    }
     if (state.visualReuse) {
       if (nodes.visualReuseAssetType) nodes.visualReuseAssetType.value = state.visualReuse.assetType || "auto";
-      if (nodes.visualReuseStrength) nodes.visualReuseStrength.value = state.visualReuse.strength || "light";
+      if (nodes.visualReuseStrength) nodes.visualReuseStrength.value = normalizeVisualReuseMode(state.visualReuse.strength);
       if (nodes.visualReuseStyle) nodes.visualReuseStyle.value = state.visualReuse.style || "original";
       if (nodes.visualReuseTextMode) nodes.visualReuseTextMode.value = state.visualReuse.textMode || "auto";
       if (nodes.visualReuseNotes) nodes.visualReuseNotes.value = state.visualReuse.notes || "";
     }
     const hasRestoredImage = Boolean(imageItems.length || state.image?.src || state.images?.length);
     setGenerationMode(state.generationMode === "image" && hasRestoredImage ? "image" : "text", { silent: true });
+    setPromptMethod(promptMethod);
     if (state.options) {
       nodes.sizeMode.value = state.options.sizeMode || "auto";
       nodes.modelSelect.value = state.options.model || "gpt-image-1";
@@ -627,6 +1166,8 @@ function defaultBaseUrl(provider) {
   const urls = {
     openai: "https://api.openai.com/v1",
     gemini: "https://generativelanguage.googleapis.com/v1beta",
+    aliyun: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    deepseek: "https://api.deepseek.com",
     apimart: "https://api.apimart.ai/v1",
     runninghub: "https://www.runninghub.cn",
     siliconflow: "https://api.siliconflow.cn/v1",
@@ -635,6 +1176,60 @@ function defaultBaseUrl(provider) {
     custom: ""
   };
   return urls[provider] || "";
+}
+
+function normalizeDeepSeekThinkingMode(value) {
+  return ["flash-off", "flash-on", "pro-off", "pro-on"].includes(value) ? value : "flash-off";
+}
+
+function deepSeekModelFromMode(value) {
+  return normalizeDeepSeekThinkingMode(value).startsWith("pro") ? "deepseek-v4-pro" : "deepseek-v4-flash";
+}
+
+function deepSeekThinkingEnabled(value) {
+  return normalizeDeepSeekThinkingMode(value).endsWith("-on");
+}
+
+function deepSeekModeFromModel(model, thinkingEnabled = false) {
+  const isPro = model === "deepseek-v4-pro";
+  return `${isPro ? "pro" : "flash"}-${thinkingEnabled ? "on" : "off"}`;
+}
+
+function syncDeepSeekPromptUi(options = {}) {
+  if (!nodes.deepSeekThinkingField || !nodes.deepSeekThinkingMode) return;
+  const isDeepSeek = nodes.promptApiProvider.value === "deepseek";
+  nodes.deepSeekThinkingField.hidden = !isDeepSeek;
+  if (!isDeepSeek) return;
+
+  if (options.fromModel) {
+    nodes.deepSeekThinkingMode.value = deepSeekModeFromModel(nodes.promptModelSelect.value, deepSeekThinkingEnabled(nodes.deepSeekThinkingMode.value));
+  }
+  nodes.promptModelSelect.value = deepSeekModelFromMode(nodes.deepSeekThinkingMode.value);
+}
+
+function promptProviderSupportsImageInput(provider) {
+  return provider !== "deepseek";
+}
+
+function assertPromptProviderSupportsImageInput(prompt, featureLabel = "图片分析") {
+  if (promptProviderSupportsImageInput(prompt.provider)) return;
+  throw new Error(`${prompt.providerLabel || "DeepSeek"} 当前不支持图片识别，不能用于${featureLabel}。请切换到阿里云百炼 qwen-vl-plus、Google Gemini 或 OpenAI 视觉模型。`);
+}
+
+function openAiCompatibleChatPayload(prompt, messages, maxTokens) {
+  const payload = {
+    model: prompt.model,
+    messages,
+    max_tokens: maxTokens
+  };
+  if (prompt.provider === "deepseek") {
+    const thinking = Boolean(prompt.deepSeekThinking);
+    payload.thinking = { type: thinking ? "enabled" : "disabled" };
+    if (thinking) {
+      payload.reasoning_effort = "high";
+    }
+  }
+  return payload;
 }
 
 function defaultEagleBaseUrl() {
@@ -718,16 +1313,183 @@ function revokeObjectUrl() {
   });
 }
 
-function extractImageUrlFromHtml(html) {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  return doc.querySelector("img")?.src || "";
+function uniqueValues(values) {
+  const seen = new Set();
+  return values.filter((value) => {
+    const key = String(value || "").trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeImageUrlCandidate(value) {
+  const text = String(value || "").trim().replace(/^['"]|['"]$/g, "");
+  if (!text || text === "about:blank" || text === "#") return "";
+  if (/^data:image\//i.test(text)) return text;
+  if (/^https?:\/\//i.test(text)) return text;
+  if (/^\/\//.test(text)) return `${window.location.protocol}${text}`;
+  return "";
+}
+
+function parseSrcsetUrls(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => normalizeImageUrlCandidate(item.trim().split(/\s+/)[0]))
+    .filter(Boolean);
+}
+
+function bestSrcsetUrl(value) {
+  const urls = parseSrcsetUrls(value);
+  return urls[urls.length - 1] || "";
+}
+
+function firstImageUrlCandidate(values) {
+  for (const value of values) {
+    const url = normalizeImageUrlCandidate(value);
+    if (url) return url;
+  }
+  return "";
+}
+
+function bestImageUrlFromElement(image) {
+  if (!image) return "";
+  return firstImageUrlCandidate([
+    image.getAttribute("data-full"),
+    image.getAttribute("data-large"),
+    image.getAttribute("data-original"),
+    image.getAttribute("data-pin-media"),
+    image.getAttribute("data-media"),
+    image.getAttribute("data-image"),
+    image.getAttribute("data-lazy-src"),
+    image.getAttribute("data-src"),
+    image.getAttribute("src"),
+    image.src,
+    bestSrcsetUrl(image.getAttribute("srcset")),
+    bestSrcsetUrl(image.getAttribute("data-srcset"))
+  ]);
+}
+
+function extractCssImageUrls(value) {
+  const urls = [];
+  const pattern = /url\((['"]?)(.*?)\1\)/gi;
+  let match = pattern.exec(String(value || ""));
+  while (match) {
+    const url = normalizeImageUrlCandidate(match[2]);
+    if (url) urls.push(url);
+    match = pattern.exec(String(value || ""));
+  }
+  return urls;
+}
+
+function normalizeDroppedUrls(value) {
+  const text = String(value || "").trim();
+  if (!text) return [];
+  if (/^data:image\//i.test(text)) return [text];
+
+  const urls = [];
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+
+  lines.forEach((line) => {
+    const direct = normalizeImageUrlCandidate(line);
+    if (direct) {
+      urls.push(direct);
+      return;
+    }
+
+    const matches = line.match(/https?:\/\/[^\s"'<>）)]+/gi) || [];
+    matches.forEach((url) => {
+      const normalized = normalizeImageUrlCandidate(url);
+      if (normalized) urls.push(normalized);
+    });
+  });
+
+  return uniqueValues(urls);
 }
 
 function normalizeDroppedUrl(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  const firstLine = text.split(/\r?\n/).find(Boolean) || "";
-  return /^https?:\/\/|^data:image\//i.test(firstLine) ? firstLine : "";
+  return normalizeDroppedUrls(value)[0] || "";
+}
+
+function extractImageUrlsFromHtml(html) {
+  const text = String(html || "").trim();
+  if (!text) return [];
+
+  const urls = [];
+  const doc = new DOMParser().parseFromString(text, "text/html");
+  const add = (value) => {
+    const url = normalizeImageUrlCandidate(value);
+    if (url) urls.push(url);
+  };
+  const addSrcset = (value) => {
+    parseSrcsetUrls(value).forEach((url) => urls.push(url));
+  };
+
+  const imageUrls = uniqueValues([...doc.querySelectorAll("img")]
+    .map((image) => bestImageUrlFromElement(image))
+    .filter(Boolean));
+  if (imageUrls.length) {
+    return imageUrls;
+  }
+
+  doc.querySelectorAll("img").forEach((image) => {
+    [
+      "src",
+      "currentSrc",
+      "data-src",
+      "data-original",
+      "data-lazy-src",
+      "data-full",
+      "data-large",
+      "data-image",
+      "data-url",
+      "data-media",
+      "data-pin-media"
+    ].forEach((attr) => add(image.getAttribute(attr)));
+    addSrcset(image.getAttribute("srcset"));
+    addSrcset(image.getAttribute("data-srcset"));
+  });
+
+  doc.querySelectorAll("source").forEach((source) => {
+    addSrcset(source.getAttribute("srcset"));
+    addSrcset(source.getAttribute("data-srcset"));
+  });
+
+  doc.querySelectorAll("meta[property='og:image'], meta[name='twitter:image']").forEach((meta) => {
+    add(meta.getAttribute("content"));
+  });
+
+  doc.querySelectorAll("a[href]").forEach((link) => {
+    const href = link.getAttribute("href");
+    if (/\.(png|jpe?g|webp|gif|avif|bmp|svg)(\?|#|$)/i.test(href || "")) {
+      add(href);
+    }
+  });
+
+  doc.querySelectorAll("[style]").forEach((element) => {
+    extractCssImageUrls(element.getAttribute("style")).forEach((url) => urls.push(url));
+  });
+
+  doc.querySelectorAll("*").forEach((element) => {
+    [...element.attributes].forEach((attr) => {
+      if (!/(src|image|img|media|thumb|poster|url)/i.test(attr.name)) return;
+      if (attr.name === "srcset" || attr.name === "data-srcset") {
+        addSrcset(attr.value);
+      } else {
+        add(attr.value);
+      }
+    });
+  });
+
+  const extracted = uniqueValues(urls);
+  return extracted.length ? extracted : normalizeDroppedUrls(text);
+}
+
+function extractImageUrlFromHtml(html) {
+  return extractImageUrlsFromHtml(html)[0] || "";
 }
 
 function readImageDimensions(src) {
@@ -748,11 +1510,18 @@ async function setImage(src, name = "网页图片") {
     width: 0,
     height: 0,
     dataUrl: src.startsWith("data:image/") ? src : "",
-    objectUrl: ""
+    objectUrl: "",
+    visualReuseRoles: [],
+    visualReuseRole: "",
+    visualReuseWeight: "",
+    visualReuseWeightManual: false,
+    visualReuseLocked: true,
+    visualReuseRolesManual: false
   };
   imageItems = [item];
   activeImageId = item.id;
   selectedImageIds = new Set([item.id]);
+  clearGeneratedPromptForReferenceChange("图片已更换，请重新生成提示词。");
   syncActiveImageState();
   nodes.imageSize.textContent = "正在获取尺寸...";
 
@@ -773,22 +1542,7 @@ async function setImage(src, name = "网页图片") {
   }
 }
 
-async function addImageFromUrl(src, name = "网页右键图片") {
-  const imageUrl = normalizeDroppedUrl(src);
-  if (!imageUrl) {
-    setStatus("没有识别到可添加的图片地址。");
-    return false;
-  }
-
-  const existing = imageItems.find((item) => item.src === imageUrl || item.dataUrl === imageUrl);
-  if (existing) {
-    activeImageId = existing.id;
-    selectedImageIds = new Set([existing.id]);
-    syncActiveImageState();
-    setStatus("这张图片已在插件中，已为你选中。");
-    return true;
-  }
-
+async function buildImageItemFromUrl(imageUrl, name) {
   const item = {
     id: `image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     src: imageUrl,
@@ -796,7 +1550,13 @@ async function addImageFromUrl(src, name = "网页右键图片") {
     width: 0,
     height: 0,
     dataUrl: imageUrl.startsWith("data:image/") ? imageUrl : "",
-    objectUrl: ""
+    objectUrl: "",
+    visualReuseRoles: [],
+    visualReuseRole: "",
+    visualReuseWeight: "",
+    visualReuseWeightManual: false,
+    visualReuseLocked: true,
+    visualReuseRolesManual: false
   };
 
   try {
@@ -804,24 +1564,119 @@ async function addImageFromUrl(src, name = "网页右键图片") {
     item.width = size.width;
     item.height = size.height;
   } catch {
-    item.width = 0;
-    item.height = 0;
+    return null;
+  }
+
+  return item;
+}
+
+async function addImagesFromUrls(srcList, name = "网页拖入图片") {
+  const urls = uniqueValues([...(Array.isArray(srcList) ? srcList : [srcList])]
+    .flatMap((src) => normalizeDroppedUrls(src)));
+  if (!urls.length) {
+    setStatus("没有识别到可添加的图片地址。");
+    return false;
+  }
+
+  const limit = currentImageUploadLimit();
+  const existingItems = [];
+  const newUrls = [];
+  urls.forEach((imageUrl) => {
+    const existing = imageItems.find((item) => item.src === imageUrl || item.dataUrl === imageUrl);
+    if (existing) {
+      existingItems.push(existing);
+    } else {
+      newUrls.push(imageUrl);
+    }
+  });
+
+  if (limit === 1) {
+    const targetExisting = existingItems[0];
+    if (targetExisting && !newUrls.length) {
+      const removed = imageItems.filter((item) => item !== targetExisting);
+      revokeImageItemObjectUrls(removed);
+      imageItems = [targetExisting];
+      activeImageId = targetExisting.id;
+      selectedImageIds = new Set([targetExisting.id]);
+      syncActiveImageState();
+      saveWorkspaceState();
+      setStatus("这张图片已在插件中，已为你选中。");
+      return true;
+    }
+
+    const pickedUrl = newUrls[0] || urls[0];
+    const item = targetExisting || await buildImageItemFromUrl(pickedUrl, name);
+    if (!item) {
+      setStatus("图片地址无法加载，已跳过。");
+      return false;
+    }
+    revokeImageItemObjectUrls(imageItems.filter((image) => image !== item));
+    imageItems = [item];
+    activeImageId = item.id;
+    selectedImageIds = new Set([item.id]);
+    clearGeneratedPromptForReferenceChange("图片已更换，请重新生成提示词。");
+    syncActiveImageState();
+
+    if (nodes.sizeMode.value === "auto" && imageState.width && imageState.height) {
+      syncSizeInputs(imageState.width, imageState.height);
+    }
+
+    saveWorkspaceState();
+    setStatus(urls.length > 1
+      ? "当前模式仅支持 1 张图片，已使用第一张网页图片。"
+      : "已添加网页图片。");
+    return true;
+  }
+
+  const availableSlots = Math.max(0, limit - imageItems.length);
+  const pickedUrls = newUrls.slice(0, availableSlots || limit);
+  if (!pickedUrls.length && existingItems.length) {
+    activeImageId = existingItems[0].id;
+    selectedImageIds = new Set(existingItems.map((item) => item.id));
+    syncActiveImageState();
+    setStatus(existingItems.length > 1 ? "这些图片已在插件中，已为你选中。" : "这张图片已在插件中，已为你选中。");
+    return true;
+  }
+  if (!pickedUrls.length) {
+    setStatus(`${currentImageUploadLimitLabel()}，请先删除不需要的参考图。`);
+    return false;
+  }
+
+  const newItems = await Promise.all(pickedUrls.map((imageUrl, index) => (
+    buildImageItemFromUrl(imageUrl, pickedUrls.length > 1 ? `${name} ${index + 1}` : name)
+  )));
+  const validNewItems = newItems.filter(Boolean);
+  if (!validNewItems.length) {
+    setStatus("这些网页图片地址无法加载，已跳过。");
+    return false;
   }
 
   imageItems = imageItems.length >= MAX_UPLOAD_IMAGES
-    ? [...imageItems.slice(1), item]
-    : [...imageItems, item];
-  activeImageId = item.id;
-  selectedImageIds = new Set([item.id]);
+    ? [...imageItems.slice(validNewItems.length), ...validNewItems].slice(-MAX_UPLOAD_IMAGES)
+    : [...imageItems, ...validNewItems].slice(-MAX_UPLOAD_IMAGES);
+  activeImageId = validNewItems[0]?.id || existingItems[0]?.id || activeImageId;
+  selectedImageIds = new Set([...existingItems, ...validNewItems].map((item) => item.id));
+  clearGeneratedPromptForReferenceChange("参考图已变化，请重新生成复用提示词。");
   syncActiveImageState();
 
-  if (nodes.sizeMode.value === "auto" && item.width && item.height) {
-    syncSizeInputs(item.width, item.height);
+  if (nodes.sizeMode.value === "auto" && imageState.width && imageState.height) {
+    syncSizeInputs(imageState.width, imageState.height);
   }
 
   saveWorkspaceState();
-  setStatus("已从右键菜单添加图片。");
+  const omitted = newUrls.length - pickedUrls.length;
+  const skipped = pickedUrls.length - validNewItems.length;
+  const suffix = omitted > 0
+    ? `，已达到最多 ${limit} 张，另有 ${omitted} 张未加入。`
+    : skipped > 0
+      ? `，另有 ${skipped} 张无法加载已跳过。`
+      : "。";
+  setStatus(`已添加 ${validNewItems.length} 张网页图片${suffix}`);
   return true;
+}
+
+async function addImageFromUrl(src, name = "网页右键图片") {
+  return addImagesFromUrls([src], name);
 }
 
 function clearPendingContextImageIfMatches(src = "") {
@@ -883,14 +1738,16 @@ async function setImagesFromFiles(files) {
   const imageFiles = [...(files || [])].filter((file) => file?.type?.startsWith("image/"));
   if (!imageFiles.length) return;
 
-  const availableSlots = Math.max(0, MAX_UPLOAD_IMAGES - imageItems.length);
-  const picked = imageFiles.slice(0, availableSlots || MAX_UPLOAD_IMAGES);
-  if (!availableSlots && imageItems.length >= MAX_UPLOAD_IMAGES) {
-    setStatus(`最多上传 ${MAX_UPLOAD_IMAGES} 张图片。`);
+  const limit = currentImageUploadLimit();
+  const shouldReplaceSingle = limit === 1;
+  const availableSlots = shouldReplaceSingle ? 1 : Math.max(0, limit - imageItems.length);
+  const picked = imageFiles.slice(0, availableSlots || limit);
+  if (!shouldReplaceSingle && !availableSlots && imageItems.length >= limit) {
+    setStatus(`最多上传 ${limit} 张图片。`);
     return;
   }
 
-  const startIndex = imageItems.length;
+  const startIndex = shouldReplaceSingle ? 0 : imageItems.length;
   const newItems = await Promise.all(picked.map(async (file, index) => {
     const objectUrl = URL.createObjectURL(file);
     const dataUrl = await fileToDataUrl(file);
@@ -901,7 +1758,13 @@ async function setImagesFromFiles(files) {
       width: 0,
       height: 0,
       dataUrl,
-      objectUrl
+      objectUrl,
+      visualReuseRoles: [],
+      visualReuseRole: "",
+      visualReuseWeight: "",
+      visualReuseWeightManual: false,
+      visualReuseLocked: true,
+      visualReuseRolesManual: false
     };
 
     try {
@@ -916,9 +1779,15 @@ async function setImagesFromFiles(files) {
     return item;
   }));
 
-  imageItems = [...imageItems, ...newItems].slice(0, MAX_UPLOAD_IMAGES);
+  if (shouldReplaceSingle) {
+    revokeImageItemObjectUrls(imageItems);
+    imageItems = newItems.slice(0, 1);
+  } else {
+    imageItems = [...imageItems, ...newItems].slice(0, limit);
+  }
   activeImageId = newItems[0]?.id || activeImageId || imageItems[0]?.id || "";
   selectedImageIds = new Set(newItems.length ? newItems.map((item) => item.id) : [activeImageId].filter(Boolean));
+  clearGeneratedPromptForReferenceChange("参考图已变化，请重新生成提示词。");
   syncActiveImageState();
 
   if (nodes.sizeMode.value === "auto" && imageState.width && imageState.height) {
@@ -927,8 +1796,12 @@ async function setImagesFromFiles(files) {
 
   saveWorkspaceState();
   const selectedTip = picked.length > 1 ? "已选中新图，可直接批量反推。" : "已选中当前图片。";
+  if (shouldReplaceSingle && imageFiles.length > 1) {
+    setStatus("当前模式仅支持 1 张图片，已使用第一张本地图片。");
+    return;
+  }
   setStatus(imageFiles.length > picked.length
-    ? `已添加 ${picked.length} 张图片，最多支持 ${MAX_UPLOAD_IMAGES} 张。${selectedTip}`
+    ? `已添加 ${picked.length} 张图片，最多支持 ${limit} 张。${selectedTip}`
     : `已添加 ${picked.length} 张图片。${selectedTip}`);
 }
 
@@ -983,6 +1856,56 @@ async function galleryItemDataUrlFromStore(item) {
   const stored = await imageFromIndexedDb(item.localStoreId);
   if (!stored?.blob) return "";
   return fileToDataUrl(stored.blob);
+}
+
+function isSameGalleryItem(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.galleryId && b.galleryId && a.galleryId === b.galleryId) return true;
+  if (a.localStoreId && b.localStoreId && a.localStoreId === b.localStoreId) return true;
+  if (a.generationId && b.generationId && a.generationId === b.generationId) return true;
+  return false;
+}
+
+function patchGalleryItem(item, patch) {
+  const next = { ...item, ...patch };
+  galleryItems = galleryItems.map((galleryItem) => isSameGalleryItem(galleryItem, item) ? next : galleryItem);
+  Object.assign(item, patch);
+  if (activeLightboxItem && isSameGalleryItem(activeLightboxItem, item)) {
+    activeLightboxItem = { ...activeLightboxItem, ...patch };
+  }
+  return next;
+}
+
+function galleryItemPreviewUrl(item) {
+  return item?.thumbnailObjectUrl || item?.localObjectUrl || item?.url || "";
+}
+
+async function ensureGalleryPreviewObjectUrl(item) {
+  if (!item?.localStoreId) return item?.url || "";
+  const existing = galleryItemPreviewUrl(item);
+  if (existing) return existing;
+
+  const stored = await imageFromIndexedDb(item.localStoreId);
+  const blob = stored?.thumbnailBlob || stored?.blob;
+  if (!blob) return "";
+  const objectUrl = URL.createObjectURL(blob);
+  patchGalleryItem(item, stored.thumbnailBlob ? { thumbnailObjectUrl: objectUrl } : { localObjectUrl: objectUrl, url: objectUrl });
+  return objectUrl;
+}
+
+async function ensureGalleryFullObjectUrl(item) {
+  if (!item?.localStoreId) return item;
+  if (item.localObjectUrl && item.url === item.localObjectUrl) return item;
+
+  const stored = await imageFromIndexedDb(item.localStoreId);
+  if (!stored?.blob) return item;
+  const localObjectUrl = URL.createObjectURL(stored.blob);
+  return patchGalleryItem(item, {
+    localObjectUrl,
+    localMimeType: stored.mimeType || item.localMimeType || "image/png",
+    url: localObjectUrl
+  });
 }
 
 async function portableGalleryImageUrl(item, tabUrl = "") {
@@ -1110,7 +2033,16 @@ function renderSizeMenu() {
     button.type = "button";
     button.dataset.mode = option.value;
     button.dataset.ratio = SIZE_OPTIONS[option.value]?.ratio || option.value;
-    button.textContent = option.label;
+    const [iconWidth, iconHeight] = RATIO_ICON_SIZES[option.value] || RATIO_ICON_SIZES.custom;
+    button.style.setProperty("--ratio-icon-width", `${iconWidth}px`);
+    button.style.setProperty("--ratio-icon-height", `${iconHeight}px`);
+    const icon = document.createElement("span");
+    icon.className = "ratio-icon";
+    icon.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.className = "ratio-label";
+    label.textContent = option.label;
+    button.append(icon, label);
     button.setAttribute("aria-selected", "false");
     button.addEventListener("click", () => selectSizeMode(option.value));
     nodes.ratioGrid.append(button);
@@ -1164,6 +2096,7 @@ function applySizeMode() {
     square: [1024, 1024],
     portrait: [1024, 1536],
     landscape: [1536, 1024],
+    "21-9": [1792, 768],
     "16-9": [1536, 864],
     "9-16": [864, 1536],
     "3-4": [1152, 1536],
@@ -1197,10 +2130,22 @@ function getPromptTargetImages() {
   return active ? [active] : [];
 }
 
+function getVisualReuseTargetImages() {
+  return imageItems.slice(0, MAX_UPLOAD_IMAGES);
+}
+
+function isVisualReusePromptCurrent() {
+  if (promptMethod !== "reuse") return true;
+  if (!nodes.promptInput.value.trim()) return true;
+  const currentFingerprint = visualReuseReferenceFingerprint(getVisualReuseTargetImages());
+  return Boolean(promptMeta.visualReuseFingerprint && promptMeta.visualReuseFingerprint === currentFingerprint);
+}
+
 async function callPromptApi(imageItem = imageState) {
   const config = currentApiConfigFromForm();
   const prompt = config.prompt;
   const imageUrl = imageItem.dataUrl || imageItem.src;
+  assertPromptProviderSupportsImageInput(prompt, "反推提示词");
 
   if (!imageUrl || imageUrl.startsWith("blob:")) {
     throw new Error("本地图片需要重新上传一次，才能发送给反推提示词 API。");
@@ -1272,9 +2217,7 @@ async function callPromptApi(imageItem = imageState) {
   const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/chat/completions"), {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      model: prompt.model,
-      messages: [
+    body: JSON.stringify(openAiCompatibleChatPayload(prompt, [
         {
           role: "user",
           content: [
@@ -1290,9 +2233,7 @@ async function callPromptApi(imageItem = imageState) {
             }
           ]
         }
-      ],
-      max_tokens: 360
-    })
+      ], 520))
   });
 
   const text = await response.text();
@@ -1318,9 +2259,12 @@ async function callPromptApi(imageItem = imageState) {
 async function reversePrompt() {
   setPromptMethod("reverse");
   setVisualReusePanelOpen(false);
+  reversePromptDetailed = Boolean(nodes.reverseDetailToggle?.checked);
   if (shouldUsePromptApi()) {
+    setPromptThinking(true);
     try {
       const targets = getPromptTargetImages();
+      const includeDetailed = reversePromptDetailed;
       setStatus(targets.length > 1 ? `正在批量反推 ${targets.length} 张图片。` : "正在调用反推提示词 API。");
       const outputs = [];
 
@@ -1330,13 +2274,28 @@ async function reversePrompt() {
           ? `正在反推 ${index + 1}/${targets.length}：${item.name}`
           : "正在调用反推提示词 API。");
         const content = await callPromptApi(item);
-        const meta = await buildBilingualPromptMeta(content);
+        let meta = includeDetailed
+          ? await buildBilingualPromptMeta(content)
+          : {
+            source: cleanHomepagePromptText(content),
+            chinese: formatChinesePromptSections(cleanHomepagePromptText(content)),
+            english: "",
+            structure: "",
+            roleCheck: "",
+            selfCheck: ""
+          };
+        const homepageChinese = await resolveChineseHomepagePrompt(meta, content);
+        meta = {
+          ...meta,
+          source: homepageChinese || meta.source,
+          chinese: homepageChinese || meta.chinese
+        };
         outputs.push({
           item,
           meta,
           text: targets.length > 1
-            ? `========== 图片 ${index + 1} · ${item.name} ==========\n${meta.chinese || meta.english || content}`
-            : (meta.chinese || meta.english || content)
+            ? `========== 图片 ${index + 1} · ${item.name} ==========\n${cleanHomepagePromptText(meta.chinese || content)}`
+            : cleanHomepagePromptText(meta.chinese || content)
         });
       }
 
@@ -1344,15 +2303,22 @@ async function reversePrompt() {
       promptMeta = {
         source: nodes.promptInput.value.trim(),
         chinese: outputs.map((output) => output.meta.chinese).filter(Boolean).join("\n\n"),
-        english: outputs.map((output) => output.meta.english).filter(Boolean).join("\n\n"),
-        structure: outputs.map((output) => output.meta.structure).filter(Boolean).join("\n\n")
+        english: includeDetailed ? outputs.map((output) => output.meta.english).filter(Boolean).join("\n\n") : "",
+        structure: includeDetailed ? outputs.map((output) => output.meta.structure).filter(Boolean).join("\n\n") : "",
+        roleCheck: "",
+        selfCheck: "",
+        visualReuseFingerprint: ""
       };
       saveWorkspaceState();
-      setStatus(targets.length > 1 ? "已完成批量反推，并同步生成中英文提示词。" : "已通过反推提示词 API 生成中英文提示词。");
+      setStatus(includeDetailed
+        ? (targets.length > 1 ? "已完成批量反推，并同步生成中英文提示词。" : "已通过反推提示词 API 生成中英文提示词。")
+        : (targets.length > 1 ? "已完成批量反推，已按节省模式只保留中文提示词。" : "已完成反推，已按节省模式只保留中文提示词。"));
       return;
     } catch (error) {
       setStatus(error.message || "反推提示词 API 调用失败，文本框保持空白。");
       return;
+    } finally {
+      setPromptThinking(false);
     }
   }
 
@@ -1365,80 +2331,696 @@ function selectText(node) {
   return node?.options?.[node.selectedIndex]?.text || "";
 }
 
+function defaultVisualReuseRole(index) {
+  return fallbackVisualReuseRoles(index)[0] || "auxiliary";
+}
+
+function fallbackVisualReuseRoles(index = 0) {
+  return VISUAL_REUSE_FALLBACK_ROLES[Math.min(Math.max(Number(index) || 0, 0), VISUAL_REUSE_FALLBACK_ROLES.length - 1)]
+    || ["auxiliary"];
+}
+
+function normalizeVisualReuseRoleValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const aliased = VISUAL_REUSE_ROLE_ALIASES[raw] || raw;
+  return VISUAL_REUSE_IMAGE_ROLES.some((role) => role.value === aliased) ? aliased : "";
+}
+
+function normalizeVisualReuseRoles(roles) {
+  const rawRoles = Array.isArray(roles) ? roles : (roles ? [roles] : []);
+  return [...new Set(rawRoles.map(normalizeVisualReuseRoleValue).filter(Boolean))].slice(0, 2);
+}
+
+function normalizeVisualReuseWeight(value) {
+  const raw = String(value || "").trim();
+  return VISUAL_REUSE_WEIGHT_OPTIONS.some((weight) => weight.value === raw) ? raw : "";
+}
+
+function effectiveVisualReuseRoles(item, index = 0) {
+  const manualRoles = normalizeVisualReuseRoles(item?.visualReuseRoles || item?.visualReuseRole);
+  return manualRoles.length ? manualRoles : fallbackVisualReuseRoles(index);
+}
+
+function visualReuseRoleMeta(value, index = 0) {
+  const normalized = normalizeVisualReuseRoleValue(value) || defaultVisualReuseRole(index);
+  return VISUAL_REUSE_IMAGE_ROLES.find((role) => role.value === normalized)
+    || VISUAL_REUSE_IMAGE_ROLES[0];
+}
+
+function visualReuseRoleMetas(values, index = 0) {
+  return effectiveVisualReuseRoles({ visualReuseRoles: values }, index).map((value) => visualReuseRoleMeta(value, index));
+}
+
+function defaultVisualReuseWeight(index = 0, roles = [], isManual = false) {
+  return isManual ? "high" : "medium";
+}
+
+function visualReuseWeightLabel(value) {
+  return VISUAL_REUSE_WEIGHT_OPTIONS.find((weight) => weight.value === value)?.label || "中";
+}
+
+function normalizeVisualReuseMode(value) {
+  const raw = String(value || "").trim();
+  if (raw === "precise_inherit" || raw === "high" || raw === "system") return "precise_inherit";
+  if (raw === "balanced_reuse" || raw === "medium") return "balanced_reuse";
+  if (raw === "creative_rewrite" || raw === "light" || raw === "low") return "creative_rewrite";
+  return "precise_inherit";
+}
+
+function visualReuseRoleSummary(item, index = 0) {
+  const roles = effectiveVisualReuseRoles(item, index);
+  const labels = roles.map((role) => visualReuseRoleMeta(role, index).label);
+  return labels.join(" + ");
+}
+
+function updateVisualReuseRoleButton(button, item, index = 0) {
+  if (!button) return;
+  button.textContent = visualReuseRoleSummary(item, index);
+}
+
+function closeVisualReuseRoleEditors() {
+  document.querySelectorAll(".visual-reuse-role-editor.is-open").forEach((editor) => {
+    editor.classList.remove("is-open");
+    editor.querySelector(".visual-reuse-role-button")?.setAttribute("aria-expanded", "false");
+  });
+}
+
 function setVisualReusePanelOpen(isOpen) {
   if (!nodes.visualReusePanel) return;
-  nodes.visualReusePanel.hidden = !isOpen;
+  window.clearTimeout(setVisualReusePanelOpen.closeTimer);
+  if (isOpen) {
+    nodes.visualReusePanel.hidden = false;
+    nodes.visualReusePanel.offsetHeight;
+    requestAnimationFrame(() => {
+      nodes.visualReusePanel.classList.add("is-open");
+    });
+    return;
+  }
+  nodes.visualReusePanel.classList.remove("is-open");
+  setVisualReusePanelOpen.closeTimer = window.setTimeout(() => {
+    if (!nodes.visualReusePanel.classList.contains("is-open")) {
+      nodes.visualReusePanel.hidden = true;
+    }
+  }, 260);
+}
+
+function resetPromptViewportToTop() {
+  const input = nodes.promptInput;
+  if (!input) return;
+  requestAnimationFrame(() => {
+    input.scrollTop = 0;
+    if (document.activeElement === input) {
+      input.setSelectionRange(0, 0);
+    }
+  });
 }
 
 function setPromptMethod(method) {
   promptMethod = method === "reuse" || method === "reverse" ? method : "none";
+  syncImageUploadLimitUi();
+  if (promptMethod !== "reuse") {
+    trimImagesToCurrentModeLimit({ silent: true });
+  }
   nodes.reversePromptBtn?.setAttribute("aria-selected", method === "reverse" ? "true" : "false");
   nodes.visualReuseBtn?.setAttribute("aria-selected", method === "reuse" ? "true" : "false");
+  nodes.dropZone?.classList.toggle("is-reuse-mode", method === "reuse");
   syncGenerationModeTabs();
+  renderImageStack();
+}
+
+// Compact v1.5 visual reuse flow: user role tags override the fallback order.
+function visualReuseReferenceLine(item, index = 0) {
+  const roles = effectiveVisualReuseRoles(item, index);
+  const roleMetas = roles.map((role) => visualReuseRoleMeta(role, index));
+  const manualRoles = normalizeVisualReuseRoles(item.visualReuseRoles || item.visualReuseRole);
+  const hasManualRoles = Boolean(item.visualReuseRolesManual || manualRoles.length);
+  const weight = item.visualReuseWeightManual
+    ? (normalizeVisualReuseWeight(item.visualReuseWeight) || defaultVisualReuseWeight(index, roles, hasManualRoles))
+    : defaultVisualReuseWeight(index, roles, hasManualRoles);
+  const locked = item.visualReuseLocked !== false;
+  const tagSource = manualRoles.length
+    ? "user-selected"
+    : "default fallback";
+  const size = item.width && item.height ? item.width + "x" + item.height : "size unknown";
+  const name = item.name || "reference-" + (index + 1);
+  const roleLimits = [];
+  if (!roles.includes("subject")) {
+    roleLimits.push("non-subject rule: do not inherit this image's main person, product, vehicle, character, object, scene, or story as the final subject");
+  }
+  if (roles.includes("subject")) {
+    roleLimits.push("subject ownership: this image is allowed to define the final subject within the selected strength");
+  }
+  if (roles.includes("color_material")) {
+    roleLimits.push("color/material scope: inherit only palette, lighting, contrast, texture, material, and atmosphere unless another selected role says otherwise");
+  }
+  if (roles.includes("composition")) {
+    roleLimits.push("composition scope: inherit framing and spatial structure, not this image's subject unless subject is also selected");
+  }
+  if (roles.includes("layout") || roles.includes("typography")) {
+    roleLimits.push("layout/typography scope: inherit text hierarchy, title area, type mood, and text-image rhythm, not original wording or subject");
+  }
+  if (roles.includes("decoration")) {
+    roleLimits.push("decoration scope: decoration stays secondary and cannot become the main subject");
+  }
+  if (roles.includes("auto")) {
+    roleLimits.push("auto analysis scope: extract only useful secondary visual traits; do not override explicit role images");
+  }
+  return [
+    "Image " + (index + 1),
+    "roles: " + roleMetas.map((role) => role.label + " (" + role.value + ")").join(", "),
+    "tag source: " + tagSource,
+    "weight: " + weight + " (" + visualReuseWeightLabel(weight) + ")",
+    "weight rule: " + (VISUAL_REUSE_WEIGHT_OPTIONS.find((option) => option.value === weight)?.prompt || ""),
+    "locked: " + (locked ? "true" : "false"),
+    "role boundaries: " + roleMetas.map((role) => role.prompt).join(" | "),
+    roleLimits.join(" | "),
+    "file: " + name,
+    "size: " + size
+  ].filter(Boolean).join(" | ");
+}
+
+function visualReuseReferenceBrief(images) {
+  return images.map(visualReuseReferenceLine).join("\n");
+}
+
+function visualReuseSubjectOwnershipRule(images) {
+  const subjectIndexes = images
+    .map((item, index) => effectiveVisualReuseRoles(item, index).includes("subject") ? index + 1 : 0)
+    .filter(Boolean);
+  if (!subjectIndexes.length) {
+    return "No explicit Subject Reference is selected. Infer the subject from the most suitable reference, but still obey each role boundary.";
+  }
+  return [
+    "Explicit Subject Reference images: " + subjectIndexes.map((index) => "Image " + index).join(", ") + ".",
+    "The final main subject must come from these Subject Reference image(s).",
+    "When exactly one Subject Reference image is selected, the Subject field in Chinese Prompt and English Prompt must describe only that image's subject.",
+    "Images without Subject Reference must not introduce their own main person, product, vehicle, character, object, scene, or story into the final subject.",
+    "For non-subject reference images, ignore their visible main object when writing the Subject field unless the user explicitly assigns Subject Reference to that image.",
+    "For example, a Color / Material Reference may affect palette and texture only; its visible object must not become the final subject unless that image is also tagged as Subject Reference.",
+    "In Role Check, explicitly state which image owns the final subject and which images are forbidden from changing it."
+  ].join(" ");
+}
+
+function normalizeVisualReuseImages(input) {
+  return (Array.isArray(input) ? input : [input]).filter(Boolean).slice(0, MAX_UPLOAD_IMAGES);
+}
+
+function visualReuseLabel(map, value, fallback) {
+  return map[value] || fallback || value || "";
 }
 
 function visualReuseOptions() {
+  const assetTypeValue = nodes.visualReuseAssetType?.value || "auto";
+  const reuseModeValue = normalizeVisualReuseMode(nodes.visualReuseStrength?.value);
+  const styleValue = nodes.visualReuseStyle?.value || "original";
+  const textModeValue = nodes.visualReuseTextMode?.value || "auto";
+  const assetTypeMap = {
+    auto: "Auto detect",
+    poster: "Poster",
+    "brand-kv": "Brand key visual",
+    xiaohongshu: "Xiaohongshu cover",
+    ecommerce: "E-commerce hero image",
+    advertising: "Advertising visual",
+    ip: "IP character extension",
+    ui: "UI screen",
+    video: "Video keyframe",
+    "event-kv": "Event key visual",
+    product: "Product promotion image",
+    social: "Social media image"
+  };
+  const reuseModeMap = {
+    precise_inherit: "Precise inheritance",
+    balanced_reuse: "Balanced reuse",
+    creative_rewrite: "Creative rewrite"
+  };
+  const styleMap = {
+    original: "Keep original style direction",
+    auto: "Auto detect from references",
+    premium: "More premium",
+    commercial: "More commercial",
+    minimal: "More minimal",
+    fashion: "More fashionable",
+    tech: "More technology-driven",
+    young: "Younger and more social-media friendly",
+    stable: "More stable",
+    impact: "More visually impactful",
+    cinematic: "More cinematic",
+    light: "Lighter",
+    real: "More realistic",
+    artistic: "More artistic",
+    luxury: "More luxury",
+    future: "More futuristic"
+  };
+  const textModeMap = {
+    auto: "Decide text treatment by use case",
+    "with-text": "Generate visible text",
+    reserve: "Reserve text area only",
+    none: "No visible text",
+    "enhance-title": "Enhance title expression",
+    "weaken": "Weaken text",
+    "generate-title-style": "Generate title style",
+    "replace-copy": "Replace original copy",
+    "typography-only": "Extract typography only",
+    "title-position": "Keep title position logic"
+  };
+
   return {
-    assetType: selectText(nodes.visualReuseAssetType) || "按图片自动判断",
-    strength: selectText(nodes.visualReuseStrength) || "轻度复用",
-    style: selectText(nodes.visualReuseStyle) || "保持原图风格",
-    textMode: selectText(nodes.visualReuseTextMode) || "按用途判断",
+    assetTypeValue,
+    reuseModeValue,
+    styleValue,
+    textModeValue,
+    assetType: visualReuseLabel(assetTypeMap, assetTypeValue, "Auto detect"),
+    reuseMode: visualReuseLabel(reuseModeMap, reuseModeValue, "Precise inheritance"),
+    style: visualReuseLabel(styleMap, styleValue, "Keep original style direction"),
+    textMode: visualReuseLabel(textModeMap, textModeValue, "Decide text treatment by use case"),
     notes: nodes.visualReuseNotes?.value.trim() || "",
-    ratio: nodes.sizePickerText?.textContent || selectText(nodes.sizeMode) || "自适应",
-    generation: generationModeLabel(generationMode)
+    ratio: nodes.sizePickerText?.textContent || selectText(nodes.sizeMode) || "Auto",
+    generation: generationMode === "image" ? "Image to image" : "Text to image"
   };
 }
 
-function visualReuseInstruction(options) {
-  const reuseRule = {
-    "轻度复用": "只继承色调、光影、氛围、材质方向、商业调性和版式语气；禁止复刻主体、动作、服装、产品位置、原构图骨架和具体文案。",
-    "中度复用": "继承色调、光影、风格、部分版式节奏和部分构图逻辑；避免完全相同动作、机位、文字布局和主体位置。",
-    "高度复用": "可以更接近参考图的主体关系、构图骨架和版式节奏，但仍需避免一比一复制。",
-    "系统化复用": "提取可复用视觉系统，优先生成可批量延展的商业资产提示词，而不是单张近似图。"
-  }[options.strength] || "";
+function visualReuseInstruction(options, images = []) {
+  const referenceBrief = visualReuseReferenceBrief(images);
+  const subjectOwnershipRule = visualReuseSubjectOwnershipRule(images);
+  const includeDetailedOutput = options.includeDetailed !== false;
+  const reuseModeRule = {
+    precise_inherit: "Default mode. Accurately inherit the user-specified traits inside each image role. Do not randomly redesign selected traits.",
+    balanced_reuse: "Preserve the core selected traits, while allowing controlled cleanup, optimization, and local variation.",
+    creative_rewrite: "Borrow the main visual language only and allow clear changes, but still respect locked roles and user notes."
+  }[options.reuseModeValue] || "Accurately inherit user-specified traits inside each selected role.";
 
   return [
-    "你是一名资深视觉设计师和 AI 提示词工程师。请基于参考图生成一条可直接用于 AI 生图的中文提示词。",
-    "不要输出完整变量库，不要解释过程，只保留当前任务最相关的判断。",
+    "You are a senior visual designer and AI image prompt engineer.",
     "",
-    `用户目标：${options.assetType}`,
-    `复用强度：${options.strength}`,
-    `风格方向：${options.style}`,
-    `文字处理：${options.textMode}`,
-    `画面比例：${options.ratio}`,
-    `生成方式：${options.generation}`,
-    `补充要求：${options.notes || "无"}`,
+    "Task:",
+    "Create a visual reuse generation prompt from one or more reference images.",
+    "The goal is to combine user-specified traits from different reference images into one coherent final image.",
     "",
-    `复用规则：${reuseRule}`,
+    "Version: Visual Reuse Prompt Template v1.7 - Precise Extraction & Structured Execution Edition.",
     "",
-    "请先内部判断图片类型、视觉 DNA、继承项、变量项和禁止误继承项，然后只输出一条结构化中文提示词。",
-    "提示词必须包含这些段落：主体内容、使用场景、风格继承、变量调整、色彩光影、构图视角、文字要求、负面约束。",
-    "负面约束必须明确避免：复刻参考图构图、复刻主体动作、复刻具体文案、低质感、杂乱背景、主体变形。",
-    "最终只输出中文提示词正文，不要加分析说明。"
+    "Core Logic:",
+    "Visual reuse means accurate inheritance within the user-specified role.",
+    "Do not randomly redesign the traits assigned by the user.",
+    "Use two output layers: complete internal analysis for overview/debug, and a structured execution prompt for the homepage textbox and image-generation API.",
+    "The homepage prompt and the image-generation API prompt must be a structured execution prompt, not an ultra-short paragraph and not a long analysis report.",
+    "The complete reasoning structure is only for the overview/detail view.",
+    "If an image is marked as Subject Reference with high reuse strength, preserve the subject's pose, action, outfit structure, body angle, camera relationship, mood, and key visible traits as closely as possible.",
+    "If an image is marked as Color / Material Reference with high reuse strength, preserve its palette, color ratio, lighting, material, texture, contrast, and atmosphere as closely as possible.",
+    "If an image is marked as Composition Reference with high reuse strength, preserve its framing, subject placement, visual center, whitespace, camera angle, and spatial structure as closely as possible.",
+    "If an image is marked as Layout or Typography Reference with high reuse strength, preserve its title position, text hierarchy, title scale, font feeling, text-image relationship, and visual rhythm as closely as possible.",
+    "If an image is marked as Decoration Reference, preserve its decorative language only within a secondary visual role. Decoration must never become the main subject.",
+    "If an image is marked as Auto Analysis, extract only useful secondary visual traits after all explicit role images have been respected.",
+    "",
+    "Subject Ownership Rule:",
+    subjectOwnershipRule,
+    "This rule is mandatory. Do not let non-subject reference images replace or redefine the final main subject.",
+    "If there is any conflict, Subject Reference wins over Style, Color / Material, Decoration, Auxiliary, and Auto Analysis.",
+    "",
+    "Change Rules:",
+    "Only change a specified trait when:",
+    "1. The user explicitly asks for the change.",
+    "2. The image reuse strength is medium or low.",
+    "3. Different reference roles conflict and must be resolved.",
+    "4. The element is a logo, trademark, watermark, exact original text, real-person identity, protected character identity, private UI detail, or other element that should be transformed into a general visual trait.",
+    "Extra notes are the main change switch. If the user does not ask for a change, preserve the selected traits according to each role and strength.",
+    "",
+    "Reference Images:",
+    referenceBrief || "Image 1 | Primary reference.",
+    "",
+    "Global Options:",
+    "Reuse mode: " + options.reuseMode,
+    "Reuse mode rule: " + reuseModeRule,
+    "Asset goal: " + options.assetType,
+    "Style direction: " + options.style,
+    "Text treatment: " + options.textMode,
+    "Target ratio or size: " + options.ratio,
+    "Generation mode: " + options.generation,
+    "Extra notes: " + (options.notes || "None"),
+    "",
+    "Hard Canvas Rule:",
+    "The selected target ratio or size has absolute priority over all reference images and prompt wording.",
+    "If the selected target is wide, write a full-width horizontal composition. If the selected target is portrait, write a full-height portrait composition. If the selected target is square, write a square composition.",
+    "Never describe a poster-in-frame, letterboxed image, cropped mockup, or canvas that contradicts the selected target size.",
+    "",
+    "Reuse strength rule:",
+    "- If the user manually assigns a role but does not choose a strength, use High Strength by default.",
+    "- If the role is automatically inferred, use Medium Strength by default.",
+    "- High strength means accurate inheritance within that role.",
+    "- Medium strength means preserve core traits with controlled changes.",
+    "- Low strength means borrow only the general direction.",
+    "",
+    "Role rules:",
+    "1. Subject Reference",
+    "High strength: preserve subject type, pose, action, outfit structure, hair silhouette, body angle, expression mood, gesture, props, subject scale, and camera relationship.",
+    "Medium strength: preserve subject type, general pose, mood, and outfit style, while allowing detail changes.",
+    "Low strength: preserve only subject category and emotional direction.",
+    "Do not change pose, outfit structure, or subject mood at high strength unless the user asks.",
+    "",
+    "2. Composition Reference",
+    "High strength: preserve framing, subject placement, subject scale, visual center, whitespace direction, camera angle, depth relationship, and composition skeleton.",
+    "Medium strength: preserve visual center, approximate placement, and whitespace logic.",
+    "Low strength: preserve only the general composition direction.",
+    "Do not change the core framing at high strength unless the user asks.",
+    "",
+    "3. Layout Reference",
+    "High strength: preserve title area, title scale, text hierarchy, text direction, information zones, spacing rhythm, and text-image relationship.",
+    "Medium strength: preserve main title position, hierarchy, and general text-image relationship.",
+    "Low strength: preserve only the layout mood.",
+    "Do not remove or weaken the title area at high strength unless the user chooses no text.",
+    "",
+    "4. Typography Reference",
+    "High strength: preserve font feeling, weight, width, compression, title scale, deformation style, text impact, material feeling, and relationship with the subject.",
+    "Medium strength: preserve font mood, scale, and general weight.",
+    "Low strength: preserve only the typography direction.",
+    "Do not copy original wording unless the user explicitly asks.",
+    "",
+    "5. Color / Material Reference",
+    "High strength: preserve main palette, secondary colors, color ratio, contrast, saturation, brightness, lighting direction, highlight style, shadow style, texture, grain, material, and atmosphere.",
+    "Medium strength: preserve palette direction, lighting mood, and material type.",
+    "Low strength: preserve only the color mood.",
+    "Do not change the main color system at high strength unless the user asks.",
+    "",
+    "6. Style Reference",
+    "High strength: preserve overall aesthetic, commercial polish, artistic direction, rendering style, visual language, and design maturity.",
+    "Medium strength: preserve overall mood and visual language.",
+    "Low strength: preserve only the style direction.",
+    "",
+    "7. Decoration Reference",
+    "High strength: preserve decoration type, line language, light trails, particles, geometric accents, decoration density, and relationship with the subject.",
+    "Medium strength: preserve decorative style and some local accents.",
+    "Low strength: preserve only subtle decorative mood.",
+    "Decoration must always remain secondary and must never become the main subject or dominate the composition.",
+    "",
+    "8. Auxiliary Reference",
+    "Use for small props, local details, and secondary visual features.",
+    "Auxiliary reference must not override subject, composition, layout, typography, color, or style references.",
+    "",
+    "9. Auto Analysis Reference",
+    "Use only after all explicit role tags have been applied. Extract helpful secondary traits, but do not override the subject owner or introduce unrelated subjects.",
+    "",
+    "Priority order when resolving conflicts:",
+    "1. Selected canvas ratio/size.",
+    "2. Explicit user extra notes.",
+    "3. Locked image roles.",
+    "4. Subject reference.",
+    "5. Composition reference.",
+    "6. Layout reference.",
+    "7. Typography reference.",
+    "8. Color / Material reference.",
+    "9. Style reference.",
+    "10. Decoration reference.",
+    "11. Auxiliary reference.",
+    "12. Auto analysis reference.",
+    "",
+    "Analysis steps:",
+    "1. Read the role tags for each image.",
+    "2. Read the reuse strength for each image.",
+    "3. Decide which traits must be accurately inherited, which traits may change, and which traits must be avoided.",
+    "4. Resolve conflicts according to the priority order.",
+    "5. Write the complete structure for the overview/detail view.",
+    "6. Compress the final result into the 12-field structured execution prompt for the homepage and image-generation API.",
+    "",
+    "Two-layer output rule:",
+    "- Chinese Prompt and English Prompt are structured execution prompts. They are used directly by the homepage and image-generation API.",
+    "- Prompt Structure, Role Check, and Self Check are complete explanations for the overview/detail view only.",
+    "- Chinese Prompt must use exactly these 12 labels: 画面类型, 主体, 动作姿态, 构图, 排版文字, 色彩光照, 材质质感, 风格, 装饰, 继承要求, 变化要求, 避免.",
+    "- Each label must contain one concise paragraph. Keep the prompt precise enough for image generation.",
+    "- Suggested Chinese Prompt length: single-image 300-500 Chinese characters, 2-3 image visual reuse 500-900 Chinese characters, complex commercial poster up to 900-1200 Chinese characters.",
+    "- Do not include process explanations such as 'from image 1' or 'from image 2' inside Chinese Prompt or English Prompt.",
+    "- Do not mention unavailable references, Role Check, Self Check, internal reasoning, or repeated inheritance checklists inside Chinese Prompt or English Prompt.",
+    "- Mention only traits that affect generation. Remove redundant inheritance wording and any reference details that were not selected by the user.",
+    "",
+    "Return exactly these sections:",
+    "Chinese Prompt:",
+    "画面类型：...",
+    "主体：...",
+    "动作姿态：...",
+    "构图：...",
+    "排版文字：...",
+    "色彩光照：...",
+    "材质质感：...",
+    "风格：...",
+    "装饰：...",
+    "继承要求：...",
+    "变化要求：...",
+    "避免：...",
+    "",
+    "English Prompt:",
+    "Image Type: ...",
+    "Subject: ...",
+    "Pose and Action: ...",
+    "Composition: ...",
+    "Layout and Text: ...",
+    "Color and Lighting: ...",
+    "Material and Texture: ...",
+    "Style: ...",
+    "Decoration: ...",
+    "Inheritance Requirements: ...",
+    "Change Requirements: ...",
+    "Avoid: ...",
+    "",
+    "Prompt Structure:",
+    "Subject: ...",
+    "Pose and Action: ...",
+    "Composition: ...",
+    "Layout and Text: ...",
+    "Color and Lighting: ...",
+    "Material and Texture: ...",
+    "Style: ...",
+    "Decoration: ...",
+    "Inherited Traits: ...",
+    "Changed Traits: ...",
+    "Negative Constraints: ...",
+    "",
+    "Role Check:",
+    "Image 1: ...",
+    "Image 2: ...",
+    "Image 3: ...",
+    "Image 4: ...",
+    "",
+    "Self Check:",
+    "- Are the user-specified traits inherited accurately?",
+    "- Are high-strength references preserved instead of randomly redesigned?",
+    "- Are changes only made where the user requested or where strength allows?",
+    "- Does decoration remain secondary?",
+    "- Is the final prompt a coherent new image made from the selected traits?",
+    "",
+    includeDetailedOutput
+      ? "Detailed output is enabled. Return Chinese Prompt, English Prompt, Prompt Structure, Role Check, and Self Check."
+      : "Detailed output is disabled. Override the detailed template above and return only Chinese Prompt. Do not return English Prompt, Prompt Structure, Role Check, or Self Check.",
+    "",
+    "Do not include markdown fences. Do not mention that you are an AI."
   ].join("\n");
 }
 
-async function callVisualReusePromptApi(imageItem, instruction) {
+function visualReuseEscapeRegExp(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractVisualReuseSection(text, startLabels, stopLabels = []) {
+  const source = String(text || "");
+  if (!source.trim()) return "";
+  const starts = startLabels.map(visualReuseEscapeRegExp).join("|");
+  const headingPrefix = "(?:#{1,6}\\s*)?(?:[-*]\\s*)?(?:\\*\\*)?";
+  const headingSuffix = "(?:\\*\\*)?";
+  const startRegex = new RegExp("(?:^|\\n)\\s*" + headingPrefix + "(?:" + starts + ")" + headingSuffix + "\\s*[:：]?\\s*", "i");
+  const startMatch = source.match(startRegex);
+  if (!startMatch || startMatch.index === undefined) return "";
+  const start = startMatch.index + startMatch[0].length;
+  const rest = source.slice(start);
+  let end = rest.length;
+  if (stopLabels.length) {
+    const stops = stopLabels.map(visualReuseEscapeRegExp).join("|");
+    const stopRegex = new RegExp("\\n\\s*" + headingPrefix + "(?:" + stops + ")" + headingSuffix + "\\s*[:：]?\\s*", "i");
+    const stopMatch = rest.match(stopRegex);
+    if (stopMatch && stopMatch.index !== undefined) {
+      end = stopMatch.index;
+    }
+  }
+  return rest.slice(0, end).trim();
+}
+
+const CHINESE_PROMPT_SECTION_LABELS = [
+  "画面类型",
+  "主体",
+  "动作姿态",
+  "动作姿势",
+  "构图",
+  "排版文字",
+  "色彩光照",
+  "材质质感",
+  "风格",
+  "装饰",
+  "继承要求",
+  "变化要求",
+  "避免"
+];
+
+const ENGLISH_PROMPT_SECTION_LABELS = [
+  "Image Type",
+  "Subject",
+  "Pose and Action",
+  "Composition",
+  "Layout and Text",
+  "Color and Lighting",
+  "Material and Texture",
+  "Style",
+  "Decoration",
+  "Inheritance Requirements",
+  "Change Requirements",
+  "Avoid"
+];
+
+function stripPromptSectionChrome(text) {
+  return String(text || "")
+    .replace(/^\s*(?:-{3,}|\*{3,})\s*$/gm, "")
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .trim();
+}
+
+function normalizePromptSectionTitle(title) {
+  return String(title || "")
+    .replace(/^\*+|\*+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatPromptSections(text, labels) {
+  const source = stripPromptSectionChrome(text);
+  if (!source) return "";
+  const labelPattern = labels
+    .map((label) => visualReuseEscapeRegExp(label))
+    .join("|");
+  const sectionRegex = new RegExp(
+    "(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\*\\*)?(" + labelPattern + ")(?:\\*\\*)?\\s*[:：]\\s*([\\s\\S]*?)(?=\\n\\s*(?:[-*]\\s*)?(?:\\*\\*)?(?:" + labelPattern + ")(?:\\*\\*)?\\s*[:：]|$)",
+    "gi"
+  );
+  const sections = [];
+  const usedCanonicalTitles = new Set();
+  let match;
+  while ((match = sectionRegex.exec(source))) {
+    const rawTitle = normalizePromptSectionTitle(match[1]);
+    const canonical = labels.find((label) => label.toLowerCase() === rawTitle.toLowerCase()) || rawTitle;
+    if (usedCanonicalTitles.has(canonical)) continue;
+    const body = String(match[2] || "")
+      .replace(/^\s*[-*]\s+/gm, "")
+      .replace(/\*\*/g, "")
+      .replace(/^\s*#{1,6}\s*/gm, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .trim();
+    if (!body) continue;
+    usedCanonicalTitles.add(canonical);
+    sections.push(`${canonical}：\n${body}`);
+  }
+
+  if (sections.length) {
+    return sections.join("\n\n");
+  }
+
+  return source
+    .replace(/\*\*([^*：:]+)[:：]?\*\*\s*[:：]?\s*/g, "$1：\n")
+    .replace(/\*\*/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
+function formatChinesePromptSections(text) {
+  return formatPromptSections(text, CHINESE_PROMPT_SECTION_LABELS);
+}
+
+function formatEnglishPromptSections(text) {
+  return formatPromptSections(text, ENGLISH_PROMPT_SECTION_LABELS);
+}
+
+function cleanHomepagePromptText(text) {
+  return String(text || "")
+    .replace(/\*\*([^*\n：:]+)[:：]?\*\*\s*[:：]?\s*/g, "$1：\n")
+    .replace(/\*\*/g, "")
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function parseVisualReusePromptResponse(text) {
+  const source = String(text || "").trim();
+  const chinese = extractVisualReuseSection(source, ["Chinese Prompt"], ["English Prompt", "Prompt Structure", "Role Check", "Self Check"]);
+  const english = extractVisualReuseSection(source, ["English Prompt"], ["Prompt Structure", "Role Check", "Self Check"]);
+  const structure = extractVisualReuseSection(source, ["Prompt Structure"], ["Role Check", "Self Check"]);
+  const roleCheck = extractVisualReuseSection(source, ["Role Check"], ["Self Check"]);
+  const selfCheck = extractVisualReuseSection(source, ["Self Check"]);
+  const fallbackChinese = hasChinese(source) ? source : "";
+  const fallbackEnglish = hasChinese(source) ? "" : source;
+  const cleanChinese = chinese
+    ? cleanHomepagePromptText(formatChinesePromptSections(chinese))
+    : (fallbackChinese ? cleanHomepagePromptText(formatChinesePromptSections(fallbackChinese)) : "");
+  const structureWithChecks = [
+    structure || extractPromptStructureText(source),
+    roleCheck ? "Role Check:\n" + roleCheck : "",
+    selfCheck ? "Self Check:\n" + selfCheck : ""
+  ].filter(Boolean).join("\n\n");
+  return {
+    chinese: cleanChinese,
+    english: cleanHomepagePromptText(formatEnglishPromptSections(english || fallbackEnglish)),
+    structure: structureWithChecks,
+    roleCheck,
+    selfCheck
+  };
+}
+
+function safeParseJsonResponse(raw) {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { raw };
+  }
+}
+
+async function callVisualReusePromptApi(imageInput, instruction) {
   const config = currentApiConfigFromForm();
   const prompt = config.prompt;
-  const imageUrl = imageItem.dataUrl || imageItem.src;
+  const images = normalizeVisualReuseImages(imageInput);
+  assertPromptProviderSupportsImageInput(prompt, "视觉复用");
 
-  if (!imageUrl || imageUrl.startsWith("blob:")) {
-    throw new Error("本地图片需要重新上传一次，才能发送给视觉复用 API。");
+  if (!images.length) {
+    throw new Error("请先添加至少 1 张参考图，再使用视觉复用。");
   }
 
   if (!prompt.baseUrl || (!prompt.apiKey && prompt.provider !== "custom")) {
-    throw new Error("请先在设置里配置反推提示词 API，视觉复用会复用这组看图理解能力。");
+    throw new Error("请先保存反推提示词 API 设置。");
+  }
+
+  const dataUrls = [];
+  for (const imageItem of images) {
+    const imageUrl = imageItem.dataUrl || imageItem.src;
+    if (!imageUrl || imageUrl.startsWith("blob:")) {
+      throw new Error("这张图片需要真实 URL 或上传数据后才能分析。");
+    }
+    dataUrls.push(await imageSourceAsDataUrl(imageItem));
   }
 
   if (prompt.provider === "gemini") {
-    const dataUrl = await imageSourceAsDataUrl(imageItem);
-    const parsed = parseDataUrl(dataUrl);
-    if (!parsed) {
-      throw new Error("图片需要是可转换为 base64 的格式。");
-    }
+    const imageParts = dataUrls.flatMap((dataUrl, index) => {
+      const parsed = parseDataUrl(dataUrl);
+      if (!parsed) {
+        throw new Error("无法把上传图片解析为 base64 数据。");
+      }
+      return [
+        {
+          text: "Reference image binding:\n" + visualReuseReferenceLine(images[index], index)
+        },
+        {
+          inline_data: {
+            mime_type: parsed.mimeType,
+            data: parsed.data
+          }
+        }
+      ];
+    });
 
-    const response = await fetch(baseUrlWithPath(prompt.baseUrl, `/models/${prompt.model}:generateContent`), {
+    const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/models/" + prompt.model + ":generateContent"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1448,15 +3030,8 @@ async function callVisualReusePromptApi(imageItem, instruction) {
         contents: [
           {
             parts: [
-              {
-                inline_data: {
-                  mime_type: parsed.mimeType,
-                  data: parsed.data
-                }
-              },
-              {
-                text: instruction
-              }
+              { text: instruction },
+              ...imageParts
             ]
           }
         ]
@@ -1464,16 +3039,16 @@ async function callVisualReusePromptApi(imageItem, instruction) {
     });
 
     const raw = await response.text();
-    const data = raw ? JSON.parse(raw) : {};
+    const data = safeParseJsonResponse(raw);
     if (!response.ok) {
-      throw new Error(friendlyApiErrorMessage(data?.error?.message || `视觉复用请求失败：${response.status}`, prompt.providerLabel));
+      throw new Error(friendlyApiErrorMessage(data?.error?.message || "视觉复用 API 请求失败：HTTP " + response.status, prompt.providerLabel));
     }
 
     const content = data?.candidates?.[0]?.content?.parts
       ?.map((part) => part.text || "")
       .join("")
       .trim();
-    if (!content) throw new Error("视觉复用 API 没有返回提示词。");
+    if (!content) throw new Error("视觉复用 API 没有返回文本。");
     return content;
   }
 
@@ -1481,68 +3056,88 @@ async function callVisualReusePromptApi(imageItem, instruction) {
     "Content-Type": "application/json"
   };
   if (prompt.apiKey) {
-    headers.Authorization = `Bearer ${prompt.apiKey}`;
+    headers.Authorization = "Bearer " + prompt.apiKey;
   }
+
+  const contentParts = [
+    { type: "text", text: instruction },
+    ...dataUrls.flatMap((url, index) => ([
+      {
+        type: "text",
+        text: "Reference image binding:\n" + visualReuseReferenceLine(images[index], index)
+      },
+      {
+        type: "image_url",
+        image_url: { url }
+      }
+    ]))
+  ];
 
   const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/chat/completions"), {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      model: prompt.model,
-      messages: [
+    body: JSON.stringify(openAiCompatibleChatPayload(prompt, [
         {
           role: "user",
-          content: [
-            { type: "text", text: instruction },
-            {
-              type: "image_url",
-              image_url: { url: imageUrl }
-            }
-          ]
+          content: contentParts
         }
-      ],
-      max_tokens: 900
-    })
+      ], 2800))
   });
 
   const raw = await response.text();
-  const data = raw ? JSON.parse(raw) : {};
+  const data = safeParseJsonResponse(raw);
   if (!response.ok) {
-    throw new Error(friendlyApiErrorMessage(data?.error?.message || data?.message || `视觉复用请求失败：${response.status}`, prompt.providerLabel));
+    throw new Error(friendlyApiErrorMessage(data?.error?.message || data?.message || "视觉复用 API 请求失败：HTTP " + response.status, prompt.providerLabel));
   }
 
   const content = data?.choices?.[0]?.message?.content || data?.output_text || data?.text;
-  if (!content) throw new Error("视觉复用 API 没有返回提示词。");
+  if (!content) throw new Error("视觉复用 API 没有返回文本。");
   return String(content).trim();
 }
 
 async function generateVisualReusePrompt() {
   setPromptMethod("reuse");
-  const targets = getPromptTargetImages();
+  const targets = getVisualReuseTargetImages();
   if (!targets.length) {
-    setStatus("请先添加一张参考图，再使用视觉复用。");
+    setStatus("请先添加至少 1 张参考图，再使用视觉复用。");
     return;
   }
 
-  const options = visualReuseOptions();
-  const instruction = visualReuseInstruction(options);
+  const includeDetailed = Boolean(nodes.reverseDetailToggle?.checked);
+  reversePromptDetailed = includeDetailed;
+  const options = {
+    ...visualReuseOptions(),
+    includeDetailed
+  };
+  const instruction = visualReuseInstruction(options, targets);
 
+  setPromptThinking(true);
   try {
-    setStatus("正在按视觉复用规则分析参考图...");
-    const content = await callVisualReusePromptApi(targets[0], instruction);
-    const meta = await buildBilingualPromptMeta(content);
-    nodes.promptInput.value = meta.chinese || content;
+    setStatus(targets.length > 1
+      ? `正在分析 ${targets.length} 张参考图，生成视觉复用提示词...`
+      : "正在分析参考图，生成视觉复用提示词...");
+    const content = await callVisualReusePromptApi(targets, instruction);
+    const parsed = parseVisualReusePromptResponse(content);
+    const chinese = cleanHomepagePromptText(parsed.chinese || content);
+    nodes.promptInput.value = chinese;
     promptMeta = {
-      source: nodes.promptInput.value.trim(),
-      chinese: meta.chinese || content,
-      english: meta.english || "",
-      structure: meta.structure || summarizeChineseStructure(content)
+      source: chinese,
+      chinese,
+      english: includeDetailed ? (parsed.english || "") : "",
+      structure: includeDetailed ? (parsed.structure || "") : "",
+      roleCheck: includeDetailed ? (parsed.roleCheck || "") : "",
+      selfCheck: includeDetailed ? (parsed.selfCheck || "") : "",
+      visualReuseFingerprint: visualReuseReferenceFingerprint(targets)
     };
     setVisualReusePanelOpen(false);
     saveWorkspaceState();
-    setStatus("已生成视觉复用提示词，可微调后直接生成图片。");
+    setStatus(targets.length > 1
+      ? (includeDetailed ? "视觉复用提示词已生成，并保留详细结构。" : "视觉复用中文提示词已生成。")
+      : (includeDetailed ? "视觉复用提示词已生成，并保留详细结构。" : "视觉复用中文提示词已生成。"));
   } catch (error) {
-    setStatus(error.message || "视觉复用生成失败，请检查反推提示词 API 配置。");
+    setStatus(error.message || "视觉复用失败，请检查反推 API 设置。");
+  } finally {
+    setPromptThinking(false);
   }
 }
 
@@ -1646,11 +3241,7 @@ async function callTextTranslateApi(text, targetLanguage = "") {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${prompt.apiKey}`
     },
-    body: JSON.stringify({
-      model: prompt.model,
-      messages: [{ role: "user", content: instruction }],
-      max_tokens: 500
-    })
+    body: JSON.stringify(openAiCompatibleChatPayload(prompt, [{ role: "user", content: instruction }], 500))
   });
 
   const raw = await response.text();
@@ -1789,49 +3380,104 @@ function extractPromptStructureText(text) {
 async function buildBilingualPromptMeta(text) {
   const source = String(text || "").trim();
   if (!source) {
-    return { source: "", chinese: "", english: "", structure: "" };
+    return { source: "", chinese: "", english: "", structure: "", roleCheck: "", selfCheck: "" };
+  }
+
+  const structuredChinese = extractVisualReuseSection(source, ["Chinese Prompt"], ["English Prompt", "Prompt Structure", "Role Check", "Self Check"]);
+  const structuredEnglish = extractVisualReuseSection(source, ["English Prompt"], ["Prompt Structure", "Role Check", "Self Check"]);
+  const structuredStructure = extractVisualReuseSection(source, ["Prompt Structure"], ["Role Check", "Self Check"]);
+  const structuredRoleCheck = extractVisualReuseSection(source, ["Role Check"], ["Self Check"]);
+  const structuredSelfCheck = extractVisualReuseSection(source, ["Self Check"]);
+
+  if (structuredChinese || structuredEnglish || structuredStructure || structuredRoleCheck || structuredSelfCheck) {
+    const parsed = parseVisualReusePromptResponse(source);
+    const chinese = parsed.chinese || (structuredEnglish ? "" : formatChinesePromptSections(source));
+    const english = parsed.english || "";
+    return {
+      source: cleanHomepagePromptText(chinese || english || source),
+      chinese,
+      english,
+      structure: parsed.structure || summarizeChineseStructure(chinese || source),
+      roleCheck: parsed.roleCheck || "",
+      selfCheck: parsed.selfCheck || ""
+    };
   }
 
   const meta = {
     source,
     chinese: "",
     english: "",
-    structure: ""
+    structure: "",
+    roleCheck: "",
+    selfCheck: ""
   };
 
   if (hasChinese(source)) {
-    meta.chinese = source;
+    meta.chinese = formatChinesePromptSections(source);
     try {
-      meta.english = await callTextTranslateApi(source, "en");
+      meta.english = await callTextTranslateApi(meta.chinese || source, "en");
     } catch {
-      meta.english = localTranslateToEnglish(source);
+      meta.english = localTranslateToEnglish(meta.chinese || source);
     }
   } else {
-    meta.english = source;
+    meta.english = formatEnglishPromptSections(source);
     try {
       meta.chinese = await callTextTranslateApi(source, "zh");
     } catch {
       meta.chinese = localTranslateToChinese(source);
     }
+    meta.chinese = formatChinesePromptSections(meta.chinese);
   }
 
   meta.structure = summarizeChineseStructure(meta.chinese || source);
   return meta;
 }
 
+async function resolveChineseHomepagePrompt(meta = {}, fallbackText = "") {
+  const candidate = cleanHomepagePromptText(meta.chinese || "");
+  if (candidate && hasChinese(candidate)) {
+    return formatChinesePromptSections(candidate);
+  }
+
+  const source = cleanHomepagePromptText(fallbackText || meta.english || meta.source || "");
+  if (!source) return "";
+  if (hasChinese(source)) {
+    return formatChinesePromptSections(source);
+  }
+
+  try {
+    return formatChinesePromptSections(await callTextTranslateApi(source, "zh"));
+  } catch {
+    return formatChinesePromptSections(localTranslateToChinese(source));
+  }
+}
+
 function promptMetaFromInput() {
   const text = nodes.promptInput.value.trim();
+  const includeDetailed = Boolean(nodes.reverseDetailToggle?.checked);
   if (!text) {
-    return { source: "", chinese: "", english: "", structure: "" };
+    return emptyPromptMeta();
   }
   if (promptMeta.source === text && (promptMeta.chinese || promptMeta.english)) {
-    return promptMeta;
+    return includeDetailed
+      ? promptMeta
+      : {
+        ...promptMeta,
+        english: "",
+        structure: "",
+        roleCheck: "",
+        selfCheck: ""
+      };
   }
   return {
     source: text,
     chinese: hasChinese(text) ? text : "",
-    english: hasChinese(text) ? "" : text,
-    structure: hasChinese(text) ? summarizeChineseStructure(text) : extractPromptStructureText(text)
+    english: includeDetailed && !hasChinese(text) ? text : "",
+    structure: includeDetailed
+      ? (hasChinese(text) ? summarizeChineseStructure(text) : extractPromptStructureText(text))
+      : "",
+    roleCheck: "",
+    selfCheck: ""
   };
 }
 
@@ -1859,7 +3505,7 @@ async function translatePromptSmart() {
 
 function clearPrompt() {
   nodes.promptInput.value = "";
-  promptMeta = { source: "", chinese: "", english: "", structure: "" };
+  promptMeta = emptyPromptMeta();
   setStatus("提示词已清空。");
   saveWorkspaceState();
 }
@@ -1874,7 +3520,18 @@ function syncGenerationModeTabs() {
 
 function setGenerationMode(mode, options = {}) {
   generationMode = mode === "text" ? "text" : "image";
+  if (promptMethod === "reuse") {
+    promptMethod = "none";
+    setVisualReusePanelOpen(false);
+    nodes.visualReuseBtn?.setAttribute("aria-selected", "false");
+    nodes.dropZone?.classList.remove("is-reuse-mode");
+  }
+  syncImageUploadLimitUi();
+  if (promptMethod !== "reuse") {
+    trimImagesToCurrentModeLimit({ silent: true });
+  }
   syncGenerationModeTabs();
+  resetPromptViewportToTop();
 
   if (!options.silent) {
     setStatus(generationMode === "image"
@@ -1945,7 +3602,7 @@ function clearGenerationState() {
 
 function resetAll() {
   nodes.promptInput.value = "";
-  promptMeta = { source: "", chinese: "", english: "", structure: "" };
+  promptMeta = emptyPromptMeta();
   clearGenerationState();
   saveWorkspaceState();
   setStatus("已清空提示词和生成中占位，图片、图库和选项已保留。");
@@ -2051,18 +3708,22 @@ function openLocalImageDb() {
       if (!db.objectStoreNames.contains(LOCAL_IMAGE_STORE)) {
         db.createObjectStore(LOCAL_IMAGE_STORE, { keyPath: "id" });
       }
+      if (!db.objectStoreNames.contains(LOCAL_GALLERY_STORE)) {
+        const galleryStore = db.createObjectStore(LOCAL_GALLERY_STORE, { keyPath: "id" });
+        galleryStore.createIndex("createdAt", "createdAt");
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-async function withLocalImageStore(mode, callback) {
+async function withLocalStore(storeName, mode, callback) {
   const db = await openLocalImageDb();
   try {
     return await new Promise((resolve, reject) => {
-      const transaction = db.transaction(LOCAL_IMAGE_STORE, mode);
-      const store = transaction.objectStore(LOCAL_IMAGE_STORE);
+      const transaction = db.transaction(storeName, mode);
+      const store = transaction.objectStore(storeName);
       const result = callback(store);
       transaction.oncomplete = () => resolve(result);
       transaction.onerror = () => reject(transaction.error);
@@ -2071,6 +3732,14 @@ async function withLocalImageStore(mode, callback) {
   } finally {
     db.close();
   }
+}
+
+function withLocalImageStore(mode, callback) {
+  return withLocalStore(LOCAL_IMAGE_STORE, mode, callback);
+}
+
+function withLocalGalleryStore(mode, callback) {
+  return withLocalStore(LOCAL_GALLERY_STORE, mode, callback);
 }
 
 function requestToPromise(request) {
@@ -2093,14 +3762,42 @@ async function blobFromImageUrl(url) {
   return response.blob();
 }
 
+async function createImageThumbnailBlob(blob, maxEdge = 520) {
+  if (!blob?.type?.startsWith("image/") || !window.createImageBitmap) return null;
+
+  let bitmap = null;
+  try {
+    bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.drawImage(bitmap, 0, 0, width, height);
+    return await new Promise((resolve) => {
+      canvas.toBlob((thumbnail) => resolve(thumbnail), "image/webp", 0.78);
+    });
+  } catch {
+    return null;
+  } finally {
+    bitmap?.close?.();
+  }
+}
+
 async function saveImageToIndexedDb(item) {
   const blob = await blobFromImageUrl(item.url);
   const id = item.localStoreId || `image-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const thumbnailBlob = await createImageThumbnailBlob(blob);
   await withLocalImageStore("readwrite", (store) => {
     store.put({
       id,
       blob,
+      thumbnailBlob,
       mimeType: blob.type || "image/png",
+      thumbnailMimeType: thumbnailBlob?.type || "",
       createdAt: Date.now(),
       meta: {
         model: item.model,
@@ -2111,11 +3808,13 @@ async function saveImageToIndexedDb(item) {
     });
   });
   const localObjectUrl = URL.createObjectURL(blob);
+  const thumbnailObjectUrl = thumbnailBlob ? URL.createObjectURL(thumbnailBlob) : "";
   return {
     ...item,
     originalUrl: item.originalUrl || item.url,
     localStoreId: id,
     localMimeType: blob.type || "image/png",
+    thumbnailObjectUrl,
     localObjectUrl,
     url: localObjectUrl
   };
@@ -2124,6 +3823,123 @@ async function saveImageToIndexedDb(item) {
 async function imageFromIndexedDb(id) {
   if (!id) return null;
   return withLocalImageStore("readonly", (store) => requestToPromise(store.get(id)));
+}
+
+function galleryRecordFromItem(item) {
+  const id = item.galleryId || item.localStoreId || `gallery-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return {
+    id,
+    galleryId: id,
+    localStoreId: item.localStoreId || "",
+    localMimeType: item.localMimeType || "",
+    originalUrl: item.originalUrl || (!isBlobUrl(item.url) ? item.url : ""),
+    url: item.localStoreId ? "" : item.url || "",
+    index: item.index,
+    model: item.model,
+    width: item.width,
+    height: item.height,
+    prompt: item.prompt || "",
+    promptCn: item.promptCn || "",
+    promptEn: item.promptEn || "",
+    promptStructure: item.promptStructure || "",
+    mode: normalizeGalleryMode(item.mode),
+    source: normalizeGallerySource(item.source || item.generationSource, item.mode),
+    createdAt: item.createdAt || Date.now()
+  };
+}
+
+function galleryItemFromRecord(record, index = 0) {
+  return {
+    index: record.index || `#${index + 1}`,
+    model: record.model || "Generated Image",
+    width: Number(record.width) || 1024,
+    height: Number(record.height) || 1024,
+    prompt: record.prompt || "",
+    promptCn: record.promptCn || "",
+    promptEn: record.promptEn || "",
+    promptStructure: record.promptStructure || "",
+    mode: normalizeGalleryMode(record.mode),
+    source: normalizeGallerySource(record.source || record.generationSource, record.mode),
+    url: record.url || "",
+    originalUrl: record.originalUrl || record.url || "",
+    localStoreId: record.localStoreId || "",
+    localMimeType: record.localMimeType || "",
+    galleryId: record.galleryId || record.id || "",
+    createdAt: record.createdAt || Date.now(),
+    thumbnailObjectUrl: "",
+    localObjectUrl: "",
+    isGenerating: false
+  };
+}
+
+async function saveGalleryRecord(item) {
+  if (!item || item.isGenerating || (!item.localStoreId && !item.url)) return item;
+  const record = galleryRecordFromItem(item);
+  await withLocalGalleryStore("readwrite", (store) => {
+    store.put(record);
+  });
+  return {
+    ...item,
+    galleryId: record.id,
+    createdAt: record.createdAt
+  };
+}
+
+async function loadGalleryRecordsFromIndexedDb() {
+  try {
+    const records = await withLocalGalleryStore("readonly", (store) => requestToPromise(store.getAll()));
+    return (records || [])
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
+      .map(galleryItemFromRecord);
+  } catch {
+    return [];
+  }
+}
+
+async function removeGalleryRecordFromIndexedDb(item) {
+  const recordId = item?.galleryId || item?.localStoreId;
+  if (!recordId && !item?.localStoreId) return;
+
+  try {
+    await withLocalGalleryStore("readwrite", (store) => {
+      if (recordId) store.delete(recordId);
+    });
+  } catch {
+    // The visual cleanup should still continue even if the metadata delete fails.
+  }
+
+  if (item?.localStoreId) {
+    try {
+      await withLocalImageStore("readwrite", (store) => {
+        store.delete(item.localStoreId);
+      });
+    } catch {
+      // Ignore image-store cleanup failures.
+    }
+  }
+}
+
+async function migrateLegacyGalleryItemsToIndexedDb() {
+  const legacyItems = galleryItems.filter((item) => !item.isGenerating && (item.url || item.localStoreId));
+  if (!legacyItems.length) return;
+
+  const migrated = [];
+  for (const item of legacyItems) {
+    try {
+      const savedItem = item.localStoreId ? item : await saveImageToIndexedDb(item);
+      migrated.push(await saveGalleryRecord(savedItem));
+    } catch {
+      if (item.localStoreId) {
+        migrated.push(await saveGalleryRecord(item));
+      }
+    }
+  }
+
+  if (migrated.length) {
+    galleryItems = migrated;
+    clearGalleryStorage();
+    renderGallery();
+  }
 }
 
 async function hydrateGalleryItemsFromIndexedDb() {
@@ -2164,10 +3980,11 @@ async function hydrateGalleryItemsFromIndexedDb() {
   }
 }
 
-function removeBrokenGalleryItem(item) {
+async function removeBrokenGalleryItem(item) {
   const before = galleryItems.length;
-  galleryItems = galleryItems.filter((galleryItem) => galleryItem !== item && galleryItem.url !== item.url);
+  galleryItems = galleryItems.filter((galleryItem) => !isSameGalleryItem(galleryItem, item));
   if (galleryItems.length === before) return;
+  await removeGalleryRecordFromIndexedDb(item);
 
   if (!galleryItems.length) {
     clearGalleryStorage();
@@ -2182,12 +3999,8 @@ function removeBrokenGalleryItem(item) {
 async function handleGalleryImageError(item) {
   if (item.localStoreId) {
     try {
-      const stored = await imageFromIndexedDb(item.localStoreId);
-      if (stored?.blob) {
-        const localObjectUrl = URL.createObjectURL(stored.blob);
-        galleryItems = galleryItems.map((galleryItem) => galleryItem === item || galleryItem.localStoreId === item.localStoreId
-          ? { ...galleryItem, localObjectUrl, url: localObjectUrl }
-          : galleryItem);
+      const previewUrl = await ensureGalleryPreviewObjectUrl(item);
+      if (previewUrl) {
         renderGallery();
         return;
       }
@@ -2195,21 +4008,59 @@ async function handleGalleryImageError(item) {
       // Fall through and remove the broken record.
     }
   }
-  removeBrokenGalleryItem(item);
+  await removeBrokenGalleryItem(item);
 }
 
 async function persistGalleryItemImage(item) {
-  if (!item?.url) {
+  if (!item?.url && !item?.localStoreId) {
     return item;
   }
 
   try {
     const storedItem = await saveImageToIndexedDb(item);
+    const galleryItem = await saveGalleryRecord(storedItem);
     setStatus("图片已保存到浏览器本地图库。");
-    return storedItem;
+    return galleryItem;
   } catch (error) {
     setStatus(`图片已生成，但保存到本地图库失败：${error.message || "浏览器本地存储不可用"}。`);
     return item;
+  }
+}
+
+function observeGalleryImage(img, item) {
+  img.__galleryItem = item;
+  if (item?.localStoreId) {
+    loadGalleryImageIntoElement(img, item);
+    return;
+  }
+
+  if (!window.IntersectionObserver) {
+    loadGalleryImageIntoElement(img, item);
+    return;
+  }
+
+  if (!galleryImageObserver) {
+    galleryImageObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        galleryImageObserver.unobserve(entry.target);
+        const targetItem = entry.target.__galleryItem;
+        loadGalleryImageIntoElement(entry.target, targetItem);
+      });
+    }, { rootMargin: "240px 0px" });
+  }
+
+  galleryImageObserver.observe(img);
+}
+
+async function loadGalleryImageIntoElement(img, item) {
+  try {
+    const url = await ensureGalleryPreviewObjectUrl(item);
+    if (!url) throw new Error("NO_GALLERY_IMAGE");
+    img.src = url;
+    img.hidden = false;
+  } catch {
+    await handleGalleryImageError(item);
   }
 }
 
@@ -2220,7 +4071,7 @@ function createGalleryItem(item) {
     card.dataset.generationId = item.generationId || "";
     card.classList.add("is-generating");
   }
-  card.dataset.label = generationModeLabel(item.mode);
+  card.dataset.label = gallerySourceLabel(item);
   card.title = `${item.model} · ${item.width} × ${item.height}`;
   card.style.setProperty("--image-ratio", `${Math.max(1, item.width || 1)} / ${Math.max(1, item.height || 1)}`);
 
@@ -2239,10 +4090,7 @@ function createGalleryItem(item) {
     const mp4Source = document.createElement("source");
     mp4Source.src = "assets/loading-animation.mp4";
     mp4Source.type = "video/mp4";
-    const movSource = document.createElement("source");
-    movSource.src = "assets/loading-animation.mov";
-    movSource.type = "video/quicktime";
-    video.append(mp4Source, movSource);
+    video.append(mp4Source);
 
     const label = document.createElement("span");
     label.className = "gallery-loading-label";
@@ -2258,9 +4106,15 @@ function createGalleryItem(item) {
     progressWrap.className = "gallery-progress-wrap";
     progressWrap.append(label, progress);
     visual.append(video, progressWrap);
-  } else if (item.url) {
+  } else if (item.url || item.localStoreId) {
     const img = document.createElement("img");
-    img.src = item.url;
+    const previewUrl = galleryItemPreviewUrl(item);
+    if (previewUrl) {
+      img.src = previewUrl;
+    } else {
+      img.hidden = true;
+      observeGalleryImage(img, item);
+    }
     img.alt = item.index;
     img.addEventListener("error", () => handleGalleryImageError(item), { once: true });
     visual.append(img);
@@ -2299,11 +4153,12 @@ function createGalleryItem(item) {
 }
 
 async function openLightbox(item, options = {}) {
-  if (!item.url) return;
-  if (!options.forceLocal && await openPageLightbox(item)) {
+  const readyItem = await ensureGalleryFullObjectUrl(item);
+  if (!readyItem?.url && !readyItem?.localStoreId) return;
+  if (!options.forceLocal && await openPageLightbox(readyItem)) {
     return;
   }
-  openLocalLightbox(item);
+  openLocalLightbox(readyItem);
 }
 
 function openLocalLightbox(item) {
@@ -2331,7 +4186,7 @@ async function openPageLightbox(item) {
   }
 
   const rawItems = galleryItems
-    .filter((galleryItem) => !galleryItem.isGenerating && galleryItem.url)
+    .filter((galleryItem) => !galleryItem.isGenerating && (galleryItem.url || galleryItem.localStoreId))
     .map((galleryItem) => ({
       index: galleryItem.index,
       model: galleryItem.model,
@@ -2342,8 +4197,11 @@ async function openPageLightbox(item) {
       promptEn: galleryItem.promptEn || "",
       promptStructure: galleryItem.promptStructure || "",
       mode: normalizeGalleryMode(galleryItem.mode),
-      url: galleryItem.url,
-      originalUrl: galleryItem.originalUrl || galleryItem.url
+      source: normalizeGallerySource(galleryItem.source || galleryItem.generationSource, galleryItem.mode),
+      url: galleryItem.localStoreId ? "" : galleryItem.url,
+      originalUrl: galleryItem.originalUrl || galleryItem.url,
+      localStoreId: galleryItem.localStoreId || "",
+      galleryId: galleryItem.galleryId || ""
     }));
   const activeIndex = Math.max(0, rawItems.findIndex((galleryItem) => galleryItem.index === item.index));
 
@@ -2351,7 +4209,7 @@ async function openPageLightbox(item) {
   try {
     items = await Promise.all(rawItems.map(async (galleryItem) => ({
       ...galleryItem,
-      url: await portableGalleryImageUrl(galleryItem, tab.url)
+      url: galleryItem.localStoreId ? "" : await portableGalleryImageUrl(galleryItem, tab.url)
     })));
   } catch {
     return false;
@@ -2453,7 +4311,7 @@ async function closePageLightbox() {
 
 function renderLightboxStrip() {
   nodes.lightboxStrip.innerHTML = "";
-  const items = galleryItems.filter((item) => !item.isGenerating && item.url);
+  const items = galleryItems.filter((item) => !item.isGenerating && (item.url || item.localStoreId));
   items.forEach((item) => {
     const button = document.createElement("button");
     button.className = "lightbox-thumb";
@@ -2461,7 +4319,13 @@ function renderLightboxStrip() {
     button.setAttribute("aria-current", item === activeLightboxItem ? "true" : "false");
     button.title = `${item.model} · ${item.index}`;
     const img = document.createElement("img");
-    img.src = item.url;
+    const previewUrl = galleryItemPreviewUrl(item);
+    if (previewUrl) {
+      img.src = previewUrl;
+    } else {
+      img.hidden = true;
+      observeGalleryImage(img, item);
+    }
     img.alt = item.index;
     button.append(img);
     button.addEventListener("click", () => openLightbox(item, { forceLocal: true }));
@@ -2478,12 +4342,32 @@ function safeFilename(value) {
 }
 
 async function downloadImage(item = activeLightboxItem) {
-  if (!item?.url) {
-    setStatus("没有可下载的图片。");
+  if (!item?.url && !item?.localStoreId) {
+    setStatus("No image available to download.");
     return;
   }
 
   const filename = `${safeFilename(`${item.model}-${item.index}`)}.png`;
+  if (item.localStoreId) {
+    try {
+      const stored = await imageFromIndexedDb(item.localStoreId);
+      if (stored?.blob) {
+        const objectUrl = URL.createObjectURL(stored.blob);
+        triggerDownload(objectUrl, filename);
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
+        setStatus("Download started.");
+        return;
+      }
+    } catch {
+      // Fall back to the visible URL.
+    }
+  }
+
+  if (!item.url) {
+    setStatus("No image available to download.");
+    return;
+  }
+
   if (!item.url.startsWith("data:")) {
     try {
       const response = await fetch(item.url);
@@ -2494,7 +4378,7 @@ async function downloadImage(item = activeLightboxItem) {
       const objectUrl = URL.createObjectURL(blob);
       triggerDownload(objectUrl, filename);
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
-      setStatus("已开始下载图片。");
+      setStatus("Download started.");
       return;
     } catch {
       // Fall back to the source URL. Some providers disallow blob fetching,
@@ -2503,9 +4387,8 @@ async function downloadImage(item = activeLightboxItem) {
   }
 
   triggerDownload(item.url, filename);
-  setStatus("已开始下载图片。");
+  setStatus("Download started.");
 }
-
 function triggerDownload(url, filename) {
   const link = document.createElement("a");
   link.href = url;
@@ -2577,11 +4460,25 @@ function collectToEagleProtocol(item, options = {}) {
     : "已尝试通过 eagle:// 协议发送到 Eagle。如果没有响应，请确认 Eagle 已安装并允许协议打开。");
 }
 
+function currentGalleryPageSize() {
+  const grid = nodes.galleryGrid;
+  if (!grid) return GALLERY_PAGE_SIZE_SINGLE;
+
+  const width = grid.clientWidth || 0;
+  const columns = width >= 800 ? 3 : width >= 500 ? 2 : 1;
+  if (columns >= 3) return GALLERY_PAGE_SIZE_WIDE;
+  if (columns === 2) return GALLERY_PAGE_SIZE_DOUBLE;
+  return GALLERY_PAGE_SIZE_SINGLE;
+}
+
 function renderGallery() {
+  galleryImageObserver?.disconnect?.();
+  galleryImageObserver = null;
   nodes.galleryGrid.innerHTML = "";
 
   if (!galleryItems.length) {
     nodes.galleryMeta.textContent = "图库为空";
+    if (nodes.galleryPager) nodes.galleryPager.hidden = true;
     return;
   }
 
@@ -2590,9 +4487,41 @@ function renderGallery() {
   nodes.galleryMeta.textContent = generatingCount
     ? `${completedCount} 张 · ${generatingCount} 张生成中`
     : `${completedCount} 张 · 本地记录`;
-  galleryItems.forEach((item) => {
+  galleryPageSize = currentGalleryPageSize();
+  const totalPages = Math.max(1, Math.ceil(galleryItems.length / galleryPageSize));
+  galleryPage = Math.max(1, Math.min(galleryPage, totalPages));
+  const start = (galleryPage - 1) * galleryPageSize;
+  const pageItems = galleryItems.slice(start, start + galleryPageSize);
+
+  pageItems.forEach((item) => {
     nodes.galleryGrid.append(createGalleryItem(item));
   });
+
+  if (nodes.galleryPager) {
+    nodes.galleryPager.hidden = totalPages <= 1;
+    if (nodes.galleryPageText) nodes.galleryPageText.textContent = `${galleryPage} / ${totalPages}`;
+    if (nodes.galleryPrevBtn) nodes.galleryPrevBtn.disabled = galleryPage <= 1;
+    if (nodes.galleryNextBtn) nodes.galleryNextBtn.disabled = galleryPage >= totalPages;
+  }
+}
+
+async function restoreGalleryItemsFromIndexedDb() {
+  const indexedItems = await loadGalleryRecordsFromIndexedDb();
+  if (indexedItems.length) {
+    galleryItems = indexedItems.slice(0, 48);
+    renderGallery();
+    return;
+  }
+
+  if (galleryItems.length) {
+    renderGallery();
+    window.setTimeout(() => {
+      migrateLegacyGalleryItemsToIndexedDb();
+    }, 0);
+    return;
+  }
+
+  renderGallery();
 }
 
 function baseUrlWithPath(baseUrl, path) {
@@ -2777,6 +4706,11 @@ function sizeForApimartApi() {
     square: "1:1",
     portrait: "2:3",
     landscape: "3:2",
+    "21-9": "21:9",
+    "16-9": "16:9",
+    "9-16": "9:16",
+    "3-4": "3:4",
+    "4-3": "4:3",
     "2k": "16:9",
     "4k": "16:9"
   };
@@ -2796,6 +4730,7 @@ function nearestRunningHubRatio(width, height) {
     { label: "1:1", value: 1 },
     { label: "2:3", value: 2 / 3 },
     { label: "3:2", value: 3 / 2 },
+    { label: "21:9", value: 21 / 9 },
     { label: "16:9", value: 16 / 9 },
     { label: "9:16", value: 9 / 16 },
     { label: "3:4", value: 3 / 4 },
@@ -2821,6 +4756,53 @@ function resolutionForRunningHubApi() {
   if (mode === "2k") return "2k";
   if (mode === "4k") return "4k";
   return "1k";
+}
+
+function selectedSizeRule(width, height) {
+  const mode = nodes.sizeMode.value;
+  const option = SIZE_OPTIONS[mode];
+  const safeWidth = Math.max(128, Number(width) || Number(option?.width) || 1024);
+  const safeHeight = Math.max(128, Number(height) || Number(option?.height) || 1024);
+  const ratio = option?.ratio && option.ratio !== "auto"
+    ? option.ratio
+    : nearestRunningHubRatio(safeWidth, safeHeight);
+  const orientation = safeWidth > safeHeight
+    ? "横版宽画幅"
+    : safeWidth < safeHeight
+      ? "竖版画幅"
+      : "正方形画幅";
+
+  return {
+    width: safeWidth,
+    height: safeHeight,
+    ratio,
+    orientation,
+    label: `${ratio} · ${safeWidth} × ${safeHeight}`
+  };
+}
+
+function promptWithSizePriority(prompt, width, height) {
+  const cleanPrompt = String(prompt || "").trim();
+  if (!cleanPrompt) return cleanPrompt;
+  const rule = selectedSizeRule(width, height);
+  const isAuto = nodes.sizeMode.value === "auto";
+  const level = isAuto ? "当前画布尺寸约束" : "最高优先级画布尺寸约束";
+  const horizontalWarning = rule.width > rule.height
+    ? "必须是横向完整画布，不要生成竖版海报、竖向构图、画中画海报或留黑边。"
+    : "";
+  const verticalWarning = rule.width < rule.height
+    ? "必须是竖向完整画布，不要生成横版画面塞进竖版画布或留黑边。"
+    : "";
+  const squareWarning = rule.width === rule.height
+    ? "必须是正方形完整画布，不要生成横版或竖版画面塞进正方形画布。"
+    : "";
+
+  return [
+    cleanPrompt,
+    "",
+    `${level}：最终输出必须严格使用 ${rule.label}，${rule.orientation}。${horizontalWarning}${verticalWarning}${squareWarning}`,
+    `Canvas rule with highest priority: render a full-canvas ${rule.ratio} image at ${rule.width}x${rule.height}. Ignore and override any conflicting aspect-ratio, size, portrait, vertical, landscape, horizontal, poster-ratio, or canvas instructions inside the prompt or reference images. Fill the entire canvas in this selected ratio.`
+  ].join("\n");
 }
 
 function normalizeRunningHubApiMode(value) {
@@ -3206,7 +5188,7 @@ function prepareRunningHubAppNodeInfoList({
     const ratio = aspectRatioForRunningHubApi(width, height);
     ratioNode.fieldValue = chooseRunningHubFieldValue(
       ratioNode,
-      useImageReferences ? ["match_input_image", ratio, "auto"] : [ratio, "auto", "1:1"],
+      useImageReferences ? [ratio, "auto", "match_input_image"] : [ratio, "auto", "1:1"],
       ratio
     );
   }
@@ -3365,7 +5347,7 @@ async function pollApimartTask({ baseUrl, apiKey, taskId, count, onProgress }) {
     setStatus(`APIMart 任务 ${taskId} 正在生成：${status}${progressText}。`);
   }
 
-  throw new Error(`APIMart 任务 ${taskId} 仍在处理中。任务可能还没完成，请稍后用任务 ID 查询结果。`);
+  throw new PendingGenerationTaskError(`APIMart 任务 ${taskId} 仍在处理中。插件已保留任务，会继续查询结果。`);
 }
 
 async function callApimartGptImage2({
@@ -3382,7 +5364,9 @@ async function callApimartGptImage2({
   promptEn,
   promptStructure,
   mode,
-  onProgress
+  source,
+  onProgress,
+  onTaskSubmitted
 }) {
   const body = {
     model: "gpt-image-2",
@@ -3416,6 +5400,11 @@ async function callApimartGptImage2({
   }
 
   onProgress?.(null, "任务已提交");
+  onTaskSubmitted?.({
+    provider: "apimart",
+    taskId,
+    baseUrl
+  });
   setStatus(`APIMart 任务已提交：${taskId}。GPT-Image-2 是异步生成，通常需要几十秒。`);
   const urls = await pollApimartTask({ baseUrl, apiKey, taskId, count, onProgress });
   return urls.map((url, index) => ({
@@ -3428,12 +5417,13 @@ async function callApimartGptImage2({
     promptEn,
     promptStructure,
     mode,
+    source: normalizeGallerySource(source, mode),
     url
   }));
 }
 
 async function pollRunningHubTask({ baseUrl, apiKey, apiMode, taskId, count, onProgress }) {
-  const maxAttempts = 75;
+  const maxAttempts = 180;
   const normalizedMode = normalizeRunningHubApiMode(apiMode);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -3487,7 +5477,7 @@ async function pollRunningHubTask({ baseUrl, apiKey, apiMode, taskId, count, onP
     setStatus(`RunningHub 任务 ${taskId} 正在生成：${status}${progressText}。`);
   }
 
-  throw new Error(`RunningHub 任务 ${taskId} 仍在处理中，请稍后重试。`);
+  throw new PendingGenerationTaskError(`RunningHub 任务 ${taskId} 仍在处理中。插件已保留任务，会继续查询结果。`);
 }
 
 async function callRunningHubG2({
@@ -3505,7 +5495,9 @@ async function callRunningHubG2({
   useImageReferences,
   apiMode,
   mode,
-  onProgress
+  source,
+  onProgress,
+  onTaskSubmitted
 }) {
   const normalizedMode = normalizeRunningHubApiMode(apiMode);
   if (normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE) {
@@ -3560,6 +5552,7 @@ async function callRunningHubG2({
           promptEn,
           promptStructure,
           mode,
+          source: normalizeGallerySource(source, mode),
           url
         }));
       }
@@ -3571,6 +5564,12 @@ async function callRunningHubG2({
     }
 
     onProgress?.(null, "任务已提交");
+    onTaskSubmitted?.({
+      provider: "runninghub",
+      taskId,
+      baseUrl,
+      apiMode: normalizedMode
+    });
     setStatus(`RunningHub 企业级任务已提交：${taskId}。正在等待生成结果。`);
     const urls = await pollRunningHubTask({ baseUrl, apiKey, apiMode: normalizedMode, taskId, count, onProgress });
     return urls.map((url, index) => ({
@@ -3583,6 +5582,7 @@ async function callRunningHubG2({
       promptEn,
       promptStructure,
       mode,
+      source: normalizeGallerySource(source, mode),
       url
     }));
   }
@@ -3636,11 +5636,12 @@ async function callRunningHubG2({
         height,
         prompt: displayPrompt || prompt,
         promptCn,
-        promptEn,
-        promptStructure,
-        mode,
-        url
-      }));
+          promptEn,
+          promptStructure,
+          mode,
+          source: normalizeGallerySource(source, mode),
+          url
+        }));
     }
     const responseMessage = extractTaskErrorMessage(data, "");
     const fields = data && typeof data === "object" ? Object.keys(data).join(", ") : "";
@@ -3650,6 +5651,12 @@ async function callRunningHubG2({
   }
 
   onProgress?.(null, "任务已提交");
+  onTaskSubmitted?.({
+    provider: "runninghub",
+    taskId,
+    baseUrl,
+    apiMode: normalizedMode
+  });
   setStatus(`RunningHub 任务已提交：${taskId}。正在等待生成结果。`);
   const urls = await pollRunningHubTask({ baseUrl, apiKey, apiMode: normalizedMode, taskId, count, onProgress });
   return urls.map((url, index) => ({
@@ -3662,6 +5669,7 @@ async function callRunningHubG2({
     promptEn,
     promptStructure,
     mode,
+    source: normalizeGallerySource(source, mode),
     url
   }));
 }
@@ -3678,7 +5686,9 @@ async function callImageGenerationApi({
   height,
   model,
   mode,
-  onProgress
+  source,
+  onProgress,
+  onTaskSubmitted
 }) {
   const config = currentApiConfigFromForm();
   const image = config.image;
@@ -3718,7 +5728,9 @@ async function callImageGenerationApi({
       baseUrl,
       useImageReferences: useImageReferences && imageItems.length > 0,
       mode,
-      onProgress
+      source,
+      onProgress,
+      onTaskSubmitted
     });
   }
 
@@ -3738,7 +5750,9 @@ async function callImageGenerationApi({
       useImageReferences,
       apiMode: image.runninghubMode,
       mode,
-      onProgress
+      source,
+      onProgress,
+      onTaskSubmitted
     });
   }
 
@@ -3793,11 +5807,12 @@ async function callImageGenerationApi({
     promptEn,
     promptStructure,
     mode,
+    source: normalizeGallerySource(source, mode),
     url
   }));
 }
 
-function createGeneratingItems({ count, model, width, height, prompt, promptCn, promptEn, promptStructure, mode }) {
+function createGeneratingItems({ count, model, width, height, prompt, promptCn, promptEn, promptStructure, mode, source }) {
   const batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return Array.from({ length: count }, (_value, index) => ({
     index: `#${galleryItems.length + index + 1}`,
@@ -3810,6 +5825,7 @@ function createGeneratingItems({ count, model, width, height, prompt, promptCn, 
     promptEn,
     promptStructure,
     mode,
+    source: normalizeGallerySource(source, mode),
     url: "",
     isGenerating: true,
     progress: 0,
@@ -3818,6 +5834,46 @@ function createGeneratingItems({ count, model, width, height, prompt, promptCn, 
     hasRealProgress: false,
     progressLabel: "等待生成"
   }));
+}
+
+function pendingTaskToGeneratingItem(task) {
+  return {
+    index: task.index || `#${galleryItems.length + 1}`,
+    generationId: task.generationId,
+    model: task.model || "Generated Image",
+    width: Number(task.width) || 1024,
+    height: Number(task.height) || 1024,
+    prompt: task.displayPrompt || task.prompt || "",
+    promptCn: task.promptCn || "",
+    promptEn: task.promptEn || "",
+    promptStructure: task.promptStructure || "",
+    mode: normalizeGalleryMode(task.mode),
+    source: normalizeGallerySource(task.source || task.generationSource, task.mode),
+    url: "",
+    isGenerating: true,
+    progress: Number(task.progress) || 0,
+    progressTarget: Number(task.progressTarget) || 0,
+    progressTargetAt: performance.now(),
+    hasRealProgress: Boolean(task.hasRealProgress),
+    progressLabel: "恢复生成任务"
+  };
+}
+
+function ensurePendingGenerationPlaceholders(tasks) {
+  let changed = false;
+  const existingIds = new Set(galleryItems.map((item) => item.generationId).filter(Boolean));
+  const placeholders = [];
+  tasks.forEach((task) => {
+    if (existingIds.has(task.generationId)) return;
+    placeholders.push(pendingTaskToGeneratingItem(task));
+    existingIds.add(task.generationId);
+  });
+  if (placeholders.length) {
+    galleryItems = [...placeholders, ...galleryItems].slice(0, 48);
+    galleryPage = 1;
+    changed = true;
+  }
+  if (changed) renderGallery();
 }
 
 function galleryItemIndexForTarget(target) {
@@ -3841,6 +5897,7 @@ function replaceGeneratingItem(target, item) {
     hasRealProgress: true,
     isGenerating: false
   };
+  galleryPage = 1;
   renderGallery();
   saveWorkspaceState();
   return true;
@@ -3858,15 +5915,36 @@ async function runRealGeneration(payload, placeholders) {
       const [item] = await callImageGenerationApi({
         ...payload,
         count: 1,
-        onProgress: (progress, label) => updateGeneratingItemProgress(placeholders[index], progress, label)
+        onProgress: (progress, label) => updateGeneratingItemProgress(placeholders[index], progress, label),
+        onTaskSubmitted: (task) => {
+          const pendingId = upsertPendingGenerationTask({
+            ...task,
+            generationId: placeholders[index].generationId,
+            index: placeholders[index].index,
+            model: payload.model,
+            width: payload.width,
+            height: payload.height,
+            prompt: payload.prompt,
+            displayPrompt: payload.displayPrompt,
+            promptCn: payload.promptCn,
+            promptEn: payload.promptEn,
+            promptStructure: payload.promptStructure,
+            mode: payload.mode,
+            source: payload.source,
+            count: 1
+          });
+          placeholders[index].pendingTaskId = pendingId;
+        }
       });
       if (item) {
         updateGeneratingItemProgress(placeholders[index], null, "正在载入图片");
         item.index = placeholders[index].index;
         const savedItem = await persistGalleryItemImage(item);
+        removePendingGenerationTask({ id: placeholders[index].pendingTaskId, generationId: placeholders[index].generationId });
         items.push(savedItem);
         if (!replaceGeneratingItem(placeholders[index], savedItem)) {
-          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((entry) => entry.generationId !== placeholders[index].generationId)].slice(0, 12);
+          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((entry) => entry.generationId !== placeholders[index].generationId)].slice(0, 48);
+          galleryPage = 1;
           renderGallery();
           saveWorkspaceState();
         }
@@ -3879,11 +5957,205 @@ async function runRealGeneration(payload, placeholders) {
 
     setStatus("真实 API 已返回图片，结果已加入已生成图库。");
   } catch (error) {
+    if (isPendingGenerationTaskError(error)) {
+      const pendingGenerationIds = new Set(loadPendingGenerationTasks().map((task) => task.generationId));
+      let keptPending = false;
+      galleryItems = galleryItems.filter((item) => {
+        if (!item.isGenerating) return true;
+        const shouldKeep = pendingGenerationIds.has(item.generationId);
+        if (shouldKeep) {
+          keptPending = true;
+          updateGeneratingItemProgress(item, null, "任务仍在处理中");
+        }
+        return shouldKeep;
+      });
+      if (keptPending) {
+        renderGallery();
+        saveWorkspaceState();
+        schedulePendingGenerationResume();
+        setStatus(error.message || "生成任务仍在处理中，插件会继续查询结果。");
+        return;
+      }
+    }
     galleryItems = galleryItems.filter((item) => !item.isGenerating);
     renderGallery();
     saveWorkspaceState();
     setStatus(friendlyApiErrorMessage(error.message || "生图 API 调用失败。", payload.model || "生图 API"));
   }
+}
+
+async function resolvePendingGenerationTask(task) {
+  const placeholder = galleryItems.find((item) => item.generationId === task.generationId)
+    || pendingTaskToGeneratingItem(task);
+  const config = currentApiConfigFromForm();
+  const imageConfig = config.image || {};
+  if (task.provider && imageConfig.provider && task.provider !== imageConfig.provider) {
+    setStatus(`有未完成的 ${task.provider} 生成任务，请切回对应生图服务商后继续恢复。`);
+    return;
+  }
+  const baseUrl = task.baseUrl || imageConfig.baseUrl || defaultBaseUrl(imageConfig.provider);
+  const apiKey = imageConfig.apiKey;
+  if (!baseUrl || !apiKey) {
+    setStatus("有未完成的生成任务，但当前生图 API 配置不完整。保存 API 后会继续查询。");
+    return;
+  }
+
+  try {
+    updateGeneratingItemProgress(placeholder, null, "正在恢复任务");
+    const urls = task.provider === "apimart"
+      ? await pollApimartTask({
+        baseUrl,
+        apiKey,
+        taskId: task.taskId,
+        count: task.count || 1,
+        onProgress: (progress, label) => updateGeneratingItemProgress(placeholder, progress, label)
+      })
+      : await pollRunningHubTask({
+        baseUrl,
+        apiKey,
+        apiMode: task.apiMode || imageConfig.runninghubMode,
+        taskId: task.taskId,
+        count: task.count || 1,
+        onProgress: (progress, label) => updateGeneratingItemProgress(placeholder, progress, label)
+      });
+    const [url] = urls;
+    if (!url) throw new Error("任务完成后没有返回图片 URL。");
+
+    updateGeneratingItemProgress(placeholder, null, "正在载入图片");
+    const savedItem = await persistGalleryItemImage({
+      index: task.index || placeholder.index,
+      model: task.model || placeholder.model,
+      width: task.width || placeholder.width,
+      height: task.height || placeholder.height,
+      prompt: task.displayPrompt || task.prompt || placeholder.prompt,
+      promptCn: task.promptCn || placeholder.promptCn,
+      promptEn: task.promptEn || placeholder.promptEn,
+      promptStructure: task.promptStructure || placeholder.promptStructure,
+      mode: normalizeGalleryMode(task.mode),
+      source: normalizeGallerySource(task.source || placeholder.source, task.mode || placeholder.mode),
+      url
+    });
+    removePendingGenerationTask({ id: task.id, generationId: task.generationId });
+    if (!replaceGeneratingItem(placeholder, savedItem)) {
+      galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)].slice(0, 48);
+      galleryPage = 1;
+      renderGallery();
+      saveWorkspaceState();
+    }
+    setStatus("已恢复完成的生成任务，结果已加入已生成图库。");
+  } catch (error) {
+    const message = error.message || "任务恢复失败。";
+    if (isPendingGenerationTaskError(error)) {
+      updateGeneratingItemProgress(placeholder, null, "任务仍在处理中");
+      schedulePendingGenerationResume();
+      setStatus("任务仍在处理中，已保留任务并会继续查询。");
+      return;
+    }
+    removePendingGenerationTask({ id: task.id, generationId: task.generationId });
+    galleryItems = galleryItems.filter((item) => item.generationId !== task.generationId);
+    renderGallery();
+    saveWorkspaceState();
+    setStatus(friendlyApiErrorMessage(message, task.model || "生图 API"));
+  }
+}
+
+async function consumeCompletedGenerationResults() {
+  const result = await chromeStorageLocalGet(COMPLETED_GENERATION_RESULTS_KEY);
+  const records = Array.isArray(result?.[COMPLETED_GENERATION_RESULTS_KEY])
+    ? result[COMPLETED_GENERATION_RESULTS_KEY]
+    : [];
+  if (!records.length) return;
+
+  const remaining = [];
+  let importedCount = 0;
+  let failedCount = 0;
+
+  for (const record of records) {
+    const task = record?.task || record;
+    if (!task?.taskId && !task?.generationId) continue;
+
+    if (record.status === "failed") {
+      failedCount += 1;
+      removePendingGenerationTask({ id: task.id, generationId: task.generationId });
+      galleryItems = galleryItems.filter((item) => item.generationId !== task.generationId);
+      setStatus(`后台生成任务失败：${record.error || "远程 API 返回失败状态"}。`);
+      continue;
+    }
+
+    const urls = Array.isArray(record.urls) ? record.urls.filter(Boolean) : [];
+    if (!urls.length) {
+      remaining.push(record);
+      continue;
+    }
+
+    try {
+      for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
+        const url = urls[urlIndex];
+        const alreadyImported = galleryItems.some((item) => (
+          !item.isGenerating
+          && (item.originalUrl === url || item.url === url)
+        ));
+        if (alreadyImported) continue;
+
+        const placeholder = urlIndex === 0
+          ? (galleryItems.find((item) => item.generationId === task.generationId) || pendingTaskToGeneratingItem(task))
+          : null;
+        const savedItem = await persistGalleryItemImage({
+          index: urlIndex === 0 ? (task.index || placeholder?.index || `#${galleryItems.length + 1}`) : `#${galleryItems.length + 1}`,
+          model: task.model || placeholder?.model || "Generated Image",
+          width: task.width || placeholder?.width || 1024,
+          height: task.height || placeholder?.height || 1024,
+          prompt: task.displayPrompt || task.prompt || placeholder?.prompt || "",
+          promptCn: task.promptCn || placeholder?.promptCn || "",
+          promptEn: task.promptEn || placeholder?.promptEn || "",
+          promptStructure: task.promptStructure || placeholder?.promptStructure || "",
+          mode: normalizeGalleryMode(task.mode),
+          source: normalizeGallerySource(task.source || placeholder?.source, task.mode || placeholder?.mode),
+          url
+        });
+        if (placeholder && replaceGeneratingItem(placeholder, savedItem)) {
+          importedCount += 1;
+        } else {
+          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)].slice(0, 48);
+          galleryPage = 1;
+          renderGallery();
+          saveWorkspaceState();
+          importedCount += 1;
+        }
+      }
+      removePendingGenerationTask({ id: task.id, generationId: task.generationId });
+    } catch {
+      remaining.push(record);
+    }
+  }
+
+  if (remaining.length) {
+    await chromeStorageLocalSet({ [COMPLETED_GENERATION_RESULTS_KEY]: remaining });
+  } else {
+    await chromeStorageLocalRemove(COMPLETED_GENERATION_RESULTS_KEY);
+  }
+
+  if (importedCount || failedCount) {
+    renderGallery();
+    saveWorkspaceState();
+  }
+  if (importedCount) {
+    setStatus(`已导入 ${importedCount} 张后台完成的生成图片。`);
+  }
+}
+
+let isResumingPendingGenerationTasks = false;
+function resumePendingGenerationTasks() {
+  if (isResumingPendingGenerationTasks) return;
+  const tasks = loadPendingGenerationTasks();
+  if (!tasks.length) return;
+  isResumingPendingGenerationTasks = true;
+  ensurePendingGenerationPlaceholders(tasks);
+  setStatus(`发现 ${tasks.length} 个未完成生成任务，正在恢复查询。`);
+  Promise.allSettled(tasks.map((task) => resolvePendingGenerationTask(task)))
+    .finally(() => {
+      isResumingPendingGenerationTasks = false;
+    });
 }
 
 function shouldUseRealImageApi() {
@@ -3896,14 +6168,22 @@ function generate() {
   promptMeta = bundle;
   const inputPrompt = nodes.promptInput.value.trim();
   const displayPrompt = bundle.chinese || inputPrompt;
-  const prompt = bundle.english || bundle.chinese || displayPrompt;
   const count = Math.max(1, Math.min(8, Number(nodes.countInput.value) || 1));
   const width = Number(nodes.widthInput.value) || 1024;
   const height = Number(nodes.heightInput.value) || 1024;
+  const sourcePrompt = bundle.english || bundle.chinese || displayPrompt;
+  const prompt = promptWithSizePriority(sourcePrompt, width, height);
   const model = nodes.modelSelect.options[nodes.modelSelect.selectedIndex].text;
   const effectiveGenerationMode = generationMode === "image" && imageItems.length > 0 ? "image" : "text";
+  const generationSource = promptMethod === "reuse" ? "reuse" : effectiveGenerationMode;
   if (generationMode === "image" && effectiveGenerationMode === "text") {
     setGenerationMode("text", { silent: true });
+  }
+
+  if (!isVisualReusePromptCurrent()) {
+    setStatus("当前复用提示词不属于这组参考图，请先点击“生成复用提示词”。");
+    nodes.promptInput.focus();
+    return;
   }
 
   if (!displayPrompt && !prompt) {
@@ -3918,13 +6198,15 @@ function generate() {
     model,
     width,
     height,
-    prompt: displayPrompt || prompt,
+    prompt: displayPrompt || sourcePrompt,
     promptCn: bundle.chinese,
     promptEn: bundle.english,
     promptStructure: bundle.structure,
-    mode: effectiveGenerationMode
+    mode: effectiveGenerationMode,
+    source: generationSource
   });
-  galleryItems = [...placeholders, ...galleryItems].slice(0, 12);
+  galleryItems = [...placeholders, ...galleryItems].slice(0, 48);
+  galleryPage = 1;
   renderGallery();
   saveWorkspaceState();
 
@@ -3940,7 +6222,8 @@ function generate() {
       width,
       height,
       model,
-      mode: effectiveGenerationMode
+      mode: effectiveGenerationMode,
+      source: generationSource
     }, placeholders);
     return;
   }
@@ -3962,6 +6245,11 @@ function generate() {
           width,
           height,
           prompt,
+          promptCn: bundle.chinese,
+          promptEn: bundle.english,
+          promptStructure: bundle.structure,
+          mode: effectiveGenerationMode,
+          source: generationSource,
           url: ""
         });
       });
@@ -3988,7 +6276,9 @@ function currentApiConfigFromForm() {
       providerLabel: selectedOptionText(nodes.promptApiProvider, "OpenAI"),
       baseUrl: nodes.promptApiBaseUrl.value.trim(),
       apiKey: nodes.promptApiKey.value.trim(),
-      model: nodes.promptModelSelect.value
+      model: promptProvider === "deepseek" ? deepSeekModelFromMode(nodes.deepSeekThinkingMode?.value) : nodes.promptModelSelect.value,
+      deepSeekThinkingMode: normalizeDeepSeekThinkingMode(nodes.deepSeekThinkingMode?.value),
+      deepSeekThinking: promptProvider === "deepseek" && deepSeekThinkingEnabled(nodes.deepSeekThinkingMode?.value)
     },
     image: {
       provider: imageProvider,
@@ -4020,7 +6310,9 @@ function applyApiConfig(config) {
         providerLabel: config.providerLabel || "OpenAI",
         baseUrl: config.baseUrl || "",
         apiKey: config.apiKey || "",
-        model: config.promptModel || "gpt-4.1-mini"
+        model: config.promptModel || "gpt-4.1-mini",
+        deepSeekThinkingMode: config.deepSeekThinkingMode || "flash-off",
+        deepSeekThinking: Boolean(config.deepSeekThinking)
       },
       image: {
         provider: config.provider || "openai",
@@ -4048,6 +6340,12 @@ function applyApiConfig(config) {
     : defaultBaseUrl(promptProvider);
   nodes.promptApiKey.value = config.prompt?.apiKey || "";
   nodes.promptModelSelect.value = config.prompt?.model || "gpt-4.1-mini";
+  if (nodes.deepSeekThinkingMode) {
+    nodes.deepSeekThinkingMode.value = normalizeDeepSeekThinkingMode(
+      config.prompt?.deepSeekThinkingMode
+      || deepSeekModeFromModel(config.prompt?.model, Boolean(config.prompt?.deepSeekThinking))
+    );
+  }
   const rawImageProvider = config.image?.provider || "openai";
   const imageProvider = setSelectValue(nodes.imageApiProvider, rawImageProvider, "openai");
   nodes.imageApiBaseUrl.value = imageProvider === rawImageProvider
@@ -4072,6 +6370,7 @@ function applyApiConfig(config) {
     ? ` · ${runningHubApiModeLabel(nodes.runningHubApiMode?.value)}`
     : "";
   nodes.apiMeta.textContent = `反推:${config.prompt?.providerLabel || "未配置"} · 生图:${config.image?.providerLabel || "未配置"}${runningHubMeta}`;
+  syncDeepSeekPromptUi({ fromModel: true });
   syncCustomModelField();
   syncModelPicker();
 }
@@ -4084,12 +6383,15 @@ function loadApiConfig() {
     if (nodes.eagleApiBaseUrl) nodes.eagleApiBaseUrl.value = defaultEagleBaseUrl();
     if (nodes.eagleApiMode) nodes.eagleApiMode.value = "api";
     if (nodes.eagleApiToken) nodes.eagleApiToken.value = "";
+    syncDeepSeekPromptUi();
     showApiSaveFeedback("首次使用，请填写后保存", "idle");
     return;
   }
 
   try {
-    applyApiConfig(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    applyApiConfig(parsed);
+    mirrorApiConfigToExtensionStorage(parsed);
     showApiSaveFeedback("已加载上次保存的配置", "saved");
   } catch {
     localStorage.removeItem(API_STORAGE_KEY);
@@ -4139,6 +6441,7 @@ function saveApiConfig() {
 
   apiConfig = config;
   localStorage.setItem(API_STORAGE_KEY, JSON.stringify(config));
+  mirrorApiConfigToExtensionStorage(config);
   const runningHubMeta = config.image.provider === "runninghub"
     ? ` · ${runningHubApiModeLabel(config.image.runninghubMode)}`
     : "";
@@ -4152,6 +6455,7 @@ function saveApiConfig() {
     nodes.saveApiBtn.textContent = "保存配置";
   }, 1500);
   setStatus("两组 API 配置已保存：反推提示词和生图会分别使用自己的服务配置。");
+  resumePendingGenerationTasks();
 }
 
 nodes.fileInput.addEventListener("change", () => {
@@ -4196,13 +6500,14 @@ nodes.dropZone.addEventListener("drop", async (event) => {
     return;
   }
 
-  const htmlUrl = extractImageUrlFromHtml(event.dataTransfer.getData("text/html"));
-  const uriUrl = normalizeDroppedUrl(event.dataTransfer.getData("text/uri-list"));
-  const textUrl = normalizeDroppedUrl(event.dataTransfer.getData("text/plain"));
-  const url = htmlUrl || uriUrl || textUrl;
+  const urls = uniqueValues([
+    ...extractImageUrlsFromHtml(event.dataTransfer.getData("text/html")),
+    ...normalizeDroppedUrls(event.dataTransfer.getData("text/uri-list")),
+    ...normalizeDroppedUrls(event.dataTransfer.getData("text/plain"))
+  ]);
 
-  if (url) {
-    await setImage(url, "网页图片");
+  if (urls.length) {
+    await addImagesFromUrls(urls, "网页拖入图片");
     return;
   }
 
@@ -4216,9 +6521,12 @@ window.addEventListener("paste", async (event) => {
     return;
   }
 
-  const textUrl = normalizeDroppedUrl(event.clipboardData.getData("text/plain"));
-  if (textUrl) {
-    await setImage(textUrl, "粘贴的图片");
+  const pastedUrls = uniqueValues([
+    ...extractImageUrlsFromHtml(event.clipboardData.getData("text/html")),
+    ...normalizeDroppedUrls(event.clipboardData.getData("text/plain"))
+  ]);
+  if (pastedUrls.length) {
+    await addImagesFromUrls(pastedUrls, "粘贴的图片");
   }
 });
 
@@ -4230,7 +6538,10 @@ nodes.promptInput.addEventListener("input", () => {
       source: text,
       chinese: hasChinese(text) ? text : "",
       english: hasChinese(text) ? "" : text,
-      structure: extractPromptStructureText(text)
+      structure: extractPromptStructureText(text),
+      roleCheck: "",
+      selfCheck: "",
+      visualReuseFingerprint: promptMethod === "reuse" ? visualReuseReferenceFingerprint() : ""
     };
   }
   saveWorkspaceState();
@@ -4262,6 +6573,14 @@ nodes.promptApiProvider.addEventListener("change", () => {
   if (nodes.promptApiProvider.value === "gemini") {
     nodes.promptModelSelect.value = "gemini-2.5-flash";
   }
+  if (nodes.promptApiProvider.value === "aliyun") {
+    nodes.promptModelSelect.value = "qwen-vl-plus";
+  }
+  if (nodes.promptApiProvider.value === "deepseek") {
+    nodes.deepSeekThinkingMode.value = "flash-off";
+    nodes.promptModelSelect.value = deepSeekModelFromMode(nodes.deepSeekThinkingMode.value);
+  }
+  syncDeepSeekPromptUi();
   markApiConfigDirty();
 });
 nodes.imageApiProvider.addEventListener("change", () => {
@@ -4347,10 +6666,29 @@ nodes.modelSelect.addEventListener("change", () => {
   syncRunningHubApiModeField();
   saveWorkspaceState();
 });
+nodes.promptModelSelect?.addEventListener("change", () => {
+  if (nodes.promptModelSelect.value === "qwen-vl-plus") {
+    nodes.promptApiProvider.value = "aliyun";
+    nodes.promptApiBaseUrl.value = defaultBaseUrl("aliyun");
+    syncDeepSeekPromptUi({ fromModel: true });
+  } else if (nodes.promptModelSelect.value.startsWith("deepseek-v4-")) {
+    nodes.promptApiProvider.value = "deepseek";
+    nodes.promptApiBaseUrl.value = defaultBaseUrl("deepseek");
+    syncDeepSeekPromptUi({ fromModel: true });
+  } else {
+    syncDeepSeekPromptUi({ fromModel: true });
+  }
+  markApiConfigDirty();
+});
+nodes.deepSeekThinkingMode?.addEventListener("change", () => {
+  syncDeepSeekPromptUi();
+  markApiConfigDirty();
+});
 [
   nodes.promptApiBaseUrl,
   nodes.promptApiKey,
   nodes.promptModelSelect,
+  nodes.deepSeekThinkingMode,
   nodes.imageApiBaseUrl,
   nodes.imageApiKey,
   nodes.runningHubApiMode,
@@ -4377,6 +6715,9 @@ document.addEventListener("click", (event) => {
   if (!nodes.sizePicker?.contains(event.target)) {
     setSizeMenuOpen(false);
   }
+  if (!event.target.closest?.(".visual-reuse-role-editor")) {
+    closeVisualReuseRoleEditors();
+  }
 });
 nodes.saveApiBtn.addEventListener("click", saveApiConfig);
 nodes.mascotBtn?.addEventListener("click", playMascot);
@@ -4384,13 +6725,24 @@ nodes.pinWindowBtn?.addEventListener("click", openPinnedWindow);
 nodes.textToImageModeBtn?.addEventListener("click", () => setGenerationMode("text"));
 nodes.imageToImageModeBtn?.addEventListener("click", () => setGenerationMode("image"));
 nodes.reversePromptBtn?.addEventListener("click", reversePrompt);
-nodes.visualReuseBtn?.addEventListener("click", () => {
-  const nextOpen = Boolean(nodes.visualReusePanel?.hidden);
-  setPromptMethod(nextOpen ? "reuse" : "none");
-  setVisualReusePanelOpen(Boolean(nextOpen));
-  if (!nextOpen) {
-    nodes.promptInput.focus();
+nodes.reverseDetailToggle?.addEventListener("change", () => {
+  reversePromptDetailed = Boolean(nodes.reverseDetailToggle.checked);
+  if (!reversePromptDetailed) {
+    promptMeta = {
+      ...promptMeta,
+      english: "",
+      structure: ""
+    };
   }
+  saveWorkspaceState();
+  setStatus(reversePromptDetailed
+    ? "已开启详细反推：会同步保留中文、英文和提示词结构。"
+    : "已关闭详细反推：后续只保留中文提示词。");
+});
+nodes.visualReuseBtn?.addEventListener("click", () => {
+  setPromptMethod("reuse");
+  setVisualReusePanelOpen(true);
+  resetPromptViewportToTop();
 });
 nodes.visualReuseGenerateBtn?.addEventListener("click", generateVisualReusePrompt);
 [
@@ -4401,12 +6753,33 @@ nodes.visualReuseGenerateBtn?.addEventListener("click", generateVisualReusePromp
   nodes.visualReuseNotes
 ].forEach((node) => {
   if (!node) return;
-  node.addEventListener("input", saveWorkspaceState);
-  node.addEventListener("change", saveWorkspaceState);
+  const handleVisualReuseOptionChange = () => {
+    clearGeneratedPromptForReferenceChange("视觉复用参数已变化，请重新生成复用提示词。");
+    saveWorkspaceState();
+  };
+  node.addEventListener("input", handleVisualReuseOptionChange);
+  node.addEventListener("change", handleVisualReuseOptionChange);
 });
 nodes.clearPromptBtn?.addEventListener("click", clearPrompt);
 nodes.resetAllBtn?.addEventListener("click", resetAll);
 nodes.generateBtn.addEventListener("click", generate);
+nodes.galleryPrevBtn?.addEventListener("click", () => {
+  galleryPage = Math.max(1, galleryPage - 1);
+  renderGallery();
+});
+nodes.galleryNextBtn?.addEventListener("click", () => {
+  galleryPage += 1;
+  renderGallery();
+});
+if (nodes.galleryGrid && "ResizeObserver" in window) {
+  const galleryResizeObserver = new ResizeObserver(() => {
+    const nextPageSize = currentGalleryPageSize();
+    if (nextPageSize === galleryPageSize) return;
+    galleryPageSize = nextPageSize;
+    renderGallery();
+  });
+  galleryResizeObserver.observe(nodes.galleryGrid);
+}
 nodes.lightboxClose.addEventListener("click", closeLightbox);
 nodes.eagleCollectBtn?.addEventListener("click", collectToEagle);
 nodes.lightboxDownloadBtn.addEventListener("click", () => downloadImage(activeLightboxItem));
@@ -4428,10 +6801,12 @@ window.addEventListener("keydown", async (event) => {
     await closePageLightbox();
   }
 });
-window.addEventListener("pointermove", syncPointerGlow, { passive: true });
 window.chrome?.storage?.onChanged?.addListener((changes, areaName) => {
   if (areaName === "local" && changes[PENDING_CONTEXT_IMAGE_KEY]?.newValue) {
     consumePendingContextImage();
+  }
+  if (areaName === "local" && changes[COMPLETED_GENERATION_RESULTS_KEY]?.newValue) {
+    consumeCompletedGenerationResults();
   }
 });
 
@@ -4442,7 +6817,9 @@ syncSizeInputs(1024, 1024);
 syncCustomModelField();
 loadApiConfig();
 loadWorkspaceState();
+syncImageUploadLimitUi();
 consumePendingContextImage();
-hydrateGalleryItemsFromIndexedDb();
+restoreGalleryItemsFromIndexedDb()
+  .then(consumeCompletedGenerationResults)
+  .then(resumePendingGenerationTasks);
 syncModelPicker();
-renderGallery();

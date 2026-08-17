@@ -4,9 +4,14 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const root = __dirname;
+const packageMeta = require("./package.json");
 const distDir = path.join(root, "dist");
-const buildDir = path.join(distDir, "image-prompt-builder");
-const zipPath = path.join(distDir, "image-prompt-builder.zip");
+const buildDir = path.join(distDir, "assetflow");
+const legacyBuildDirs = [
+  path.join(distDir, "lyz-assetflow"),
+  path.join(distDir, "image-prompt-builder"),
+];
+const zipPath = path.join(distDir, `assetflow-v${packageMeta.version}.zip`);
 
 const files = [
   "manifest.json",
@@ -15,6 +20,8 @@ const files = [
   "index.html",
   "popup.html",
   "popup.css",
+  "soft-aurora.js",
+  "reuse-plan.js",
   "popup.js",
   "options.html",
   "options.css",
@@ -28,6 +35,8 @@ const assetReferenceFiles = [
   "content.js",
   "popup.html",
   "popup.css",
+  "soft-aurora.js",
+  "reuse-plan.js",
   "popup.js",
   "options.html",
   "options.css",
@@ -154,16 +163,29 @@ async function main() {
 
   await assertFilesPresent([...files, ...assets], buildDir);
 
+  for (const legacyBuildDir of legacyBuildDirs) {
+    await fsp.rm(legacyBuildDir, { recursive: true, force: true });
+    await fsp.cp(buildDir, legacyBuildDir, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   if (!createZip()) {
     throw new Error("Failed to create extension zip. Please make sure ditto, zip, or PowerShell is available.");
   }
 
   console.log("");
-  console.log("Image Prompt Builder extension package is ready:");
+  console.log(`AssetFlow ${packageMeta.version} extension package is ready:`);
   console.log(zipPath);
   console.log("");
   console.log("For local testing, open chrome://extensions or edge://extensions, enable Developer mode, then load unpacked:");
   console.log(buildDir);
+  console.log("");
+  console.log("Existing unpacked installs can keep reloading either compatibility directory:");
+  for (const legacyBuildDir of legacyBuildDirs) {
+    console.log(legacyBuildDir);
+  }
 }
 
 main().catch((error) => {

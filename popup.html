@@ -3,35 +3,111 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Image Prompt Builder</title>
+    <title>AssetFlow</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
+    <div id="softAurora" class="soft-aurora" aria-hidden="true"></div>
     <main class="app-shell">
       <header class="topbar">
-        <div class="top-logo" aria-hidden="true">
-          <img src="assets/logo.png" alt="">
+        <div class="top-brand" aria-label="AssetFlow">
+          <div class="top-logo" aria-hidden="true">
+            <img src="assets/logo.png" alt="">
+          </div>
         </div>
         <div class="top-actions">
           <button id="pinWindowBtn" class="ghost-btn icon-ghost-btn pin-icon" type="button" title="打开可调整大小的独立窗口" aria-label="置顶"></button>
-          <button id="apiToggleBtn" class="ghost-btn icon-ghost-btn settings-icon" type="button" aria-label="设置"></button>
+          <button id="apiToggleBtn" class="ghost-btn icon-ghost-btn settings-icon" type="button" aria-label="设置" aria-controls="apiPanel" aria-expanded="false"></button>
         </div>
       </header>
 
-      <section class="hero">
-        <h1>Image to Prompt</h1>
+      <section id="heroSection" class="hero">
+        <span class="hero-kicker">REFERENCE · PLAN · CREATE</span>
+        <h1 id="heroTitle">AssetFlow</h1>
+        <p id="heroDescription">
+          <span id="heroDescriptionText">把参考图整理成可追溯的复用方案，再生成新的视觉资产。</span>
+          <span id="apiHeroModeTag" class="hero-api-mode-tag" hidden></span>
+        </p>
       </section>
 
-      <section id="apiPanel" class="api-panel" hidden>
-        <div class="result-head">
-          <span>API 接入</span>
-          <small id="apiMeta">未配置</small>
+      <section id="referenceUploadPanel" class="image-panel reference-upload-panel" aria-label="参考图上传">
+        <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="添加图片">
+          <input id="fileInput" type="file" accept="image/*" multiple>
+          <img id="previewImage" alt="已添加图片">
+          <div id="imageStack" class="image-stack" aria-label="已上传图片"></div>
+          <button id="clearImageBtn" class="image-delete single-image-delete" type="button" aria-label="删除当前图片" title="删除当前图片" hidden></button>
+          <div id="emptyState" class="empty-state">
+            <span class="upload-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 16V4"></path>
+                <path d="M7 9l5-5 5 5"></path>
+                <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path>
+              </svg>
+            </span>
+            <strong id="dropZoneTitle">拖拽图片到此处</strong>
+            <small id="dropZoneHint">或点击上传参考图，最多 4 张</small>
+          </div>
         </div>
+        <div class="image-meta">
+          <button id="reversePromptBtn" class="image-meta-action mode-tab" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 9-9"></path>
+              <path d="M3 5v6h6"></path>
+            </svg>
+            <span>反推提示词</span>
+          </button>
+          <label class="reverse-detail-switch" title="开启后反推会同步生成中文、英文和提示词结构；关闭时只保留中文提示词以节省调用成本。">
+            <input id="reverseDetailToggle" type="checkbox">
+          </label>
+          <span id="imageName">未选择图片</span>
+          <span id="imageSize">尺寸待获取</span>
+        </div>
+      </section>
+
+      <nav id="generationModeNav" class="generation-mode-nav" data-active-mode="text" aria-label="生成模式">
+        <span id="generationModeIndicator" class="generation-mode-indicator" aria-hidden="true"></span>
+        <button id="textToImageModeBtn" class="generation-mode-btn" type="button" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7V5a1 1 0 0 1 1-1h4"></path>
+            <path d="M20 7V5a1 1 0 0 0-1-1h-4"></path>
+            <path d="M4 17v2a1 1 0 0 0 1 1h4"></path>
+            <path d="M20 17v2a1 1 0 0 1-1 1h-4"></path>
+            <path d="M9 12h6M9 9h3"></path>
+          </svg>
+          <span>文生图</span>
+        </button>
+        <button id="imageToImageModeBtn" class="generation-mode-btn" type="button" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="13" height="13" rx="2"></rect>
+            <circle cx="7.5" cy="9.5" r="1.2"></circle>
+            <path d="M4 15l3.5-3.5a1 1 0 0 1 1.4 0L11 13.5"></path>
+            <path d="M18 9v10a2 2 0 0 1-2 2H8"></path>
+          </svg>
+          <span>图生图</span>
+        </button>
+        <button id="visualReuseBtn" class="generation-mode-btn prompt-method" type="button" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="7" y="7" width="12" height="12" rx="2"></rect>
+            <path d="M5 15V6a2 2 0 0 1 2-2h9"></path>
+          </svg>
+          <span>视觉复用</span>
+        </button>
+      </nav>
+
+      <section id="apiPanel" class="api-panel" hidden>
+        <small id="apiMeta" class="api-meta-storage" aria-hidden="true">未配置</small>
+        <nav id="apiTabs" class="api-tabs" role="tablist" aria-label="API 配置分类">
+          <span id="apiTabIndicator" class="api-tab-indicator" aria-hidden="true"></span>
+          <button class="api-tab-btn" type="button" role="tab" data-api-tab="prompt" aria-controls="apiPromptSection" aria-selected="true">反推提示词</button>
+          <button class="api-tab-btn" type="button" role="tab" data-api-tab="image" aria-controls="apiImageSection" aria-selected="false">生图</button>
+          <button class="api-tab-btn" type="button" role="tab" data-api-tab="custom" aria-controls="apiCustomSection" aria-selected="false">自定义</button>
+          <button class="api-tab-btn" type="button" role="tab" data-api-tab="eagle" aria-controls="apiEagleSection" aria-selected="false">Eagle</button>
+        </nav>
         <div class="api-sections">
-          <section class="api-section">
+          <section id="apiPromptSection" class="api-section api-tab-panel" data-api-panel="prompt" role="tabpanel">
             <div class="api-section-title">
               <strong>反推提示词 API</strong>
-              <small>看图理解，用来生成提示词</small>
+              <small>语言模型整理视觉分析，生成最终提示词</small>
             </div>
             <div class="api-grid">
               <label>
@@ -39,10 +115,11 @@
                 <select id="promptApiProvider">
                   <option value="openai">OpenAI</option>
                   <option value="gemini">Google Gemini</option>
+                  <option value="volcengine">火山引擎方舟</option>
                   <option value="aliyun">阿里云百炼</option>
                   <option value="deepseek">DeepSeek</option>
                   <option value="siliconflow">SiliconFlow</option>
-                  <option value="custom">自定义</option>
+                  <option value="custom" hidden>临时自定义（旧配置兼容）</option>
                 </select>
               </label>
               <label>
@@ -53,22 +130,27 @@
                 <span>API Key</span>
                 <div class="secret-field">
                   <input id="promptApiKey" type="password" placeholder="sk-...">
-                  <button class="secret-toggle" type="button" data-target="promptApiKey" aria-label="查看反推 API Key" aria-pressed="false"></button>
+                  <button class="secret-toggle" type="button" data-target="promptApiKey" aria-label="查看反推 API Key" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
                 </div>
               </label>
-              <label>
-                <span>视觉模型</span>
-                <select id="promptModelSelect">
-                  <option value="gpt-4.1-mini">GPT-4.1 mini</option>
-                  <option value="gpt-4o-mini">GPT-4o mini</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                  <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                  <option value="deepseek-v4-flash">DeepSeek-V4-Flash</option>
-                  <option value="deepseek-v4-pro">DeepSeek-V4-Pro</option>
-                  <option value="qwen-vl-plus">Qwen VL Plus</option>
-                  <option value="custom">自定义视觉模型</option>
-                </select>
-              </label>
+              <div id="promptCustomProviderHint" class="api-managed-hint api-wide" hidden>
+                <svg class="api-managed-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M12 16v-4"></path>
+                  <path d="M12 8h.01"></path>
+                </svg>
+                <span>这是自定义服务商，信息请在「自定义」页签中管理。</span>
+                <button type="button" data-api-goto="custom">前往管理 →</button>
+              </div>
+              <div id="promptCustomProviderModelReadonly" class="api-readonly-field api-wide" hidden>
+                <span>模型</span>
+                <div id="promptCustomProviderModelValue" class="api-readonly-box">未填写</div>
+              </div>
               <label id="deepSeekThinkingField" class="api-wide custom-model-field" hidden>
                 <span>DeepSeek 模式</span>
                 <select id="deepSeekThinkingMode">
@@ -78,10 +160,42 @@
                   <option value="pro-on">DeepSeek-V4-Pro · 思考</option>
                 </select>
               </label>
+              <label id="promptLanguageModelField" class="api-wide custom-model-field" hidden>
+                <span>提示词语言模型</span>
+                <select id="promptLanguageModelSelect">
+                  <option value="glm-5.2">GLM-5.2</option>
+                  <option value="deepseek-v4-flash">DeepSeek V4 Flash</option>
+                  <option value="custom">自定义方舟接入点</option>
+                </select>
+                <small>负责把图片分析整理成最终提示词。</small>
+              </label>
+              <label id="promptLanguageCustomField" class="api-wide custom-model-field" hidden>
+                <span>语言模型 / 方舟接入点 ID</span>
+                <input id="promptLanguageModelName" type="text" placeholder="模型 ID 或 ep-...">
+              </label>
+              <label id="promptVisionModelField" class="api-wide">
+                <span>反推视觉模型</span>
+                <select id="promptModelSelect">
+                  <option value="gpt-4.1-mini">GPT-4.1 mini</option>
+                  <option value="gpt-4o-mini">GPT-4o mini</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                  <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                  <option value="doubao-seed-2-0-lite-260215">豆包 Seed 2.0 Lite（视觉）</option>
+                  <option value="deepseek-v4-flash">DeepSeek-V4-Flash</option>
+                  <option value="deepseek-v4-pro">DeepSeek-V4-Pro</option>
+                  <option value="qwen-vl-plus">Qwen VL Plus</option>
+                  <option value="custom" hidden>自定义视觉模型（旧配置兼容）</option>
+                </select>
+                <small>选择 GLM-5.2 或 DeepSeek V4 Flash 时，先由该模型理解参考图，再交给语言模型编译。</small>
+              </label>
+              <label id="promptCustomModelField" class="api-wide custom-model-field" hidden>
+                <span>视觉模型 / 方舟接入点 ID</span>
+                <input id="promptCustomModelName" type="text" placeholder="doubao-... 或 ep-...">
+              </label>
             </div>
           </section>
 
-          <section class="api-section">
+          <section id="apiImageSection" class="api-section api-tab-panel" data-api-panel="image" role="tabpanel" hidden>
             <div class="api-section-title">
               <strong>生图 API</strong>
               <small>提交提示词、尺寸和数量，生成图片</small>
@@ -92,11 +206,11 @@
                 <select id="imageApiProvider">
                   <option value="openai">OpenAI</option>
                   <option value="apimart">APIMart</option>
-                  <option value="runninghub">RunningHub</option>
+                  <option value="runninghub" selected>RunningHub</option>
                   <option value="jimeng">即梦</option>
                   <option value="siliconflow">SiliconFlow</option>
                   <option value="replicate">Replicate</option>
-                  <option value="custom">自定义</option>
+                  <option value="custom" hidden>临时自定义（旧配置兼容）</option>
                 </select>
               </label>
               <label>
@@ -107,28 +221,48 @@
                 <span>API Key</span>
                 <div class="secret-field">
                   <input id="imageApiKey" type="password" placeholder="sk-...">
-                  <button class="secret-toggle" type="button" data-target="imageApiKey" aria-label="查看生图 API Key" aria-pressed="false"></button>
+                  <button class="secret-toggle" type="button" data-target="imageApiKey" aria-label="查看生图 API Key" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
                 </div>
               </label>
-              <label>
+              <div id="imageCustomProviderHint" class="api-managed-hint api-wide" hidden>
+                <svg class="api-managed-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M12 16v-4"></path>
+                  <path d="M12 8h.01"></path>
+                </svg>
+                <span>这是自定义服务商，信息请在「自定义」页签中管理。</span>
+                <button type="button" data-api-goto="custom">前往管理 →</button>
+              </div>
+              <div id="imageCustomProviderModelReadonly" class="api-readonly-field api-wide" hidden>
+                <span>模型</span>
+                <div id="imageCustomProviderModelValue" class="api-readonly-box">未填写</div>
+              </div>
+              <label id="apiImageModelField">
                 <span>生图模型</span>
                 <select id="apiImageModelSelect">
-                  <option value="gpt-image-1">GPT Image</option>
-                  <option value="gpt-image-2">GPT Image 2</option>
-                  <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
+                  <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
+                  <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（旧配置）</option>
+                  <option value="runninghub-rhart-image-g-2" selected>RunningHub 全能图片G-2.0 低价渠道版</option>
+                  <option value="runninghub-rhart-image-g-2-official">RunningHub 全能图片G-2 官方稳定版</option>
                   <option value="flux-pro">Flux Pro</option>
                   <option value="sdxl">SDXL</option>
                   <option value="midjourney">Midjourney</option>
                   <option value="doubao-seedream-4-0-250828">即梦-Doubao-Seedream-4.0</option>
                   <option value="doubao-seedream-4-5-251128">即梦-Doubao-Seedream-4.5</option>
-                  <option value="custom">自定义生图模型</option>
+                  <option value="custom" hidden>自定义生图模型（旧配置兼容）</option>
                 </select>
               </label>
               <label id="runningHubApiModeField" class="api-wide custom-model-field" hidden>
                 <span>RunningHub 接口</span>
                 <select id="runningHubApiMode">
                   <option value="consumer">消费级会员（AI应用）</option>
-                  <option value="enterprise">企业级共享（Standard-API）</option>
+                  <option value="enterprise">企业级共享（低价渠道 Standard-API）</option>
+                  <option value="official">官方稳定版（Standard-API，quality: low）</option>
                 </select>
               </label>
               <label id="customModelField" class="api-wide custom-model-field" hidden>
@@ -138,7 +272,62 @@
             </div>
           </section>
 
-          <section class="api-section api-section-wide">
+          <section id="apiCustomSection" class="api-section api-section-wide api-tab-panel custom-provider-manager" data-api-panel="custom" role="tabpanel" hidden>
+            <div class="api-section-title custom-provider-title">
+              <div>
+                <strong>自定义 API 服务商</strong>
+                <small>新增后会自动出现在对应页签的服务商下拉中，并通过真实 OpenAI-compatible 接口调用。</small>
+              </div>
+            </div>
+            <div id="customProviderEmpty" class="custom-provider-empty">还没有自定义服务商。</div>
+            <div id="customProviderList" class="custom-provider-list"></div>
+            <button id="addCustomProviderBtn" class="custom-provider-add" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M12 5v14"></path>
+                <path d="M5 12h14"></path>
+              </svg>
+              添加服务商
+            </button>
+            <form id="customProviderForm" class="custom-provider-form" hidden>
+              <input id="customProviderId" type="hidden">
+              <div class="custom-provider-form-head">
+                <strong id="customProviderFormTitle">添加服务商</strong>
+                <small>目前支持 OpenAI-compatible Chat Completions 与 Images API。</small>
+              </div>
+              <div class="api-grid">
+                <label>
+                  <span>用途</span>
+                  <select id="customProviderKind">
+                    <option value="prompt">反推提示词（视觉模型）</option>
+                    <option value="image">生图</option>
+                  </select>
+                </label>
+                <label>
+                  <span>服务商名称</span>
+                  <input id="customProviderName" type="text" maxlength="40" placeholder="例如：我的中转服务" required>
+                </label>
+                <label class="api-wide">
+                  <span>Base URL</span>
+                  <input id="customProviderBaseUrl" type="url" placeholder="https://api.example.com/v1" required>
+                </label>
+                <label>
+                  <span>API Key</span>
+                  <input id="customProviderApiKey" type="password" autocomplete="off" placeholder="sk-..." required>
+                </label>
+                <label>
+                  <span>模型名</span>
+                  <input id="customProviderModel" type="text" placeholder="provider/model-name" required>
+                </label>
+              </div>
+              <div id="customProviderFormStatus" class="custom-provider-form-status" role="status" aria-live="polite"></div>
+              <div class="custom-provider-form-actions">
+                <button id="cancelCustomProviderBtn" type="button">取消</button>
+                <button id="saveCustomProviderBtn" type="submit">保存并应用</button>
+              </div>
+            </form>
+          </section>
+
+          <section id="apiEagleSection" class="api-section api-section-wide api-tab-panel" data-api-panel="eagle" role="tabpanel" hidden>
             <div class="api-section-title">
               <strong>Eagle 收集 API</strong>
               <small>优先调用 Eagle 本地 API 收集图片；不可用时回退到 Eagle 协议跳转</small>
@@ -157,140 +346,146 @@
               </label>
               <label>
                 <span>Eagle API Token</span>
-                <input id="eagleApiToken" type="text" placeholder="14e5a376-cbb2-...">
+                <div class="secret-field">
+                  <input id="eagleApiToken" type="password" placeholder="14e5a376-cbb2-...">
+                  <button class="secret-toggle" type="button" data-target="eagleApiToken" aria-label="查看 Eagle API Token" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                </div>
               </label>
             </div>
           </section>
         </div>
         <div class="api-actions">
-          <span id="apiSaveFeedback" class="api-save-feedback" role="status" aria-live="polite"></span>
+          <span id="apiSaveFeedback" class="api-save-feedback" role="status" aria-live="polite">
+            <svg class="api-save-feedback-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5"></path>
+            </svg>
+            <span id="apiSaveFeedbackText"></span>
+          </span>
           <button id="saveApiBtn" type="button">保存配置</button>
         </div>
       </section>
 
-      <section class="workspace">
-        <div class="image-panel">
-          <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="添加图片">
-            <input id="fileInput" type="file" accept="image/*" multiple>
-            <img id="previewImage" alt="已添加图片">
-            <div id="imageStack" class="image-stack" aria-label="已上传图片"></div>
-            <button id="clearImageBtn" class="image-delete single-image-delete" type="button" aria-label="删除当前图片" title="删除当前图片" hidden></button>
-            <div id="emptyState" class="empty-state">
-              <span class="plus" aria-hidden="true"></span>
-              <strong>添加图片</strong>
-              <small>拖入网页图片、粘贴图片地址，或点击上传</small>
-            </div>
-          </div>
-          <div class="image-meta">
-            <button id="reversePromptBtn" class="image-meta-action mode-tab" type="button">反推提示词</button>
-            <label class="reverse-detail-switch" title="开启后反推会同步生成中文、英文和提示词结构；关闭时只保留中文提示词以节省调用成本。">
-              <input id="reverseDetailToggle" type="checkbox">
-            </label>
-            <span id="imageName">未选择图片</span>
-            <span id="imageSize">尺寸待获取</span>
-          </div>
-        </div>
-
+      <section id="generationWorkspace" class="workspace" data-mode="text">
         <div class="control-panel">
           <section class="field-group">
             <button id="mascotBtn" class="mascot-widget" type="button" aria-label="IP 形象助手">
               <img src="assets/fries-mascot-cutout.png" alt="薯条吉祥物">
             </button>
             <div class="prompt-composer">
-              <div class="field-head">
-                <div class="mode-tabs prompt-mode-tabs" role="tablist" aria-label="生图方式">
-                  <button id="textToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="true">文生图</button>
-                  <button id="imageToImageModeBtn" class="mode-tab" type="button" role="tab" aria-selected="false">图生图</button>
-                  <button id="visualReuseBtn" class="mode-tab prompt-method" type="button" role="tab" aria-selected="false">视觉复用</button>
-                </div>
-              </div>
               <div id="visualReusePanel" class="visual-reuse-panel" hidden>
-              <div class="visual-reuse-head">
-                <strong>视觉复用</strong>
-                <small>首页输出 12 项结构化执行提示词；手动标签默认高强度继承，补充要求才作为变化开关。</small>
-              </div>
-              <div class="visual-reuse-grid">
-                <label>
-                  <span>使用目标</span>
-                  <select id="visualReuseAssetType">
-                    <option value="auto">按图片自动判断</option>
-                    <option value="xiaohongshu">小红书封面</option>
-                    <option value="ecommerce">电商主图</option>
-                    <option value="brand-kv">品牌 KV</option>
-                    <option value="poster">商业海报</option>
-                    <option value="advertising">广告视觉</option>
-                    <option value="ip">IP 延展</option>
-                    <option value="ui">UI 界面</option>
-                    <option value="video">视频首帧</option>
-                    <option value="event-kv">活动主视觉</option>
-                    <option value="product">产品宣传图</option>
-                    <option value="social">社媒图</option>
-                  </select>
+                <div class="visual-reuse-head">
+                  <strong>视觉复用主流程</strong>
+                  <small>参考图定角色，核心需求定变化；先查看结构化方案，再生成新视觉。</small>
+                </div>
+                <ol class="visual-reuse-steps" aria-label="视觉复用步骤">
+                  <li><span>1</span>添加参考图</li>
+                  <li><span>2</span>查看方案</li>
+                  <li><span>3</span>生成视觉</li>
+                </ol>
+                <label class="visual-reuse-notes visual-reuse-core">
+                  <span>核心需求 <em>必填</em></span>
+                  <textarea id="visualReuseNotes" required aria-required="true" placeholder="说明最终要做什么，以及必须改变或保留什么。例如：为新品做一张竖版发布海报，保留图 1 的产品主体和图 2 的蓝紫光感，文案使用「NEW ERA」。"></textarea>
                 </label>
-                <label>
-                  <span>复用模式</span>
-                  <select id="visualReuseStrength">
-                    <option value="precise_inherit">精准继承</option>
-                    <option value="balanced_reuse">平衡复用</option>
-                    <option value="creative_rewrite">创意改写</option>
-                  </select>
+                <div class="visual-reuse-grid visual-reuse-primary-options">
+                  <label>
+                    <span>资产用途</span>
+                    <select id="visualReuseAssetType">
+                      <option value="auto">按图片自动判断</option>
+                      <option value="xiaohongshu">小红书封面</option>
+                      <option value="ecommerce">电商主图</option>
+                      <option value="brand-kv">品牌 KV</option>
+                      <option value="poster">商业海报</option>
+                      <option value="advertising">广告视觉</option>
+                      <option value="ip">IP 延展</option>
+                      <option value="ui">UI 界面</option>
+                      <option value="video">视频首帧</option>
+                      <option value="event-kv">活动主视觉</option>
+                      <option value="product">产品宣传图</option>
+                      <option value="social">社媒图</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>文字策略</span>
+                    <select id="visualReuseTextMode">
+                      <option value="auto">按资产用途判断</option>
+                      <option value="with-text">直接生成指定文字</option>
+                      <option value="reserve">只预留文字区域</option>
+                      <option value="none">不需要文字</option>
+                    </select>
+                  </label>
+                </div>
+                <label id="visualReuseTextContentField" class="visual-reuse-text-content" hidden>
+                  <span>指定文案</span>
+                  <input id="visualReuseTextContent" type="text" maxlength="160" placeholder="例如：NEW ERA / 夏日上新">
                 </label>
-                <label>
-                  <span>风格方向</span>
-                  <select id="visualReuseStyle">
-                    <option value="original">保持原图风格</option>
-                    <option value="auto">按参考图自动判断</option>
-                    <option value="premium">更高级</option>
-                    <option value="commercial">更商业化</option>
-                    <option value="fashion">更时尚</option>
-                    <option value="tech">更科技感</option>
-                    <option value="young">更年轻化</option>
-                    <option value="stable">更稳重</option>
-                    <option value="impact">更有视觉冲击</option>
-                    <option value="cinematic">更电影感</option>
-                    <option value="light">更轻量</option>
-                    <option value="real">更真实</option>
-                    <option value="artistic">更艺术化</option>
-                    <option value="minimal">更极简</option>
-                    <option value="luxury">更奢华</option>
-                    <option value="future">更未来感</option>
-                  </select>
-                </label>
-                <label>
-                  <span>文字处理</span>
-                  <select id="visualReuseTextMode">
-                    <option value="auto">按用途判断</option>
-                    <option value="with-text">需要直接生成文字</option>
-                    <option value="reserve">只预留文字区域</option>
-                    <option value="none">不需要文字</option>
-                    <option value="enhance-title">强化标题表现</option>
-                    <option value="weaken">弱化文字</option>
-                    <option value="generate-title-style">生成标题风格</option>
-                    <option value="replace-copy">替换原文案</option>
-                    <option value="typography-only">只参考字体</option>
-                    <option value="title-position">保留标题位置逻辑</option>
-                  </select>
-                </label>
-              </div>
-              <label class="visual-reuse-notes">
-                <span>补充要求</span>
-                <textarea id="visualReuseNotes" placeholder="填写需要改变或特别强调的地方。例如：主体动作保持一致，但服装改成黑色；标题换成 FUTURE VISION；线条只做辅助，不要成为主体。"></textarea>
-              </label>
-              <button id="visualReuseGenerateBtn" class="visual-reuse-generate" type="button">生成复用提示词</button>
+                <details class="visual-reuse-advanced">
+                  <summary>高级控制</summary>
+                  <div class="visual-reuse-grid">
+                    <label>
+                      <span>复用模式</span>
+                      <select id="visualReuseStrength">
+                        <option value="precise_inherit">精准继承</option>
+                        <option value="balanced_reuse">平衡复用</option>
+                        <option value="creative_rewrite">创意改写</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>风格方向</span>
+                      <select id="visualReuseStyle">
+                        <option value="original">保持原图风格</option>
+                        <option value="auto">按参考图自动判断</option>
+                        <option value="premium">更高级</option>
+                        <option value="commercial">更商业化</option>
+                        <option value="fashion">更时尚</option>
+                        <option value="tech">更科技感</option>
+                        <option value="young">更年轻化</option>
+                        <option value="stable">更稳重</option>
+                        <option value="impact">更有视觉冲击</option>
+                        <option value="cinematic">更电影感</option>
+                        <option value="light">更轻量</option>
+                        <option value="real">更真实</option>
+                        <option value="artistic">更艺术化</option>
+                        <option value="minimal">更极简</option>
+                        <option value="luxury">更奢华</option>
+                        <option value="future">更未来感</option>
+                      </select>
+                    </label>
+                  </div>
+                </details>
+                <section id="visualReusePlan" class="visual-reuse-plan" aria-live="polite" hidden>
+                  <div class="visual-reuse-plan-head">
+                    <strong id="visualReusePlanTitle">复用方案</strong>
+                    <span id="visualReusePlanStatus">待分析</span>
+                  </div>
+                  <p id="visualReusePlanSummary"></p>
+                  <div id="visualReusePlanFacts" class="visual-reuse-plan-facts"></div>
+                  <details class="visual-reuse-lineage">
+                    <summary>资产来源关系</summary>
+                    <ul id="visualReuseLineageList"></ul>
+                  </details>
+                </section>
+                <button id="visualReusePlanBtn" class="visual-reuse-generate" type="button">查看方案</button>
               </div>
               <textarea id="promptInput" placeholder="图片提示词会出现在这里，也可以直接输入中文或英文。"></textarea>
               <div id="promptResizeHandle" class="prompt-resize-handle" role="separator" aria-label="调整提示词文本框高度"></div>
               <div class="prompt-toolbar">
                 <div id="modelPicker" class="model-picker">
                   <button id="modelPickerBtn" class="model-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
-                    <span id="modelPickerText">GPT Image</span>
+                    <span class="model-active-dot" aria-hidden="true"></span>
+                    <span id="modelPickerText">RunningHub 全能图片G-2.0 低价渠道版</span>
                     <span aria-hidden="true">⌄</span>
                   </button>
                   <div id="modelMenu" class="model-menu" role="listbox" hidden></div>
                   <select id="modelSelect">
-                    <option value="gpt-image-1">GPT Image</option>
-                    <option value="gpt-image-2">GPT Image 2</option>
-                    <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
+                    <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
+                    <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（旧配置）</option>
+                    <option value="runninghub-rhart-image-g-2" selected>RunningHub 全能图片G-2.0 低价渠道版</option>
+                    <option value="runninghub-rhart-image-g-2-official">RunningHub 全能图片G-2 官方稳定版</option>
                     <option value="flux-pro">Flux Pro</option>
                     <option value="sdxl">SDXL</option>
                     <option value="midjourney">Midjourney</option>
@@ -298,9 +493,22 @@
                     <option value="doubao-seedream-4-5-251128">即梦-Doubao-Seedream-4.5</option>
                   </select>
                 </div>
-                <button id="copyPromptBtn" class="copy-prompt-btn" type="button" aria-label="复制提示词">
-                  <span aria-hidden="true"></span>
-                </button>
+                <span id="promptCharCount" class="prompt-char-count" aria-live="polite">0 字</span>
+                <div class="prompt-toolbar-actions">
+                  <button id="clearPromptBtn" class="prompt-tool-btn" type="button" aria-label="清空提示词" title="清空提示词">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M3 6h18"></path>
+                      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path>
+                      <path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"></path>
+                    </svg>
+                  </button>
+                  <button id="copyPromptBtn" class="copy-prompt-btn prompt-tool-btn" type="button" aria-label="复制提示词" title="复制提示词">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+                      <path d="M5 15V5a2 2 0 0 1 2-2h10"></path>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -363,14 +571,30 @@
           </section>
 
           <button id="generateBtn" class="generate-btn" type="button">生成图片</button>
-          <p id="statusText" class="status-text">API 接入后，这里会显示生成进度。</p>
+          <section id="statusAlert" class="status-alert" data-tone="info" role="status" aria-live="polite">
+            <span class="status-alert-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 9v4"></path>
+                <path d="M12 17h.01"></path>
+                <path d="M10.3 3.9L2.5 17a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"></path>
+              </svg>
+            </span>
+            <span class="status-alert-copy">
+              <strong id="statusTitle">准备就绪</strong>
+              <span id="statusText">API 接入后，这里会显示生成进度。</span>
+            </span>
+            <button id="statusActionBtn" class="status-alert-action" type="button" hidden>清理图库</button>
+          </section>
         </div>
       </section>
 
       <section id="galleryPanel" class="gallery-panel">
         <div class="result-head">
           <span>已生成</span>
-          <small id="galleryMeta">图库为空</small>
+          <span class="gallery-head-actions">
+            <button id="galleryRecoverBtn" class="gallery-recover-btn" type="button">恢复图库</button>
+            <small id="galleryMeta">图库为空</small>
+          </span>
         </div>
         <div id="galleryGrid" class="gallery-grid"></div>
         <div id="galleryPager" class="gallery-pager" hidden>
@@ -400,6 +624,8 @@
 
     </main>
 
+    <script src="soft-aurora.js"></script>
+    <script src="reuse-plan.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

@@ -1,10 +1,11 @@
 const http = require("http");
 const fs = require("fs");
-const fsp = require("fs/promises");
 const path = require("path");
 
 const port = Number(process.env.PORT || 4173);
 const root = __dirname;
+const imageProxyPath = "/__assetflow/image-proxy";
+const maxProxyImageBytes = 7 * 1024 * 1024;
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -18,106 +19,128 @@ const mimeTypes = {
   ".mp4": "video/mp4",
   ".mov": "video/quicktime",
 };
-const outputDir = path.join(root, "Output");
 
 function sendJson(res, status, payload) {
   res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "content-type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Content-Type": "application/json; charset=utf-8"
   });
   res.end(JSON.stringify(payload));
 }
 
-function safeOutputName(name, fallback = "generated-image") {
-  const ext = path.extname(name || "").toLowerCase();
-  const allowedExt = [".png", ".jpg", ".jpeg", ".webp"].includes(ext) ? ext : ".png";
-  const base = path.basename(name || fallback, ext)
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80) || fallback;
-  return `${base}${allowedExt}`;
+function isPrivatePreviewTarget(targetUrl) {
+  const hostname = targetUrl.hostname.toLowerCase();
+  return hostname === "localhost"
+    || hostname === "::1"
+    || hostname === "0.0.0.0"
+    || /^127\./.test(hostname)
+    || /^10\./.test(hostname)
+    || /^192\.168\./.test(hostname)
+    || /^169\.254\./.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 }
 
-function bodyFromRequest(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on("data", (chunk) => {
-      chunks.push(chunk);
-      if (Buffer.concat(chunks).length > 50 * 1024 * 1024) {
-        reject(new Error("Payload too large"));
-        req.destroy();
-      }
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
-  });
-}
-
-async function imageBufferFromPayload(payload) {
-  const source = payload.dataUrl || payload.url || "";
-  const dataUrlMatch = source.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (dataUrlMatch) {
-    return {
-      buffer: Buffer.from(dataUrlMatch[2], "base64"),
-      ext: dataUrlMatch[1].includes("jpeg") ? ".jpg" : `.${dataUrlMatch[1].split("/")[1].replace("svg+xml", "svg")}`,
-    };
+async function readImageResponse(upstream) {
+  const contentType = String(upstream.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  if (!contentType.startsWith("image/")) {
+    throw new Error("远程资源不是图片");
   }
 
-  if (!/^https?:\/\//i.test(source)) {
-    throw new Error("Only data URL or http(s) image URL is supported.");
+  const contentLength = Number(upstream.headers.get("content-length") || 0);
+  if (contentLength > maxProxyImageBytes) {
+    throw new Error("图片超过 7 MB，无法用于千问视觉输入");
   }
 
-  const response = await fetch(source);
-  if (!response.ok) {
-    throw new Error(`Image download failed: ${response.status}`);
+  const reader = upstream.body?.getReader();
+  if (!reader) {
+    throw new Error("远程图片没有可读取内容");
   }
-  const contentType = response.headers.get("content-type") || "";
-  const ext = contentType.includes("jpeg")
-    ? ".jpg"
-    : contentType.includes("webp")
-      ? ".webp"
-      : ".png";
+
+  const chunks = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxProxyImageBytes) {
+      await reader.cancel();
+      throw new Error("图片超过 7 MB，无法用于千问视觉输入");
+    }
+    chunks.push(Buffer.from(value));
+  }
+
   return {
-    buffer: Buffer.from(await response.arrayBuffer()),
-    ext,
+    contentType,
+    body: Buffer.concat(chunks, totalBytes),
   };
+}
+
+async function proxyPreviewImage(requestUrl, req, res) {
+  const source = requestUrl.searchParams.get("url") || "";
+  let targetUrl;
+  try {
+    targetUrl = new URL(source);
+  } catch {
+    sendJson(res, 400, { ok: false, error: "图片 URL 无效" });
+    return;
+  }
+
+  if (!["http:", "https:"].includes(targetUrl.protocol) || isPrivatePreviewTarget(targetUrl)) {
+    sendJson(res, 403, { ok: false, error: "不允许代理该图片地址" });
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const upstream = await fetch(targetUrl, {
+      signal: controller.signal,
+      headers: {
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "User-Agent": "AssetFlow-Local-Preview/1.0",
+      },
+    });
+    if (!upstream.ok) {
+      throw new Error(`远程图片返回 HTTP ${upstream.status}`);
+    }
+
+    const finalUrl = new URL(upstream.url);
+    if (isPrivatePreviewTarget(finalUrl)) {
+      throw new Error("远程图片重定向到了不允许的地址");
+    }
+
+    const image = await readImageResponse(upstream);
+    res.writeHead(200, {
+      "Content-Type": image.contentType,
+      "Content-Length": image.body.length,
+      "Cache-Control": "no-store, max-age=0",
+      "X-Content-Type-Options": "nosniff",
+    });
+    if (req.method === "HEAD") {
+      res.end();
+      return;
+    }
+    res.end(image.body);
+  } catch (error) {
+    const message = error?.name === "AbortError"
+      ? "读取远程图片超时"
+      : (error?.message || "读取远程图片失败");
+    sendJson(res, 502, { ok: false, error: message });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 http
   .createServer(async (req, res) => {
     const requestUrl = new URL(req.url, `http://127.0.0.1:${port}`);
 
-    if (req.method === "OPTIONS") {
-      sendJson(res, 204, {});
-      return;
-    }
-
-    if (req.method === "POST" && requestUrl.pathname === "/api/save-output") {
-      try {
-        const payload = JSON.parse(await bodyFromRequest(req) || "{}");
-        const image = await imageBufferFromPayload(payload);
-        await fsp.mkdir(outputDir, { recursive: true });
-        const filename = safeOutputName(payload.filename, `generated-${Date.now()}${image.ext}`);
-        const finalName = filename.endsWith(image.ext) ? filename : filename.replace(/\.[^.]+$/, image.ext);
-        const fullPath = path.join(outputDir, finalName);
-        await fsp.writeFile(fullPath, image.buffer);
-        sendJson(res, 200, {
-          ok: true,
-          filename: finalName,
-          url: `/Output/${encodeURIComponent(finalName)}`,
-          path: fullPath,
-        });
-      } catch (error) {
-        sendJson(res, 500, { ok: false, error: error.message || "Save failed" });
-      }
-      return;
-    }
-
     if (req.method !== "GET" && req.method !== "HEAD") {
       sendJson(res, 405, { ok: false, error: "Method not allowed" });
+      return;
+    }
+
+    if (requestUrl.pathname === imageProxyPath) {
+      await proxyPreviewImage(requestUrl, req, res);
       return;
     }
 
@@ -146,5 +169,5 @@ http
     });
   })
   .listen(port, "127.0.0.1", () => {
-    console.log(`Image Prompt Builder preview: http://127.0.0.1:${port}/popup.html`);
+    console.log(`AssetFlow preview: http://127.0.0.1:${port}/popup.html`);
   });

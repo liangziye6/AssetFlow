@@ -1391,15 +1391,75 @@
           white-space: pre-wrap;
         }
         .thumbs-panel {
+          --gallery-glow-x: 50%;
+          --gallery-glow-y: 50%;
+          position: relative;
+          isolation: isolate;
           display: grid;
           grid-template-rows: auto auto;
           align-content: start;
           gap: 10px;
           flex: 0 0 auto;
+          padding: 12px;
           min-height: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 14px;
+          background: rgba(11, 12, 21, 0.7);
           overflow: visible;
         }
+        .thumbs-panel::before,
+        .thumbs-panel::after {
+          content: "";
+          position: absolute;
+          pointer-events: none;
+          border-radius: inherit;
+        }
+        .thumbs-panel::before {
+          z-index: 0;
+          inset: -1px;
+          padding: 1px;
+          opacity: 0;
+          background: radial-gradient(
+            112px circle at var(--gallery-glow-x) var(--gallery-glow-y),
+            rgba(34, 211, 238, 0.92) 0%,
+            rgba(167, 139, 250, 0.96) 30%,
+            rgba(59, 130, 246, 0.62) 48%,
+            transparent 73%
+          );
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          transition: opacity 180ms ease;
+        }
+        .thumbs-panel::after {
+          z-index: 0;
+          inset: -7px;
+          opacity: 0;
+          background: radial-gradient(
+            128px circle at var(--gallery-glow-x) var(--gallery-glow-y),
+            rgba(34, 211, 238, 0.32) 0%,
+            rgba(167, 139, 250, 0.5) 34%,
+            rgba(59, 130, 246, 0.3) 52%,
+            transparent 74%
+          );
+          filter: blur(11px);
+          transition: opacity 220ms ease;
+        }
+        .thumbs-panel.is-glow-active::before {
+          opacity: 1;
+        }
+        .thumbs-panel.is-glow-active::after {
+          opacity: 0.58;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .thumbs-panel::before,
+          .thumbs-panel::after {
+            transition: none;
+          }
+        }
         .thumbs {
+          position: relative;
+          z-index: 1;
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
           align-content: start;
@@ -1436,13 +1496,9 @@
           box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
         }
         .thumb[aria-current="true"] {
-          border-color: transparent;
-          background:
-            linear-gradient(rgba(5, 5, 7, 0.95), rgba(5, 5, 7, 0.95)) padding-box,
-            linear-gradient(110deg, rgba(34, 211, 238, 0.95), rgba(168, 85, 247, 0.95), rgba(20, 184, 166, 0.82)) border-box;
-          box-shadow:
-            0 0 0 1px rgba(5, 5, 7, 0.94),
-            0 0 16px rgba(59, 130, 246, 0.3);
+          border-color: rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.06);
+          box-shadow: none;
         }
         .thumb img {
           width: 100%;
@@ -1467,6 +1523,8 @@
           backdrop-filter: blur(10px);
         }
         .thumbs-pager {
+          position: relative;
+          z-index: 1;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1573,6 +1631,29 @@
     shadow.querySelector(".eagle")?.addEventListener("click", collectViewerImageToEagle);
     const stage = shadow.querySelector(".stage");
     const zoomLayer = shadow.querySelector(".image-zoom");
+    const thumbsPanel = shadow.querySelector(".thumbs-panel");
+    let thumbsGlowFrame = 0;
+    let thumbsGlowPoint = null;
+    const updateThumbsGlow = () => {
+      thumbsGlowFrame = 0;
+      if (!thumbsPanel || !thumbsGlowPoint) return;
+      const rect = thumbsPanel.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((thumbsGlowPoint.x - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((thumbsGlowPoint.y - rect.top) / rect.height) * 100));
+      thumbsPanel.style.setProperty("--gallery-glow-x", `${x}%`);
+      thumbsPanel.style.setProperty("--gallery-glow-y", `${y}%`);
+    };
+    thumbsPanel?.addEventListener("pointermove", (event) => {
+      thumbsGlowPoint = { x: event.clientX, y: event.clientY };
+      thumbsPanel.classList.add("is-glow-active");
+      if (!thumbsGlowFrame) thumbsGlowFrame = requestAnimationFrame(updateThumbsGlow);
+    });
+    thumbsPanel?.addEventListener("pointerleave", () => {
+      thumbsGlowPoint = null;
+      thumbsPanel.classList.remove("is-glow-active");
+      if (thumbsGlowFrame) cancelAnimationFrame(thumbsGlowFrame);
+      thumbsGlowFrame = 0;
+    });
     const bindViewerPanSurface = (surface) => {
       if (!surface) return;
       surface.addEventListener("wheel", (event) => {

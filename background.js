@@ -3,12 +3,15 @@ const addImageMenuId = "lyz-add-image-to-prompt";
 const pendingContextImageKey = "imageSparkPendingContextImage";
 const apiStorageKey = "imageSparkApiConfig";
 const pendingGenerationTasksKey = "imageSparkPendingGenerationTasks";
+const pendingGenerationTaskPrefix = `${pendingGenerationTasksKey}:`;
 const completedGenerationResultsKey = "imageSparkCompletedGenerationResults";
+const maxCompletedGenerationResults = 120;
 const pendingGenerationAlarmName = "imageSparkPollPendingGeneration";
 const localImageDbName = "imageSparkLocalImages";
 const localImageDbVersion = 2;
 const localImageStore = "images";
 const runningHubApiModeEnterprise = "enterprise";
+const runningHubApiModeOfficial = "official";
 const runningHubApiPaths = {
   appOutputs: "/task/openapi/outputs",
   standardQuery: "/openapi/v2/query"
@@ -21,7 +24,7 @@ function setupContextMenus() {
     if (chrome.runtime.lastError) return;
     chrome.contextMenus.create({
       id: addImageMenuId,
-      title: "\u6dfb\u52a0\u5230 LYZ \u53cd\u63a8\u5de5\u5177",
+      title: "\u6dfb\u52a0\u5230 AssetFlow",
       contexts: ["all"]
     }, () => {
       // Chrome can re-run the service worker while the previous menu still exists.
@@ -150,6 +153,10 @@ function openFallbackWindow() {
 function eagleEndpoint(baseUrl) {
   const raw = String(baseUrl || "http://localhost:41595").trim();
   const base = new URL(raw);
+  const isLocalHost = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(base.hostname);
+  if (!isLocalHost) {
+    throw new Error("Eagle Local API 仅允许连接本机 localhost 或 127.0.0.1 服务。");
+  }
   const url = new URL("/api/item/addFromURL", base.origin);
   base.searchParams.forEach((value, key) => {
     url.searchParams.set(key, value);
@@ -157,11 +164,16 @@ function eagleEndpoint(baseUrl) {
   return url;
 }
 
-async function collectToEagleApi({ item, eagle }) {
+async function collectToEagleApi({ item }) {
   if (!item?.url) {
     return { ok: false, error: "NO_IMAGE" };
   }
 
+  const stored = await storageGet(apiStorageKey);
+  const eagle = stored?.[apiStorageKey]?.eagle || {};
+  if (eagle.mode && eagle.mode !== "api") {
+    return { ok: false, error: "EAGLE_PROTOCOL_MODE" };
+  }
   const endpoint = eagleEndpoint(eagle?.baseUrl);
   if (eagle?.token) {
     endpoint.searchParams.set("token", eagle.token);
@@ -208,6 +220,48 @@ function storageRemove(keys) {
   return new Promise((resolve) => {
     chrome.storage.local.remove(keys, () => resolve(!chrome.runtime.lastError));
   });
+}
+
+function pendingTaskId(task) {
+  return task?.id || `${task?.provider || "api"}-${task?.taskId || "task"}-${task?.generationId || "generation"}`;
+}
+
+function pendingTaskStorageKey(task) {
+  return `${pendingGenerationTaskPrefix}${encodeURIComponent(pendingTaskId(task))}`;
+}
+
+function validPendingTask(task) {
+  return Boolean(task?.provider && task?.taskId && task?.generationId);
+}
+
+function pendingTasksFromStorage(stored) {
+  const tasksById = new Map();
+  Object.entries(stored || {}).forEach(([key, value]) => {
+    if (!key.startsWith(pendingGenerationTaskPrefix) || !validPendingTask(value)) return;
+    tasksById.set(pendingTaskId(value), { ...value, id: pendingTaskId(value) });
+  });
+
+  const legacyTasks = Array.isArray(stored?.[pendingGenerationTasksKey])
+    ? stored[pendingGenerationTasksKey]
+    : [];
+  legacyTasks.filter(validPendingTask).forEach((task) => {
+    const id = pendingTaskId(task);
+    if (!tasksById.has(id)) tasksById.set(id, { ...task, id });
+  });
+  return [...tasksById.values()];
+}
+
+async function migrateLegacyPendingTasks(stored) {
+  const legacyTasks = Array.isArray(stored?.[pendingGenerationTasksKey])
+    ? stored[pendingGenerationTasksKey].filter(validPendingTask)
+    : [];
+  if (!legacyTasks.length) return;
+  const records = Object.fromEntries(legacyTasks.map((task) => {
+    const normalized = { ...task, id: pendingTaskId(task) };
+    return [pendingTaskStorageKey(normalized), normalized];
+  }));
+  await storageSet(records);
+  await storageRemove(pendingGenerationTasksKey);
 }
 
 function openLocalImageDb() {
@@ -269,6 +323,84 @@ async function localImageDataUrl({ id, variant }) {
     ? (record.thumbnailMimeType || record.thumbnailBlob?.type || record.mimeType)
     : (record.mimeType || record.blob?.type);
   return blobToDataUrl(blob, mimeType || "image/png");
+}
+
+function localRecordId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function persistCompletedImage(task, url, index) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`图片下载失败：HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  const localStoreId = localRecordId("image");
+  const galleryId = localRecordId("gallery");
+  const createdAt = Date.now();
+  const imageRecord = {
+    id: localStoreId,
+    blob,
+    thumbnailBlob: null,
+    mimeType: blob.type || "image/png",
+    thumbnailMimeType: "",
+    createdAt,
+    meta: {
+      model: task.model || "Generated Image",
+      index: index === 0 ? (task.index || "#1") : `#${index + 1}`,
+      width: Number(task.width) || 1024,
+      height: Number(task.height) || 1024
+    }
+  };
+  const galleryRecord = {
+    id: galleryId,
+    galleryId,
+    localStoreId,
+    localMimeType: imageRecord.mimeType,
+    originalUrl: url,
+    url: "",
+    index: imageRecord.meta.index,
+    model: imageRecord.meta.model,
+    width: imageRecord.meta.width,
+    height: imageRecord.meta.height,
+    prompt: task.displayPrompt || task.prompt || "",
+    promptCn: task.promptCn || "",
+    promptEn: task.promptEn || "",
+    promptStructure: task.promptStructure || "",
+    reusePlan: task.reusePlan || null,
+    assetLineage: task.assetLineage || null,
+    mode: task.mode || "text",
+    source: task.source || task.generationSource || task.mode || "text",
+    createdAt
+  };
+
+  const db = await openLocalImageDb();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction([localImageStore, "gallery"], "readwrite");
+      transaction.objectStore(localImageStore).put(imageRecord);
+      transaction.objectStore("gallery").put(galleryRecord);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+  return galleryRecord;
+}
+
+async function persistCompletedImages(task, urls) {
+  const items = [];
+  const remainingUrls = [];
+  for (let index = 0; index < urls.length; index += 1) {
+    try {
+      items.push(await persistCompletedImage(task, urls[index], index));
+    } catch {
+      remainingUrls.push(urls[index]);
+    }
+  }
+  return { items, remainingUrls };
 }
 
 function baseUrlWithPath(baseUrl, path) {
@@ -455,7 +587,9 @@ function isCancelledTaskStatus(status) {
 }
 
 function normalizeRunningHubApiMode(value) {
-  return value === runningHubApiModeEnterprise ? runningHubApiModeEnterprise : "consumer";
+  if (value === runningHubApiModeEnterprise) return runningHubApiModeEnterprise;
+  if (value === runningHubApiModeOfficial) return runningHubApiModeOfficial;
+  return "consumer";
 }
 
 async function queryApimartPendingTask({ task, apiKey, baseUrl }) {
@@ -483,7 +617,8 @@ async function queryApimartPendingTask({ task, apiKey, baseUrl }) {
 
 async function queryRunningHubPendingTask({ task, apiKey, baseUrl, apiMode }) {
   const normalizedMode = normalizeRunningHubApiMode(apiMode);
-  const data = await fetchJson(baseUrlWithPath(baseUrl, normalizedMode === runningHubApiModeEnterprise
+  const isStandardApi = normalizedMode !== "consumer";
+  const data = await fetchJson(baseUrlWithPath(baseUrl, isStandardApi
     ? runningHubApiPaths.standardQuery
     : runningHubApiPaths.appOutputs), {
     method: "POST",
@@ -491,7 +626,7 @@ async function queryRunningHubPendingTask({ task, apiKey, baseUrl, apiMode }) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`
     },
-    body: JSON.stringify(normalizedMode === runningHubApiModeEnterprise
+    body: JSON.stringify(isStandardApi
       ? { taskId: task.taskId }
       : { apiKey, taskId: task.taskId })
   }, { allowCodes: ["804"] });
@@ -535,8 +670,9 @@ async function pollPendingGenerationTasks() {
   if (isPollingPendingGeneration) return;
   isPollingPendingGeneration = true;
   try {
-    const stored = await storageGet([pendingGenerationTasksKey, apiStorageKey, completedGenerationResultsKey]);
-    const tasks = Array.isArray(stored[pendingGenerationTasksKey]) ? stored[pendingGenerationTasksKey] : [];
+    const stored = await storageGet(null);
+    await migrateLegacyPendingTasks(stored);
+    const tasks = pendingTasksFromStorage(stored);
     const apiConfig = stored[apiStorageKey] || {};
     const completedRecords = Array.isArray(stored[completedGenerationResultsKey]) ? stored[completedGenerationResultsKey] : [];
     if (!tasks.length) {
@@ -545,19 +681,14 @@ async function pollPendingGenerationTasks() {
     }
 
     const imageConfig = apiConfig.image || {};
-    const remaining = [];
     const completed = [...completedRecords];
+    const settledTaskKeys = [];
 
     for (const task of tasks) {
       if (!task?.provider || !task?.taskId || !task?.generationId) continue;
-      if (task.provider && imageConfig.provider && task.provider !== imageConfig.provider) {
-        remaining.push(task);
-        continue;
-      }
-      const apiKey = imageConfig.apiKey;
+      const apiKey = task.apiKey || imageConfig.apiKey;
       const baseUrl = task.baseUrl || imageConfig.baseUrl;
       if (!apiKey || !baseUrl) {
-        remaining.push(task);
         continue;
       }
 
@@ -571,13 +702,16 @@ async function pollPendingGenerationTasks() {
             apiMode: task.apiMode || imageConfig.runninghubMode
           });
         if (result.status === "completed") {
+          const persisted = await persistCompletedImages(task, result.urls || []);
           completed.push({
             id: task.id || `${task.provider}-${task.taskId}-${task.generationId}`,
             status: "completed",
             task,
-            urls: result.urls,
+            items: persisted.items,
+            urls: persisted.remainingUrls,
             completedAt: Date.now()
           });
+          settledTaskKeys.push(pendingTaskStorageKey(task));
         } else if (result.status === "failed") {
           completed.push({
             id: task.id || `${task.provider}-${task.taskId}-${task.generationId}`,
@@ -586,23 +720,16 @@ async function pollPendingGenerationTasks() {
             error: result.error,
             completedAt: Date.now()
           });
-        } else {
-          remaining.push(task);
+          settledTaskKeys.push(pendingTaskStorageKey(task));
         }
-      } catch {
-        remaining.push(task);
-      }
+      } catch {}
     }
 
-    if (remaining.length) {
-      await storageSet({ [pendingGenerationTasksKey]: remaining });
-    } else {
-      await storageRemove(pendingGenerationTasksKey);
-    }
+    if (settledTaskKeys.length) await storageRemove(settledTaskKeys);
     if (completed.length) {
-      await storageSet({ [completedGenerationResultsKey]: completed.slice(-48) });
+      await storageSet({ [completedGenerationResultsKey]: completed.slice(-maxCompletedGenerationResults) });
     }
-    schedulePendingGenerationAlarm(Boolean(remaining.length));
+    schedulePendingGenerationAlarm(Boolean(tasks.length - settledTaskKeys.length));
   } finally {
     isPollingPendingGeneration = false;
   }
@@ -689,7 +816,11 @@ chrome.alarms?.onAlarm?.addListener((alarm) => {
 
 chrome.storage?.onChanged?.addListener((changes, areaName) => {
   if (areaName !== "local") return;
-  if (changes[pendingGenerationTasksKey]?.newValue) {
+  const hasPendingTaskChange = Object.keys(changes).some((key) => (
+    key === pendingGenerationTasksKey || key.startsWith(pendingGenerationTaskPrefix)
+  ));
+  if (hasPendingTaskChange) {
     schedulePendingGenerationAlarm(true);
+    pollPendingGenerationTasks();
   }
 });

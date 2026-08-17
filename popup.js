@@ -1,4 +1,9 @@
 const nodes = {
+  appShell: document.querySelector(".app-shell"),
+  heroTitle: document.querySelector("#heroTitle"),
+  heroDescriptionText: document.querySelector("#heroDescriptionText"),
+  apiHeroModeTag: document.querySelector("#apiHeroModeTag"),
+  referenceUploadPanel: document.querySelector("#referenceUploadPanel"),
   dropZone: document.querySelector("#dropZone"),
   fileInput: document.querySelector("#fileInput"),
   previewImage: document.querySelector("#previewImage"),
@@ -6,8 +11,14 @@ const nodes = {
   imageName: document.querySelector("#imageName"),
   imageSize: document.querySelector("#imageSize"),
   clearImageBtn: document.querySelector("#clearImageBtn"),
+  dropZoneTitle: document.querySelector("#dropZoneTitle"),
+  dropZoneHint: document.querySelector("#dropZoneHint"),
+  generationModeNav: document.querySelector("#generationModeNav"),
+  generationModeIndicator: document.querySelector("#generationModeIndicator"),
+  generationWorkspace: document.querySelector("#generationWorkspace"),
   promptComposer: document.querySelector(".prompt-composer"),
   promptInput: document.querySelector("#promptInput"),
+  promptCharCount: document.querySelector("#promptCharCount"),
   promptResizeHandle: document.querySelector("#promptResizeHandle"),
   copyPromptBtn: document.querySelector("#copyPromptBtn"),
   mascotBtn: document.querySelector("#mascotBtn"),
@@ -20,8 +31,16 @@ const nodes = {
   visualReuseStrength: document.querySelector("#visualReuseStrength"),
   visualReuseStyle: document.querySelector("#visualReuseStyle"),
   visualReuseTextMode: document.querySelector("#visualReuseTextMode"),
+  visualReuseTextContentField: document.querySelector("#visualReuseTextContentField"),
+  visualReuseTextContent: document.querySelector("#visualReuseTextContent"),
   visualReuseNotes: document.querySelector("#visualReuseNotes"),
-  visualReuseGenerateBtn: document.querySelector("#visualReuseGenerateBtn"),
+  visualReusePlanBtn: document.querySelector("#visualReusePlanBtn"),
+  visualReusePlan: document.querySelector("#visualReusePlan"),
+  visualReusePlanTitle: document.querySelector("#visualReusePlanTitle"),
+  visualReusePlanStatus: document.querySelector("#visualReusePlanStatus"),
+  visualReusePlanSummary: document.querySelector("#visualReusePlanSummary"),
+  visualReusePlanFacts: document.querySelector("#visualReusePlanFacts"),
+  visualReuseLineageList: document.querySelector("#visualReuseLineageList"),
   textToImageModeBtn: document.querySelector("#textToImageModeBtn"),
   imageToImageModeBtn: document.querySelector("#imageToImageModeBtn"),
   apiToggleBtn: document.querySelector("#apiToggleBtn"),
@@ -45,8 +64,12 @@ const nodes = {
   countUpBtn: document.querySelector("#countUpBtn"),
   countDownBtn: document.querySelector("#countDownBtn"),
   generateBtn: document.querySelector("#generateBtn"),
+  statusAlert: document.querySelector("#statusAlert"),
+  statusTitle: document.querySelector("#statusTitle"),
   statusText: document.querySelector("#statusText"),
+  statusActionBtn: document.querySelector("#statusActionBtn"),
   galleryMeta: document.querySelector("#galleryMeta"),
+  galleryRecoverBtn: document.querySelector("#galleryRecoverBtn"),
   galleryGrid: document.querySelector("#galleryGrid"),
   galleryPager: document.querySelector("#galleryPager"),
   galleryPrevBtn: document.querySelector("#galleryPrevBtn"),
@@ -62,13 +85,31 @@ const nodes = {
   eagleCollectBtn: document.querySelector("#eagleCollectBtn"),
   apiPanel: document.querySelector("#apiPanel"),
   apiMeta: document.querySelector("#apiMeta"),
+  apiTabs: document.querySelector("#apiTabs"),
+  apiTabIndicator: document.querySelector("#apiTabIndicator"),
+  apiTabButtons: [...document.querySelectorAll("[data-api-tab]")],
+  apiTabPanels: [...document.querySelectorAll("[data-api-panel]")],
   promptApiProvider: document.querySelector("#promptApiProvider"),
   promptApiBaseUrl: document.querySelector("#promptApiBaseUrl"),
   promptApiKey: document.querySelector("#promptApiKey"),
+  promptCustomProviderHint: document.querySelector("#promptCustomProviderHint"),
+  promptCustomProviderModelReadonly: document.querySelector("#promptCustomProviderModelReadonly"),
+  promptCustomProviderModelValue: document.querySelector("#promptCustomProviderModelValue"),
   imageApiProvider: document.querySelector("#imageApiProvider"),
   imageApiBaseUrl: document.querySelector("#imageApiBaseUrl"),
   imageApiKey: document.querySelector("#imageApiKey"),
+  imageCustomProviderHint: document.querySelector("#imageCustomProviderHint"),
+  imageCustomProviderModelReadonly: document.querySelector("#imageCustomProviderModelReadonly"),
+  imageCustomProviderModelValue: document.querySelector("#imageCustomProviderModelValue"),
+  apiImageModelField: document.querySelector("#apiImageModelField"),
   promptModelSelect: document.querySelector("#promptModelSelect"),
+  promptCustomModelField: document.querySelector("#promptCustomModelField"),
+  promptCustomModelName: document.querySelector("#promptCustomModelName"),
+  promptLanguageModelField: document.querySelector("#promptLanguageModelField"),
+  promptLanguageModelSelect: document.querySelector("#promptLanguageModelSelect"),
+  promptLanguageCustomField: document.querySelector("#promptLanguageCustomField"),
+  promptLanguageModelName: document.querySelector("#promptLanguageModelName"),
+  promptVisionModelField: document.querySelector("#promptVisionModelField"),
   deepSeekThinkingField: document.querySelector("#deepSeekThinkingField"),
   deepSeekThinkingMode: document.querySelector("#deepSeekThinkingMode"),
   apiImageModelSelect: document.querySelector("#apiImageModelSelect"),
@@ -80,8 +121,134 @@ const nodes = {
   eagleApiBaseUrl: document.querySelector("#eagleApiBaseUrl"),
   eagleApiToken: document.querySelector("#eagleApiToken"),
   saveApiBtn: document.querySelector("#saveApiBtn"),
-  apiSaveFeedback: document.querySelector("#apiSaveFeedback")
+  apiSaveFeedback: document.querySelector("#apiSaveFeedback"),
+  apiSaveFeedbackText: document.querySelector("#apiSaveFeedbackText"),
+  addCustomProviderBtn: document.querySelector("#addCustomProviderBtn"),
+  customProviderEmpty: document.querySelector("#customProviderEmpty"),
+  customProviderList: document.querySelector("#customProviderList"),
+  customProviderForm: document.querySelector("#customProviderForm"),
+  customProviderId: document.querySelector("#customProviderId"),
+  customProviderFormTitle: document.querySelector("#customProviderFormTitle"),
+  customProviderKind: document.querySelector("#customProviderKind"),
+  customProviderName: document.querySelector("#customProviderName"),
+  customProviderBaseUrl: document.querySelector("#customProviderBaseUrl"),
+  customProviderApiKey: document.querySelector("#customProviderApiKey"),
+  customProviderModel: document.querySelector("#customProviderModel"),
+  customProviderFormStatus: document.querySelector("#customProviderFormStatus"),
+  cancelCustomProviderBtn: document.querySelector("#cancelCustomProviderBtn"),
+  saveCustomProviderBtn: document.querySelector("#saveCustomProviderBtn")
 };
+
+function ensureApiPanelPlacement() {
+  if (!nodes.apiPanel || !nodes.referenceUploadPanel) return;
+  if (nodes.apiPanel.nextElementSibling !== nodes.referenceUploadPanel) {
+    nodes.referenceUploadPanel.before(nodes.apiPanel);
+  }
+}
+
+ensureApiPanelPlacement();
+
+const HOME_HERO_TITLE = "AssetFlow";
+const HOME_HERO_DESCRIPTION = "把参考图整理成可追溯的复用方案，再生成新的视觉资产。";
+const API_TAB_ORDER = ["prompt", "image", "custom", "eagle"];
+let activeApiTab = "prompt";
+
+function setApiTab(tabName) {
+  const nextTab = API_TAB_ORDER.includes(tabName) ? tabName : "prompt";
+  activeApiTab = nextTab;
+  const tabIndex = API_TAB_ORDER.indexOf(nextTab);
+  nodes.apiTabButtons.forEach((button) => {
+    const isActive = button.dataset.apiTab === nextTab;
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.tabIndex = isActive ? 0 : -1;
+  });
+  nodes.apiTabPanels.forEach((panel) => {
+    panel.hidden = panel.dataset.apiPanel !== nextTab;
+  });
+  if (nodes.apiTabIndicator) {
+    nodes.apiTabIndicator.style.transform = `translateX(calc(${tabIndex * 100}% + ${tabIndex * 4}px))`;
+  }
+}
+
+function selectedApiProviderLabel(select, fallback) {
+  const label = selectedOptionText(select, fallback);
+  return label.replace(/（自定义）$/, "").trim();
+}
+
+function updateCustomProviderManagedUi() {
+  const promptProvider = customProviderFromSelectValue(nodes.promptApiProvider?.value);
+  const imageProvider = customProviderFromSelectValue(nodes.imageApiProvider?.value);
+  const promptManaged = Boolean(promptProvider);
+  const imageManaged = Boolean(imageProvider);
+
+  if (nodes.promptApiBaseUrl) nodes.promptApiBaseUrl.disabled = promptManaged;
+  if (nodes.promptApiKey) nodes.promptApiKey.disabled = promptManaged;
+  if (nodes.promptCustomProviderHint) nodes.promptCustomProviderHint.hidden = !promptManaged;
+  if (nodes.promptVisionModelField) nodes.promptVisionModelField.hidden = promptManaged;
+  if (nodes.promptCustomProviderModelReadonly) nodes.promptCustomProviderModelReadonly.hidden = !promptManaged;
+  if (nodes.promptCustomProviderModelValue) {
+    nodes.promptCustomProviderModelValue.textContent = promptProvider?.model || "未填写";
+  }
+
+  if (nodes.imageApiBaseUrl) nodes.imageApiBaseUrl.disabled = imageManaged;
+  if (nodes.imageApiKey) nodes.imageApiKey.disabled = imageManaged;
+  if (nodes.imageCustomProviderHint) nodes.imageCustomProviderHint.hidden = !imageManaged;
+  if (nodes.apiImageModelField) nodes.apiImageModelField.hidden = imageManaged;
+  if (nodes.imageCustomProviderModelReadonly) nodes.imageCustomProviderModelReadonly.hidden = !imageManaged;
+  if (nodes.imageCustomProviderModelValue) {
+    nodes.imageCustomProviderModelValue.textContent = imageProvider?.model || "未填写";
+  }
+  if (imageManaged && nodes.runningHubApiModeField) {
+    nodes.runningHubApiModeField.hidden = true;
+  }
+}
+
+function updateApiHeroSummary() {
+  const promptLabel = selectedApiProviderLabel(nodes.promptApiProvider, "未配置");
+  const imageLabel = selectedApiProviderLabel(nodes.imageApiProvider, "未配置");
+  let imageDetail = "";
+  let modeTag = "";
+
+  if (nodes.imageApiProvider?.value === "runninghub") {
+    const mode = normalizeRunningHubApiMode(nodes.runningHubApiMode?.value);
+    if (mode === RUNNINGHUB_API_MODE_ENTERPRISE) {
+      imageDetail = " · 企业级共享低价渠道";
+      modeTag = "Standard-API";
+    } else if (mode === RUNNINGHUB_API_MODE_OFFICIAL) {
+      imageDetail = " · 官方稳定版 · quality: low";
+      modeTag = "Standard-API";
+    } else {
+      imageDetail = " · 消费级会员 AI应用";
+    }
+  }
+
+  const summary = `反推:${promptLabel} · 生图:${imageLabel}${imageDetail}`;
+  if (nodes.apiMeta) nodes.apiMeta.textContent = summary;
+  if (!nodes.appShell?.classList.contains("is-api-view")) return;
+  nodes.heroDescriptionText.textContent = summary;
+  nodes.apiHeroModeTag.textContent = modeTag;
+  nodes.apiHeroModeTag.hidden = !modeTag;
+}
+
+function setApiView(isOpen) {
+  ensureApiPanelPlacement();
+  const open = Boolean(isOpen);
+  nodes.appShell?.classList.toggle("is-api-view", open);
+  nodes.apiPanel.hidden = !open;
+  nodes.apiToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  nodes.apiToggleBtn.setAttribute("aria-label", open ? "返回首页" : "设置");
+  nodes.apiToggleBtn.title = open ? "返回首页" : "设置";
+  nodes.heroTitle.textContent = open ? "API 接入" : HOME_HERO_TITLE;
+  if (open) {
+    setApiTab(activeApiTab);
+    updateCustomProviderManagedUi();
+    updateApiHeroSummary();
+  } else {
+    nodes.heroDescriptionText.textContent = HOME_HERO_DESCRIPTION;
+    nodes.apiHeroModeTag.hidden = true;
+    nodes.apiHeroModeTag.textContent = "";
+  }
+}
 
 let imageState = {
   src: "",
@@ -96,12 +263,13 @@ let activeImageId = "";
 let selectedImageIds = new Set();
 let lastConsumedContextImageKey = "";
 
-let generationTimer = 0;
+const generationTimers = new Set();
 let pendingGenerationResumeTimer = 0;
 let progressSmoothingFrame = 0;
 let progressSmoothingLastTime = 0;
 let galleryItems = [];
 let apiConfig = null;
+let customApiProviders = [];
 let activeLightboxItem = null;
 let activePageLightboxTabId = 0;
 let generationMode = "text";
@@ -125,6 +293,8 @@ function emptyPromptMeta(extra = {}) {
     roleCheck: "",
     selfCheck: "",
     visualReuseFingerprint: "",
+    reusePlan: null,
+    reusePlanFingerprint: "",
     ...extra
   };
 }
@@ -151,9 +321,13 @@ function gallerySourceLabel(item = {}) {
 }
 
 const API_STORAGE_KEY = "imageSparkApiConfig";
+const CUSTOM_API_PROVIDERS_STORAGE_KEY = "assetflowCustomApiProvidersV1";
+const CUSTOM_PROVIDER_OPTION_PREFIX = "custom-provider:";
+const CUSTOM_PROVIDER_MODEL_PREFIX = "custom-provider-model:";
 const APP_STATE_KEY = "imageSparkWorkspaceState";
 const GALLERY_STORAGE_KEY = "imageSparkGalleryItems";
 const PENDING_GENERATION_TASKS_KEY = "imageSparkPendingGenerationTasks";
+const PENDING_GENERATION_TASK_PREFIX = `${PENDING_GENERATION_TASKS_KEY}:`;
 const COMPLETED_GENERATION_RESULTS_KEY = "imageSparkCompletedGenerationResults";
 const PENDING_CONTEXT_IMAGE_KEY = "imageSparkPendingContextImage";
 const LOCAL_IMAGE_DB_NAME = "imageSparkLocalImages";
@@ -161,6 +335,45 @@ const LOCAL_IMAGE_DB_VERSION = 2;
 const LOCAL_IMAGE_STORE = "images";
 const LOCAL_GALLERY_STORE = "gallery";
 const MAX_UPLOAD_IMAGES = 4;
+const MAX_WORKSPACE_STATE_CHARS = 2_500_000;
+let workspacePersistenceDegraded = false;
+
+function reusePlanApi() {
+  if (!window.AssetFlowReusePlan) {
+    throw new Error("ReusePlan 模块未加载，请重新打开插件。");
+  }
+  return window.AssetFlowReusePlan;
+}
+
+function normalizeVisualReuseTextMode(value) {
+  return window.AssetFlowReusePlan?.normalizeTextMode(value)
+    || (value === "none" ? "none" : value === "reserve" ? "reserve" : value === "with-text" ? "with-text" : "auto");
+}
+
+function safeAssetSourceUrl(value) {
+  const url = String(value || "").trim();
+  return /^(data|blob):/i.test(url) ? "" : url;
+}
+
+function createAssetSource(kind, details = {}) {
+  return {
+    kind: String(kind || details.kind || "legacy"),
+    uri: safeAssetSourceUrl(details.uri || details.url),
+    pageUrl: safeAssetSourceUrl(details.pageUrl),
+    mimeType: String(details.mimeType || ""),
+    byteSize: Math.max(0, Number(details.byteSize) || 0),
+    lastModified: Math.max(0, Number(details.lastModified) || 0)
+  };
+}
+
+function normalizeAssetSource(value, fallbackSrc = "") {
+  const source = value && typeof value === "object" ? value : {};
+  const fallbackKind = /^https?:\/\//i.test(fallbackSrc) ? "web-url" : "legacy";
+  return createAssetSource(source.kind || source.type || fallbackKind, {
+    ...source,
+    uri: source.uri || source.url || fallbackSrc
+  });
+}
 
 function chromeStorageLocalGet(keys) {
   return new Promise((resolve) => {
@@ -213,20 +426,36 @@ function mirrorApiConfigToExtensionStorage(config) {
   chromeStorageLocalSet({ [API_STORAGE_KEY]: config });
 }
 
-function mirrorPendingGenerationTasksToExtensionStorage(tasks) {
+function pendingGenerationTaskStorageKey(task) {
+  const id = task?.id || `${task?.provider || "api"}-${task?.taskId || "task"}-${task?.generationId || "generation"}`;
+  return `${PENDING_GENERATION_TASK_PREFIX}${encodeURIComponent(id)}`;
+}
+
+function mirrorPendingGenerationTasksToExtensionStorage(tasks, previousTasks = []) {
   const list = Array.isArray(tasks) ? tasks : [];
-  const action = list.length
-    ? chromeStorageLocalSet({ [PENDING_GENERATION_TASKS_KEY]: list })
-    : chromeStorageLocalRemove(PENDING_GENERATION_TASKS_KEY);
-  action.then(notifyBackgroundPendingTasksUpdated);
+  const nextKeys = new Set(list.map(pendingGenerationTaskStorageKey));
+  const writes = Object.fromEntries(list.map((task) => [pendingGenerationTaskStorageKey(task), task]));
+  const staleKeys = (Array.isArray(previousTasks) ? previousTasks : [])
+    .map(pendingGenerationTaskStorageKey)
+    .filter((key) => !nextKeys.has(key));
+  const actions = [chromeStorageLocalRemove(PENDING_GENERATION_TASKS_KEY)];
+  if (Object.keys(writes).length) actions.push(chromeStorageLocalSet(writes));
+  if (staleKeys.length) actions.push(chromeStorageLocalRemove(staleKeys));
+  Promise.all(actions).then((results) => {
+    if (results.some((ok) => !ok)) {
+      setStatus("后台任务队列保存失败，请保持插件窗口打开后重试。");
+      return;
+    }
+    notifyBackgroundPendingTasksUpdated();
+  });
 }
 
 function currentImageUploadLimit() {
-  return promptMethod === "reuse" ? MAX_UPLOAD_IMAGES : 1;
+  return MAX_UPLOAD_IMAGES;
 }
 
 function currentImageUploadLimitLabel() {
-  return promptMethod === "reuse" ? `最多 ${MAX_UPLOAD_IMAGES} 张` : "当前模式仅支持 1 张";
+  return `最多 ${MAX_UPLOAD_IMAGES} 张`;
 }
 
 function syncImageUploadLimitUi() {
@@ -317,10 +546,10 @@ const VISUAL_REUSE_ROLE_ALIASES = {
   analyze: "auto"
 };
 const VISUAL_REUSE_FALLBACK_ROLES = [
-  ["subject"],
-  ["layout", "typography"],
-  ["decoration"],
-  ["auto"]
+  ["subject", "style"],
+  ["style", "color_material"],
+  ["composition", "layout"],
+  ["color_material", "decoration"]
 ];
 const VISUAL_REUSE_WEIGHT_OPTIONS = [
   { value: "high", label: "高", prompt: "High strength: accurately inherit the selected role traits and keep them as close to the reference as possible." },
@@ -329,8 +558,10 @@ const VISUAL_REUSE_WEIGHT_OPTIONS = [
 ];
 const ENABLE_EAGLE_INTEGRATION = true;
 const RUNNINGHUB_G2_MODEL = "runninghub-rhart-image-g-2";
+const RUNNINGHUB_G2_OFFICIAL_MODEL = "runninghub-rhart-image-g-2-official";
 const RUNNINGHUB_API_MODE_CONSUMER = "consumer";
 const RUNNINGHUB_API_MODE_ENTERPRISE = "enterprise";
+const RUNNINGHUB_API_MODE_OFFICIAL = "official";
 const RUNNINGHUB_G2_TEXT_APP_ID = "2046794551444119554";
 const RUNNINGHUB_G2_IMAGE_APP_ID = "2046794946094571522";
 const RUNNINGHUB_API_PATHS = {
@@ -341,7 +572,9 @@ const RUNNINGHUB_API_PATHS = {
   standardUpload: "/openapi/v2/media/upload/binary",
   standardQuery: "/openapi/v2/query",
   standardTextToImage: "/openapi/v2/rhart-image-g-2/text-to-image",
-  standardImageToImage: "/openapi/v2/rhart-image-g-2/image-to-image"
+  standardImageToImage: "/openapi/v2/rhart-image-g-2/image-to-image",
+  officialTextToImage: "/openapi/v2/rhart-image-g-2-official/text-to-image",
+  officialImageToImage: "/openapi/v2/rhart-image-g-2-official/image-to-image"
 };
 const SIZE_OPTIONS = {
   auto: { label: "自适应", ratio: "auto", resolution: "auto" },
@@ -383,16 +616,21 @@ const RATIO_ICON_SIZES = {
 };
 const RESOLUTION_OPTIONS = [
   { value: "auto", label: "自适应" },
-  { value: "square", label: "1k" },
+  { value: "1k", label: "1k" },
   { value: "2k", label: "2k" },
   { value: "4k", label: "4k" }
 ];
+const RESOLUTION_LONG_EDGE = {
+  "2k": 1920,
+  "4k": 3840
+};
 const REVERSE_PROMPT_TEMPLATE = [
   "根据上传图片进行分析，并生成一个能够指导AI作图工具重新创作类似作品的文生图提示词。",
   "提示词需含以下信息:主体内容、场景设定、风格参考、色彩色调、构图视角、附加细节。",
   "请直接输出最终提示词，不要解释分析过程。"
 ].join("\n");
 let isRestoringState = false;
+let activeResolution = "auto";
 
 if (new URLSearchParams(window.location.search).has("standalone")) {
   document.documentElement.classList.add("standalone");
@@ -454,8 +692,48 @@ function hasChinese(text) {
   return /[\u4e00-\u9fa5]/.test(text);
 }
 
+function syncPromptCharCount() {
+  if (!nodes.promptCharCount || !nodes.promptInput) return;
+  nodes.promptCharCount.textContent = `${nodes.promptInput.value.length} 字`;
+}
+
+function statusPresentation(text) {
+  const message = String(text || "");
+  const isGalleryStorageError = /图库.*(?:空间不足|保存失败|未能保存|已满|不可用)|(?:空间不足|保存失败|未能保存|已满).*(?:图库)/i.test(message);
+  const isError = isGalleryStorageError
+    || /失败|错误|无法|拒绝|缺少|拦截|超出|失效|不可用|没有识别|请先|为空|未配置|未能保存|上限/i.test(message);
+  const isSuccess = /成功|完成|已保存|已添加|已复制|复制成功|已清空|已建立|已校验|已恢复|已导入|已移除|已切换|已开启|已关闭/i.test(message);
+  const isProgress = /正在|等待|处理中|生成中|已提交|继续查询|调用 API|校验/i.test(message);
+
+  if (isError) {
+    return {
+      tone: "error",
+      title: isGalleryStorageError ? "图库空间不足" : "操作未完成",
+      showStorageAction: isGalleryStorageError
+    };
+  }
+  if (isSuccess) {
+    return { tone: "success", title: "操作完成", showStorageAction: false };
+  }
+  if (isProgress) {
+    return { tone: "progress", title: "正在处理", showStorageAction: false };
+  }
+  return { tone: "info", title: "状态提示", showStorageAction: false };
+}
+
 function setStatus(text) {
   nodes.statusText.textContent = text;
+  const presentation = statusPresentation(text);
+  if (nodes.statusAlert) {
+    nodes.statusAlert.dataset.tone = presentation.tone;
+  }
+  if (nodes.statusTitle) {
+    nodes.statusTitle.textContent = presentation.title;
+  }
+  if (nodes.statusActionBtn) {
+    nodes.statusActionBtn.hidden = !presentation.showStorageAction;
+  }
+  syncPromptCharCount();
 }
 
 function setPromptThinking(active) {
@@ -491,6 +769,9 @@ function workspaceStateFromDom() {
       name: item.name,
       width: item.width,
       height: item.height,
+      assetSource: normalizeAssetSource(item.assetSource, item.src),
+      dimensionsVerified: Boolean(item.dimensionsVerified),
+      dimensionsVerifiedAt: item.dimensionsVerifiedAt || "",
       visualReuseRoles: normalizeVisualReuseRoles(item.visualReuseRoles || item.visualReuseRole),
       visualReuseRole: "",
       visualReuseWeight: normalizeVisualReuseWeight(item.visualReuseWeight),
@@ -509,11 +790,13 @@ function workspaceStateFromDom() {
       assetType: nodes.visualReuseAssetType?.value || "auto",
       strength: normalizeVisualReuseMode(nodes.visualReuseStrength?.value),
       style: nodes.visualReuseStyle?.value || "original",
-      textMode: nodes.visualReuseTextMode?.value || "auto",
+      textMode: normalizeVisualReuseTextMode(nodes.visualReuseTextMode?.value),
+      textContent: nodes.visualReuseTextContent?.value || "",
       notes: nodes.visualReuseNotes?.value || ""
     },
     options: {
       sizeMode: nodes.sizeMode.value,
+      resolution: activeResolution,
       width: nodes.widthInput.value,
       height: nodes.heightInput.value,
       count: nodes.countInput.value,
@@ -545,13 +828,58 @@ function serializeGalleryItems(items) {
   });
 }
 
+function isEmbeddedWorkspaceImage(image) {
+  return /^(?:data:image\/|blob:)/i.test(String(image?.src || ""));
+}
+
+function compactWorkspaceStateForStorage(state) {
+  const persistentImages = (state.images || []).filter((image) => !isEmbeddedWorkspaceImage(image));
+  const persistentIds = new Set(persistentImages.map((image) => image.id).filter(Boolean));
+  return {
+    ...state,
+    image: state.image && !isEmbeddedWorkspaceImage(state.image) ? state.image : null,
+    images: persistentImages,
+    activeImageId: persistentIds.has(state.activeImageId) ? state.activeImageId : "",
+    selectedImageIds: (state.selectedImageIds || []).filter((id) => persistentIds.has(id))
+  };
+}
+
 function saveWorkspaceState() {
-  if (isRestoringState) return;
+  if (isRestoringState) return { skipped: true };
+  let state;
+  let serialized;
+
   try {
-    const state = workspaceStateFromDom();
-    localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
+    state = workspaceStateFromDom();
+    serialized = JSON.stringify(state);
   } catch {
-    setStatus("当前图片或图库过大，浏览器本地存储失败。");
+    setStatus("工作区状态未能保存，本次会话仍可继续使用。");
+    return { failed: true };
+  }
+
+  try {
+    if (serialized.length > MAX_WORKSPACE_STATE_CHARS) {
+      throw new DOMException("Workspace image payload is too large", "QuotaExceededError");
+    }
+    localStorage.setItem(APP_STATE_KEY, serialized);
+    workspacePersistenceDegraded = false;
+    return { degraded: false };
+  } catch {
+    const alreadyDegraded = workspacePersistenceDegraded;
+    try {
+      localStorage.setItem(APP_STATE_KEY, JSON.stringify(compactWorkspaceStateForStorage(state)));
+      workspacePersistenceDegraded = true;
+      if (!alreadyDegraded) {
+        setStatus("参考图数据较大，本次会话可继续使用；为避免占满存储，重新打开后需要再次添加本地参考图。");
+      }
+      return { degraded: true };
+    } catch {
+      workspacePersistenceDegraded = true;
+      if (!alreadyDegraded) {
+        setStatus("工作区状态未能保存，本次会话仍可继续使用。");
+      }
+      return { failed: true };
+    }
   }
 }
 
@@ -588,16 +916,15 @@ function loadPendingGenerationTasks() {
   }
 }
 
-function savePendingGenerationTasks(tasks) {
+function savePendingGenerationTasks(tasks, previousTasks = loadPendingGenerationTasks()) {
   const list = Array.isArray(tasks) ? tasks.filter((task) => task?.taskId && task?.generationId) : [];
   if (!list.length) {
     localStorage.removeItem(PENDING_GENERATION_TASKS_KEY);
-    mirrorPendingGenerationTasksToExtensionStorage([]);
+    mirrorPendingGenerationTasksToExtensionStorage([], previousTasks);
     return;
   }
-  const trimmed = list.slice(-24);
-  localStorage.setItem(PENDING_GENERATION_TASKS_KEY, JSON.stringify(trimmed));
-  mirrorPendingGenerationTasksToExtensionStorage(trimmed);
+  localStorage.setItem(PENDING_GENERATION_TASKS_KEY, JSON.stringify(list));
+  mirrorPendingGenerationTasksToExtensionStorage(list, previousTasks);
 }
 
 function upsertPendingGenerationTask(task) {
@@ -609,21 +936,23 @@ function upsertPendingGenerationTask(task) {
     createdAt: Number(task.createdAt) || Date.now(),
     count: Math.max(1, Number(task.count) || 1)
   };
-  const tasks = loadPendingGenerationTasks().filter((item) => item.id !== id);
+  const previousTasks = loadPendingGenerationTasks();
+  const tasks = previousTasks.filter((item) => item.id !== id);
   tasks.push(nextTask);
-  savePendingGenerationTasks(tasks);
+  savePendingGenerationTasks(tasks, previousTasks);
   return id;
 }
 
 function removePendingGenerationTask(match) {
   if (!match) return;
-  const tasks = loadPendingGenerationTasks().filter((task) => {
+  const previousTasks = loadPendingGenerationTasks();
+  const tasks = previousTasks.filter((task) => {
     if (match.id && task.id === match.id) return false;
     if (match.generationId && task.generationId === match.generationId) return false;
     if (match.provider && match.taskId && task.provider === match.provider && task.taskId === match.taskId) return false;
     return true;
   });
-  savePendingGenerationTasks(tasks);
+  savePendingGenerationTasks(tasks, previousTasks);
 }
 
 class PendingGenerationTaskError extends Error {
@@ -660,6 +989,8 @@ function normalizeGalleryItems(items) {
       promptCn: item.promptCn || "",
       promptEn: item.promptEn || "",
       promptStructure: item.promptStructure || "",
+      reusePlan: item.reusePlan || null,
+      assetLineage: item.assetLineage || null,
       mode: normalizeGalleryMode(item.mode),
       url: item.url || item.src,
       originalUrl: item.originalUrl || "",
@@ -707,6 +1038,9 @@ function imageItemFromSource(image, index = 0) {
     height: Number(image.height) || 0,
     dataUrl: src.startsWith("data:image/") ? src : "",
     objectUrl: "",
+    assetSource: normalizeAssetSource(image.assetSource, src),
+    dimensionsVerified: Boolean(image.dimensionsVerified || (image.width && image.height)),
+    dimensionsVerifiedAt: image.dimensionsVerifiedAt || "",
     visualReuseRoles,
     visualReuseRole: "",
     visualReuseWeight: normalizeVisualReuseWeight(image.visualReuseWeight),
@@ -748,9 +1082,8 @@ function syncActiveImageState() {
   nodes.dropZone.classList.add("has-image");
   nodes.dropZone.classList.toggle("is-single-image", imageItems.length === 1);
   nodes.dropZone.classList.toggle("is-multi-image", imageItems.length > 1);
-  nodes.imageName.textContent = imageItems.length > 1
-    ? `${imageItems.length} 张图片 · ${active.name}`
-    : active.name;
+  nodes.imageName.textContent = `${imageItems.length} 张图片`;
+  nodes.imageName.title = active.name;
   nodes.imageSize.textContent = active.width && active.height
     ? `${active.width} × ${active.height}`
     : "尺寸待获取";
@@ -760,7 +1093,7 @@ function syncActiveImageState() {
 function renderImageStack() {
   nodes.imageStack.innerHTML = "";
   nodes.imageStack.dataset.count = String(imageItems.length);
-  if (imageItems.length <= 1) return;
+  if (!imageItems.length) return;
 
   imageItems.forEach((item, index) => {
     const card = document.createElement("div");
@@ -778,6 +1111,7 @@ function renderImageStack() {
     card.title = `${item.name}${item.width && item.height ? ` · ${item.width} × ${item.height}` : ""}。按 Ctrl/Shift 点击可多选批量反推。`;
     card.draggable = imageItems.length > 1;
     card.dataset.imageId = item.id;
+    card.dataset.referenceRole = effectiveVisualReuseRoles(item, index).join(" ");
     card.addEventListener("dragstart", (event) => {
       closeVisualReuseRoleEditors();
       event.stopPropagation();
@@ -843,6 +1177,7 @@ function renderImageStack() {
     img.alt = item.name;
 
     const badge = document.createElement("span");
+    badge.className = "reference-index-badge";
     badge.textContent = `#${index + 1}`;
 
     const roleEditor = document.createElement("div");
@@ -911,7 +1246,7 @@ function renderImageStack() {
         }
         updateVisualReuseRoleButton(roleButton, item, index);
         syncRoleOptionLimit();
-        clearGeneratedPromptForReferenceChange("参考图标签已变化，请重新生成复用提示词。");
+        clearGeneratedPromptForReferenceChange("参考图标签已变化，请重新查看方案。");
         saveWorkspaceState();
       });
 
@@ -945,7 +1280,8 @@ function renderImageStack() {
     weightSelect.addEventListener("change", () => {
       item.visualReuseWeight = normalizeVisualReuseWeight(weightSelect.value);
       item.visualReuseWeightManual = true;
-      clearGeneratedPromptForReferenceChange("复用强度已变化，请重新生成复用提示词。");
+      updateVisualReuseRoleButton(roleButton, item, index);
+      clearGeneratedPromptForReferenceChange("复用强度已变化，请重新查看方案。");
       saveWorkspaceState();
     });
     weightLabel.append(weightText, weightSelect);
@@ -957,7 +1293,8 @@ function renderImageStack() {
     lockInput.checked = item.visualReuseLocked !== false;
     lockInput.addEventListener("change", () => {
       item.visualReuseLocked = lockInput.checked;
-      clearGeneratedPromptForReferenceChange("参考图锁定状态已变化，请重新生成复用提示词。");
+      updateVisualReuseRoleButton(roleButton, item, index);
+      clearGeneratedPromptForReferenceChange("参考图锁定状态已变化，请重新查看方案。");
       saveWorkspaceState();
     });
     const lockText = document.createElement("span");
@@ -969,7 +1306,7 @@ function renderImageStack() {
     roleEditor.append(roleButton, roleMenu);
 
     const removeButton = document.createElement("button");
-    removeButton.className = "image-delete";
+    removeButton.className = "image-delete reference-card-close";
     removeButton.type = "button";
     removeButton.title = "删除图片";
     removeButton.setAttribute("aria-label", `删除图片 ${index + 1}`);
@@ -979,9 +1316,53 @@ function renderImageStack() {
       removeImageItem(item.id);
     });
 
-    card.append(img, roleEditor, badge, removeButton);
+    const cardHead = document.createElement("div");
+    cardHead.className = "reference-card-head";
+    cardHead.append(roleEditor, removeButton);
+
+    const cardMedia = document.createElement("div");
+    cardMedia.className = "reference-card-media";
+    cardMedia.append(img, badge);
+
+    card.append(cardHead, cardMedia);
     nodes.imageStack.append(card);
   });
+
+  const remainingSlots = currentImageUploadLimit() - imageItems.length;
+  const addCardCount = imageItems.length === 1 ? 1 : Math.max(0, remainingSlots);
+  for (let addIndex = 0; addIndex < addCardCount; addIndex += 1) {
+    const addCard = document.createElement("button");
+    addCard.className = imageItems.length === 1 ? "image-add-more-row" : "image-add-card";
+    addCard.type = "button";
+    addCard.setAttribute("aria-label", "继续添加参考图");
+    addCard.title = imageItems.length === 1
+      ? "添加参考图，切换为四宫格"
+      : `添加参考图（${imageItems.length}/${currentImageUploadLimit()}）`;
+
+    const addIcon = document.createElement("span");
+    addIcon.className = "image-add-card-icon";
+    addIcon.setAttribute("aria-hidden", "true");
+
+    const addLabel = document.createElement("span");
+    addLabel.textContent = imageItems.length === 1
+      ? "添加参考图，切换为四宫格"
+      : "添加参考图";
+
+    addCard.append(addIcon, addLabel);
+    addCard.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      nodes.fileInput.click();
+    });
+    nodes.imageStack.append(addCard);
+  }
+
+  if (imageItems.length >= currentImageUploadLimit()) {
+    const limitNote = document.createElement("p");
+    limitNote.className = "reference-limit-note";
+    limitNote.textContent = `已达到 ${currentImageUploadLimit()} 张参考图上限`;
+    nodes.imageStack.append(limitNote);
+  }
 }
 
 function visualReuseReferenceFingerprint(items = imageItems) {
@@ -1014,6 +1395,8 @@ function clearGeneratedPromptForReferenceChange(message = "参考图已变化，
   promptMeta = emptyPromptMeta({
     visualReuseFingerprint: promptMethod === "reuse" ? visualReuseReferenceFingerprint() : ""
   });
+  renderVisualReusePlan(null);
+  syncGenerateAction();
   setStatus(message);
   return true;
 }
@@ -1031,10 +1414,10 @@ function reorderImageItem(sourceId, targetId) {
     selectedImageIds.add(moved.id);
   }
   activeImageId = imageItems.some((item) => item.id === activeImageId) ? activeImageId : moved.id;
-  clearGeneratedPromptForReferenceChange("参考图顺序已变化，请重新生成复用提示词。");
+  clearGeneratedPromptForReferenceChange("参考图顺序已变化，请重新查看方案。");
   syncActiveImageState();
   saveWorkspaceState();
-  setStatus("参考图顺序已更新，请重新生成复用提示词。");
+  setStatus("参考图顺序已更新，请重新查看方案。");
   return true;
 }
 
@@ -1082,6 +1465,10 @@ function applyRestoredImage(image, images = [], restoredActiveId = "") {
 function loadWorkspaceState() {
   const raw = localStorage.getItem(APP_STATE_KEY);
   if (!raw) {
+    setPromptMethod("none");
+    setVisualReusePanelOpen(false);
+    syncVisualReuseTextStrategyUi();
+    renderVisualReusePlan(null);
     galleryItems = loadStoredGalleryItems();
     renderGallery();
     return;
@@ -1112,9 +1499,11 @@ function loadWorkspaceState() {
       structure: state.promptMeta?.structure || "",
       roleCheck: state.promptMeta?.roleCheck || "",
       selfCheck: state.promptMeta?.selfCheck || "",
-      visualReuseFingerprint: state.promptMeta?.visualReuseFingerprint || ""
+      visualReuseFingerprint: state.promptMeta?.visualReuseFingerprint || "",
+      reusePlan: state.promptMeta?.reusePlan || null,
+      reusePlanFingerprint: state.promptMeta?.reusePlanFingerprint || state.promptMeta?.reusePlan?.inputFingerprint || ""
     };
-    if (!reversePromptDetailed) {
+    if (!reversePromptDetailed && promptMethod !== "reuse") {
       promptMeta.english = "";
       promptMeta.structure = "";
     }
@@ -1122,19 +1511,34 @@ function loadWorkspaceState() {
       if (nodes.visualReuseAssetType) nodes.visualReuseAssetType.value = state.visualReuse.assetType || "auto";
       if (nodes.visualReuseStrength) nodes.visualReuseStrength.value = normalizeVisualReuseMode(state.visualReuse.strength);
       if (nodes.visualReuseStyle) nodes.visualReuseStyle.value = state.visualReuse.style || "original";
-      if (nodes.visualReuseTextMode) nodes.visualReuseTextMode.value = state.visualReuse.textMode || "auto";
+      if (nodes.visualReuseTextMode) nodes.visualReuseTextMode.value = normalizeVisualReuseTextMode(state.visualReuse.textMode);
+      if (nodes.visualReuseTextContent) nodes.visualReuseTextContent.value = state.visualReuse.textContent || "";
       if (nodes.visualReuseNotes) nodes.visualReuseNotes.value = state.visualReuse.notes || "";
     }
     const hasRestoredImage = Boolean(imageItems.length || state.image?.src || state.images?.length);
     setGenerationMode(state.generationMode === "image" && hasRestoredImage ? "image" : "text", { silent: true });
     setPromptMethod(promptMethod);
     if (state.options) {
-      nodes.sizeMode.value = state.options.sizeMode || "auto";
-      nodes.modelSelect.value = state.options.model || "gpt-image-1";
+      const restoredMode = state.options.sizeMode || "auto";
+      const legacyResolution = restoredMode === "2k" || restoredMode === "4k"
+        ? restoredMode
+        : "";
+      nodes.sizeMode.value = legacyResolution ? "16-9" : restoredMode;
+      activeResolution = normalizeResolutionTier(
+        state.options.resolution
+          || legacyResolution
+          || SIZE_OPTIONS[nodes.sizeMode.value]?.resolution
+          || "auto"
+      );
+      nodes.modelSelect.value = state.options.model || RUNNINGHUB_G2_MODEL;
       nodes.widthInput.value = state.options.width || 1024;
       nodes.heightInput.value = state.options.height || 1024;
       nodes.countInput.value = state.options.count || 1;
     }
+    syncSizePicker();
+    syncVisualReuseTextStrategyUi();
+    renderVisualReusePlan(promptMeta.reusePlan);
+    syncGenerateAction();
     galleryItems = loadStoredGalleryItems(state.gallery);
     renderGallery();
   } catch {
@@ -1166,6 +1570,7 @@ function defaultBaseUrl(provider) {
   const urls = {
     openai: "https://api.openai.com/v1",
     gemini: "https://generativelanguage.googleapis.com/v1beta",
+    volcengine: "https://ark.cn-beijing.volces.com/api/v3",
     aliyun: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     deepseek: "https://api.deepseek.com",
     apimart: "https://api.apimart.ai/v1",
@@ -1205,6 +1610,18 @@ function syncDeepSeekPromptUi(options = {}) {
     nodes.deepSeekThinkingMode.value = deepSeekModeFromModel(nodes.promptModelSelect.value, deepSeekThinkingEnabled(nodes.deepSeekThinkingMode.value));
   }
   nodes.promptModelSelect.value = deepSeekModelFromMode(nodes.deepSeekThinkingMode.value);
+}
+
+function syncPromptCustomModelField() {
+  if (!nodes.promptCustomModelField) return;
+  nodes.promptCustomModelField.hidden = nodes.promptModelSelect?.value !== "custom";
+  const isVolcengine = nodes.promptApiProvider?.value === "volcengine";
+  if (nodes.promptLanguageModelField) {
+    nodes.promptLanguageModelField.hidden = !isVolcengine;
+  }
+  if (nodes.promptLanguageCustomField) {
+    nodes.promptLanguageCustomField.hidden = !isVolcengine || nodes.promptLanguageModelSelect?.value !== "custom";
+  }
 }
 
 function promptProviderSupportsImageInput(provider) {
@@ -1264,7 +1681,7 @@ function setupOptionalLocalIntegrations() {
 }
 
 function selectedModelLabel() {
-  return nodes.modelSelect.options[nodes.modelSelect.selectedIndex]?.text || "GPT Image";
+  return nodes.modelSelect.options[nodes.modelSelect.selectedIndex]?.text || "RunningHub 全能图片G-2.0 低价渠道版";
 }
 
 function syncModelPicker() {
@@ -1292,16 +1709,24 @@ function selectModel(value) {
 function renderModelMenu() {
   if (!nodes.modelMenu) return;
   nodes.modelMenu.innerHTML = "";
-  [...nodes.modelSelect.options].forEach((option) => {
+  [...nodes.modelSelect.options]
+    .filter((option) => option.dataset.legacyOption !== "true" || option.selected)
+    .forEach((option) => {
     const button = document.createElement("button");
     button.className = "model-option";
     button.type = "button";
     button.role = "option";
     button.dataset.value = option.value;
-    button.textContent = option.text;
+    const dot = document.createElement("span");
+    dot.className = "model-option-dot";
+    dot.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.className = "model-option-label";
+    label.textContent = option.text;
+    button.append(dot, label);
     button.addEventListener("click", () => selectModel(option.value));
     nodes.modelMenu.append(button);
-  });
+    });
   syncModelPicker();
 }
 
@@ -1501,7 +1926,7 @@ function readImageDimensions(src) {
   });
 }
 
-async function setImage(src, name = "网页图片") {
+async function setImage(src, name = "网页图片", sourceContext = {}) {
   revokeObjectUrl();
   const item = {
     id: `image-${Date.now()}-0`,
@@ -1511,6 +1936,12 @@ async function setImage(src, name = "网页图片") {
     height: 0,
     dataUrl: src.startsWith("data:image/") ? src : "",
     objectUrl: "",
+    assetSource: createAssetSource(sourceContext.kind || "web-url", {
+      ...sourceContext,
+      uri: sourceContext.uri || src
+    }),
+    dimensionsVerified: false,
+    dimensionsVerifiedAt: "",
     visualReuseRoles: [],
     visualReuseRole: "",
     visualReuseWeight: "",
@@ -1542,7 +1973,7 @@ async function setImage(src, name = "网页图片") {
   }
 }
 
-async function buildImageItemFromUrl(imageUrl, name) {
+async function buildImageItemFromUrl(imageUrl, name, sourceContext = {}) {
   const item = {
     id: `image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     src: imageUrl,
@@ -1551,6 +1982,12 @@ async function buildImageItemFromUrl(imageUrl, name) {
     height: 0,
     dataUrl: imageUrl.startsWith("data:image/") ? imageUrl : "",
     objectUrl: "",
+    assetSource: createAssetSource(sourceContext.kind || "web-url", {
+      ...sourceContext,
+      uri: sourceContext.uri || imageUrl
+    }),
+    dimensionsVerified: false,
+    dimensionsVerifiedAt: "",
     visualReuseRoles: [],
     visualReuseRole: "",
     visualReuseWeight: "",
@@ -1563,6 +2000,10 @@ async function buildImageItemFromUrl(imageUrl, name) {
     const size = await readImageDimensions(imageUrl);
     item.width = size.width;
     item.height = size.height;
+    item.dimensionsVerified = true;
+    item.dimensionsVerifiedAt = new Date().toISOString();
+    item.dimensionsVerified = true;
+    item.dimensionsVerifiedAt = new Date().toISOString();
   } catch {
     return null;
   }
@@ -1570,7 +2011,7 @@ async function buildImageItemFromUrl(imageUrl, name) {
   return item;
 }
 
-async function addImagesFromUrls(srcList, name = "网页拖入图片") {
+async function addImagesFromUrls(srcList, name = "网页拖入图片", sourceContext = {}) {
   const urls = uniqueValues([...(Array.isArray(srcList) ? srcList : [srcList])]
     .flatMap((src) => normalizeDroppedUrls(src)));
   if (!urls.length) {
@@ -1605,7 +2046,7 @@ async function addImagesFromUrls(srcList, name = "网页拖入图片") {
     }
 
     const pickedUrl = newUrls[0] || urls[0];
-    const item = targetExisting || await buildImageItemFromUrl(pickedUrl, name);
+    const item = targetExisting || await buildImageItemFromUrl(pickedUrl, name, sourceContext);
     if (!item) {
       setStatus("图片地址无法加载，已跳过。");
       return false;
@@ -1643,7 +2084,11 @@ async function addImagesFromUrls(srcList, name = "网页拖入图片") {
   }
 
   const newItems = await Promise.all(pickedUrls.map((imageUrl, index) => (
-    buildImageItemFromUrl(imageUrl, pickedUrls.length > 1 ? `${name} ${index + 1}` : name)
+    buildImageItemFromUrl(
+      imageUrl,
+      pickedUrls.length > 1 ? `${name} ${index + 1}` : name,
+      { ...sourceContext, uri: imageUrl }
+    )
   )));
   const validNewItems = newItems.filter(Boolean);
   if (!validNewItems.length) {
@@ -1656,7 +2101,7 @@ async function addImagesFromUrls(srcList, name = "网页拖入图片") {
     : [...imageItems, ...validNewItems].slice(-MAX_UPLOAD_IMAGES);
   activeImageId = validNewItems[0]?.id || existingItems[0]?.id || activeImageId;
   selectedImageIds = new Set([...existingItems, ...validNewItems].map((item) => item.id));
-  clearGeneratedPromptForReferenceChange("参考图已变化，请重新生成复用提示词。");
+  clearGeneratedPromptForReferenceChange("参考图已变化，请重新查看方案。");
   syncActiveImageState();
 
   if (nodes.sizeMode.value === "auto" && imageState.width && imageState.height) {
@@ -1675,8 +2120,8 @@ async function addImagesFromUrls(srcList, name = "网页拖入图片") {
   return true;
 }
 
-async function addImageFromUrl(src, name = "网页右键图片") {
-  return addImagesFromUrls([src], name);
+async function addImageFromUrl(src, name = "网页右键图片", sourceContext = {}) {
+  return addImagesFromUrls([src], name, { ...sourceContext, uri: src });
 }
 
 function clearPendingContextImageIfMatches(src = "") {
@@ -1703,7 +2148,10 @@ function consumePendingContextImage() {
 
     chrome.storage.local.remove(PENDING_CONTEXT_IMAGE_KEY);
     try {
-      await addImageFromUrl(pending.src, pending.name || "网页右键图片");
+      await addImageFromUrl(pending.src, pending.name || "网页右键图片", {
+        kind: "context-menu",
+        pageUrl: pending.pageUrl || ""
+      });
     } catch (error) {
       setStatus(error.message || "右键图片添加失败。");
     }
@@ -1716,7 +2164,10 @@ window.chrome?.runtime?.onMessage?.addListener((message, _sender, sendResponse) 
   const payload = message.payload || {};
   const pendingKey = `${payload.src || ""}|${payload.createdAt || ""}`;
   lastConsumedContextImageKey = pendingKey;
-  addImageFromUrl(payload.src, payload.name || "网页右键图片")
+  addImageFromUrl(payload.src, payload.name || "网页右键图片", {
+    kind: "context-menu",
+    pageUrl: payload.pageUrl || ""
+  })
     .then((ok) => {
       if (window.chrome?.storage?.local) {
         chrome.storage.local.remove(PENDING_CONTEXT_IMAGE_KEY);
@@ -1729,12 +2180,12 @@ window.chrome?.runtime?.onMessage?.addListener((message, _sender, sendResponse) 
   return true;
 });
 
-async function setImageFromFile(file) {
+async function setImageFromFile(file, sourceContext = {}) {
   if (!file?.type?.startsWith("image/")) return;
-  await setImagesFromFiles([file]);
+  await setImagesFromFiles([file], sourceContext);
 }
 
-async function setImagesFromFiles(files) {
+async function setImagesFromFiles(files, sourceContext = {}) {
   const imageFiles = [...(files || [])].filter((file) => file?.type?.startsWith("image/"));
   if (!imageFiles.length) return;
 
@@ -1759,6 +2210,14 @@ async function setImagesFromFiles(files) {
       height: 0,
       dataUrl,
       objectUrl,
+      assetSource: createAssetSource(sourceContext.kind || "local-file", {
+        ...sourceContext,
+        mimeType: file.type,
+        byteSize: file.size,
+        lastModified: file.lastModified
+      }),
+      dimensionsVerified: false,
+      dimensionsVerifiedAt: "",
       visualReuseRoles: [],
       visualReuseRole: "",
       visualReuseWeight: "",
@@ -1771,6 +2230,8 @@ async function setImagesFromFiles(files) {
       const size = await readImageDimensions(objectUrl);
       item.width = size.width;
       item.height = size.height;
+      item.dimensionsVerified = true;
+      item.dimensionsVerifiedAt = new Date().toISOString();
     } catch {
       item.width = 0;
       item.height = 0;
@@ -1794,8 +2255,16 @@ async function setImagesFromFiles(files) {
     syncSizeInputs(imageState.width, imageState.height);
   }
 
-  saveWorkspaceState();
+  const persistence = saveWorkspaceState();
   const selectedTip = picked.length > 1 ? "已选中新图，可直接批量反推。" : "已选中当前图片。";
+  if (persistence?.degraded) {
+    setStatus(`已添加 ${picked.length} 张图片。参考图数据较大，本次会话可继续使用；重新打开后需要再次添加本地参考图。`);
+    return;
+  }
+  if (persistence?.failed) {
+    setStatus(`已添加 ${picked.length} 张图片，但工作区状态未能保存；本次会话仍可继续使用。`);
+    return;
+  }
   if (shouldReplaceSingle && imageFiles.length > 1) {
     setStatus("当前模式仅支持 1 张图片，已使用第一张本地图片。");
     return;
@@ -1938,8 +2407,50 @@ function syncSizeInputs(width, height) {
   syncSizePicker();
 }
 
+function normalizeResolutionTier(value) {
+  return ["auto", "1k", "2k", "4k", "custom"].includes(value) ? value : "1k";
+}
+
+function normalizeRatioMode(value) {
+  if (value === "2k" || value === "4k") return "16-9";
+  return RATIO_OPTIONS.some((option) => option.value === value) ? value : "auto";
+}
+
+function nearestRatioMode(width, height) {
+  const target = Math.max(1, Number(width) || 1) / Math.max(1, Number(height) || 1);
+  const candidates = RATIO_OPTIONS
+    .map((option) => option.value)
+    .filter((value) => !["auto", "custom"].includes(value))
+    .map((value) => {
+      const option = SIZE_OPTIONS[value];
+      return {
+        value,
+        ratio: Math.max(1, option?.width || 1) / Math.max(1, option?.height || 1)
+      };
+    });
+  return candidates.reduce((best, candidate) => (
+    Math.abs(candidate.ratio - target) < Math.abs(best.ratio - target) ? candidate : best
+  ), candidates[0]).value;
+}
+
+function dimensionsForSizeSelection(mode, resolution = activeResolution) {
+  const ratioMode = normalizeRatioMode(mode);
+  const option = SIZE_OPTIONS[ratioMode];
+  if (!option?.width || !option?.height) return null;
+  const targetLongEdge = RESOLUTION_LONG_EDGE[normalizeResolutionTier(resolution)];
+  const scale = targetLongEdge
+    ? targetLongEdge / Math.max(option.width, option.height)
+    : 1;
+  const boundedScale = Math.min(scale, 4096 / option.width, 4096 / option.height);
+  const roundToEight = (value) => Math.max(128, Math.min(4096, Math.round(value / 8) * 8));
+  return [
+    roundToEight(option.width * boundedScale),
+    roundToEight(option.height * boundedScale)
+  ];
+}
+
 function sizePickerLabel() {
-  const mode = nodes.sizeMode.value;
+  const mode = normalizeRatioMode(nodes.sizeMode.value);
   if (mode === "custom") {
     return `${nodes.widthInput.value || 1024} × ${nodes.heightInput.value || 1024}`;
   }
@@ -1947,21 +2458,19 @@ function sizePickerLabel() {
     return "自适应";
   }
   const option = SIZE_OPTIONS[mode] || SIZE_OPTIONS.auto;
-  const resolution = option.resolution && option.resolution !== "auto" ? ` / ${option.resolution}` : "";
+  const resolution = !["auto", "custom"].includes(activeResolution) ? ` / ${activeResolution}` : "";
   return `${option.label}${resolution}`;
 }
 
 function syncSizePicker() {
   if (!nodes.sizePickerText) return;
-  const mode = nodes.sizeMode.value;
+  const mode = normalizeRatioMode(nodes.sizeMode.value);
   nodes.sizePickerText.textContent = sizePickerLabel();
   nodes.ratioGrid?.querySelectorAll(".ratio-option").forEach((button) => {
-    const option = SIZE_OPTIONS[mode] || SIZE_OPTIONS.auto;
-    button.setAttribute("aria-selected", button.dataset.mode === mode || button.dataset.ratio === option.ratio ? "true" : "false");
+    button.setAttribute("aria-selected", button.dataset.mode === mode ? "true" : "false");
   });
   nodes.resolutionTabs?.querySelectorAll(".resolution-option").forEach((button) => {
-    const option = SIZE_OPTIONS[mode] || SIZE_OPTIONS.auto;
-    button.setAttribute("aria-selected", button.dataset.mode === mode || button.dataset.resolution === option.resolution ? "true" : "false");
+    button.setAttribute("aria-selected", button.dataset.resolution === activeResolution ? "true" : "false");
   });
 }
 
@@ -1972,10 +2481,32 @@ function setSizeMenuOpen(isOpen) {
   nodes.sizeMenu.hidden = !isOpen;
 }
 
-function selectSizeMode(mode) {
-  nodes.sizeMode.value = mode;
+function selectAspectRatio(mode) {
+  const ratioMode = normalizeRatioMode(mode);
+  nodes.sizeMode.value = ratioMode;
+  if (ratioMode === "auto") {
+    activeResolution = "auto";
+  } else if (ratioMode === "custom") {
+    activeResolution = "custom";
+  } else if (["auto", "custom"].includes(activeResolution)) {
+    activeResolution = "1k";
+  }
   nodes.sizeMode.dispatchEvent(new Event("change", { bubbles: true }));
-  setSizeMenuOpen(false);
+  setSizeMenuOpen(true);
+}
+
+function selectResolutionTier(resolution) {
+  activeResolution = normalizeResolutionTier(resolution);
+  if (activeResolution === "auto") {
+    nodes.sizeMode.value = "auto";
+  } else {
+    const currentMode = normalizeRatioMode(nodes.sizeMode.value);
+    nodes.sizeMode.value = ["auto", "custom"].includes(currentMode)
+      ? nearestRatioMode(nodes.widthInput.value, nodes.heightInput.value)
+      : currentMode;
+  }
+  nodes.sizeMode.dispatchEvent(new Event("change", { bubbles: true }));
+  setSizeMenuOpen(true);
 }
 
 async function copyPrompt() {
@@ -2044,7 +2575,7 @@ function renderSizeMenu() {
     label.textContent = option.label;
     button.append(icon, label);
     button.setAttribute("aria-selected", "false");
-    button.addEventListener("click", () => selectSizeMode(option.value));
+    button.addEventListener("click", () => selectAspectRatio(option.value));
     nodes.ratioGrid.append(button);
   });
 
@@ -2052,11 +2583,10 @@ function renderSizeMenu() {
     const button = document.createElement("button");
     button.className = "resolution-option";
     button.type = "button";
-    button.dataset.mode = option.value;
-    button.dataset.resolution = SIZE_OPTIONS[option.value]?.resolution || option.value;
+    button.dataset.resolution = option.value;
     button.textContent = option.label;
     button.setAttribute("aria-selected", "false");
-    button.addEventListener("click", () => selectSizeMode(option.value));
+    button.addEventListener("click", () => selectResolutionTier(option.value));
     nodes.resolutionTabs.append(button);
   });
 
@@ -2072,9 +2602,35 @@ function syncCustomModelField() {
 function syncRunningHubApiModeField() {
   if (!nodes.runningHubApiModeField) return;
   const isRunningHub = nodes.imageApiProvider.value === "runninghub"
-    || nodes.apiImageModelSelect.value === RUNNINGHUB_G2_MODEL
-    || nodes.modelSelect.value === RUNNINGHUB_G2_MODEL;
+    || isRunningHubG2Model(nodes.apiImageModelSelect.value)
+    || isRunningHubG2Model(nodes.modelSelect.value);
   nodes.runningHubApiModeField.hidden = !isRunningHub;
+}
+
+function syncRunningHubModeForModel(modelValue) {
+  if (!nodes.runningHubApiMode) return;
+  if (modelValue === RUNNINGHUB_G2_OFFICIAL_MODEL) {
+    nodes.runningHubApiMode.value = RUNNINGHUB_API_MODE_OFFICIAL;
+    return;
+  }
+  if (modelValue === RUNNINGHUB_G2_MODEL
+    && normalizeRunningHubApiMode(nodes.runningHubApiMode.value) === RUNNINGHUB_API_MODE_OFFICIAL) {
+    nodes.runningHubApiMode.value = RUNNINGHUB_API_MODE_CONSUMER;
+  }
+}
+
+function syncRunningHubModelForApiMode() {
+  const mode = normalizeRunningHubApiMode(nodes.runningHubApiMode?.value);
+  const targetModel = mode === RUNNINGHUB_API_MODE_OFFICIAL
+    ? RUNNINGHUB_G2_OFFICIAL_MODEL
+    : RUNNINGHUB_G2_MODEL;
+  if (isRunningHubG2Model(nodes.apiImageModelSelect.value)) {
+    nodes.apiImageModelSelect.value = targetModel;
+  }
+  if (isRunningHubG2Model(nodes.modelSelect.value)) {
+    nodes.modelSelect.value = targetModel;
+    syncModelPicker();
+  }
 }
 
 function setCountValue(value) {
@@ -2091,28 +2647,32 @@ function stepCount(delta) {
 }
 
 function applySizeMode() {
-  const mode = nodes.sizeMode.value;
-  const presets = {
-    square: [1024, 1024],
-    portrait: [1024, 1536],
-    landscape: [1536, 1024],
-    "21-9": [1792, 768],
-    "16-9": [1536, 864],
-    "9-16": [864, 1536],
-    "3-4": [1152, 1536],
-    "4-3": [1536, 1152],
-    "2k": [1920, 1080],
-    "4k": [3840, 2160]
-  };
+  const originalMode = nodes.sizeMode.value;
+  if (originalMode === "2k" || originalMode === "4k") {
+    activeResolution = originalMode;
+    nodes.sizeMode.value = "16-9";
+  }
+  const mode = normalizeRatioMode(nodes.sizeMode.value);
 
   if (mode === "auto" && imageState.width && imageState.height) {
+    activeResolution = "auto";
     syncSizeInputs(imageState.width, imageState.height);
     syncSizePicker();
     return;
   }
 
-  if (presets[mode]) {
-    syncSizeInputs(...presets[mode]);
+  if (mode === "custom") {
+    activeResolution = "custom";
+    syncSizePicker();
+    return;
+  }
+
+  if (mode !== "auto") {
+    if (["auto", "custom"].includes(activeResolution)) {
+      activeResolution = "1k";
+    }
+    const dimensions = dimensionsForSizeSelection(mode, activeResolution);
+    if (dimensions) syncSizeInputs(...dimensions);
   }
   syncSizePicker();
 }
@@ -2136,9 +2696,13 @@ function getVisualReuseTargetImages() {
 
 function isVisualReusePromptCurrent() {
   if (promptMethod !== "reuse") return true;
-  if (!nodes.promptInput.value.trim()) return true;
+  if (!nodes.promptInput.value.trim() || !isReusePlanCurrent()) return false;
   const currentFingerprint = visualReuseReferenceFingerprint(getVisualReuseTargetImages());
-  return Boolean(promptMeta.visualReuseFingerprint && promptMeta.visualReuseFingerprint === currentFingerprint);
+  return Boolean(
+    promptMeta.visualReuseFingerprint
+    && promptMeta.visualReuseFingerprint === currentFingerprint
+    && promptMeta.reusePlanFingerprint === promptMeta.reusePlan?.inputFingerprint
+  );
 }
 
 async function callPromptApi(imageItem = imageState) {
@@ -2207,6 +2771,9 @@ async function callPromptApi(imageItem = imageState) {
     return content;
   }
 
+  const requestImageUrl = prompt.provider === "aliyun"
+    ? await qwenInlineImageDataUrl(imageItem)
+    : imageUrl;
   const headers = {
     "Content-Type": "application/json"
   };
@@ -2228,7 +2795,7 @@ async function callPromptApi(imageItem = imageState) {
             {
               type: "image_url",
               image_url: {
-                url: imageUrl
+                url: requestImageUrl
               }
             }
           ]
@@ -2253,6 +2820,55 @@ async function callPromptApi(imageItem = imageState) {
     throw new Error("反推提示词 API 已返回，但没有识别到文本结果。");
   }
 
+  const visualAnalysis = String(content).trim();
+  if (prompt.provider === "volcengine" && prompt.languageModel) {
+    return compileReversePromptWithLanguageModel(prompt, visualAnalysis);
+  }
+  return visualAnalysis;
+}
+
+async function compileReversePromptWithLanguageModel(prompt, visualAnalysis) {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/chat/completions"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${prompt.apiKey}`
+    },
+    body: JSON.stringify({
+      model: prompt.languageModel,
+      messages: [
+        {
+          role: "system",
+          content: "你是专业的视觉生成提示词编译器。仅依据给定的视觉分析，输出一段可直接用于 AI 生图的完整中文提示词。保留主体、构图、镜头、材质、光影、色彩、文字与限制条件，不补写画面中不存在的事实，也不要解释。"
+        },
+        {
+          role: "user",
+          content: `请把下面的视觉分析编译为最终生图提示词：\n\n${visualAnalysis}`
+        }
+      ],
+      max_tokens: 1200
+    })
+  });
+
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!response.ok) {
+    throw new Error(friendlyApiErrorMessage(
+      data?.error?.message || data?.message || `GLM-5.2 提示词编译请求失败：${response.status}`,
+      prompt.providerLabel
+    ));
+  }
+
+  const content = data?.choices?.[0]?.message?.content || data?.output_text || data?.text;
+  if (!content) {
+    throw new Error("GLM-5.2 已返回，但没有识别到提示词文本。");
+  }
   return String(content).trim();
 }
 
@@ -2396,7 +3012,14 @@ function visualReuseRoleSummary(item, index = 0) {
 
 function updateVisualReuseRoleButton(button, item, index = 0) {
   if (!button) return;
-  button.textContent = visualReuseRoleSummary(item, index);
+  const roles = effectiveVisualReuseRoles(item, index);
+  const manualRoles = normalizeVisualReuseRoles(item?.visualReuseRoles || item?.visualReuseRole);
+  const weight = item?.visualReuseWeightManual
+    ? normalizeVisualReuseWeight(item.visualReuseWeight)
+    : defaultVisualReuseWeight(index, roles, Boolean(item?.visualReuseRolesManual || manualRoles.length));
+  const lockLabel = item?.visualReuseLocked === false ? "未锁" : "锁定";
+  button.textContent = `${visualReuseRoleSummary(item, index)} · ${visualReuseWeightLabel(weight)} · ${lockLabel}`;
+  button.setAttribute("aria-label", `图 ${index + 1} 角色：${button.textContent}`);
 }
 
 function closeVisualReuseRoleEditors() {
@@ -2445,11 +3068,284 @@ function setPromptMethod(method) {
   nodes.reversePromptBtn?.setAttribute("aria-selected", method === "reverse" ? "true" : "false");
   nodes.visualReuseBtn?.setAttribute("aria-selected", method === "reuse" ? "true" : "false");
   nodes.dropZone?.classList.toggle("is-reuse-mode", method === "reuse");
+  if (nodes.promptInput) {
+    nodes.promptInput.readOnly = method === "reuse";
+    nodes.promptInput.placeholder = method === "reuse"
+      ? "查看方案后，这里会显示由 ReusePlan 编译的可执行提示词。"
+      : "图片提示词会出现在这里，也可以直接输入中文或英文。";
+  }
   syncGenerationModeTabs();
   renderImageStack();
+  syncVisualReuseTextStrategyUi();
+  renderVisualReusePlan(method === "reuse" ? promptMeta.reusePlan : null);
+  syncGenerateAction();
 }
 
-// Compact v1.5 visual reuse flow: user role tags override the fallback order.
+function syncVisualReuseTextStrategyUi() {
+  const mode = normalizeVisualReuseTextMode(nodes.visualReuseTextMode?.value);
+  if (nodes.visualReuseTextMode && nodes.visualReuseTextMode.value !== mode) {
+    nodes.visualReuseTextMode.value = mode;
+  }
+  const needsCopy = mode === "with-text";
+  if (nodes.visualReuseTextContentField) {
+    nodes.visualReuseTextContentField.hidden = !needsCopy;
+  }
+  if (nodes.visualReuseTextContent) {
+    nodes.visualReuseTextContent.required = needsCopy;
+    nodes.visualReuseTextContent.setAttribute("aria-required", needsCopy ? "true" : "false");
+  }
+}
+
+function currentReusePlanInput(targets = getVisualReuseTargetImages()) {
+  const width = Number(nodes.widthInput?.value);
+  const height = Number(nodes.heightInput?.value);
+  if (!Number.isFinite(width) || width < 128 || width > 4096) {
+    throw new Error("目标宽度需在 128-4096 之间。");
+  }
+  if (!Number.isFinite(height) || height < 128 || height > 4096) {
+    throw new Error("目标高度需在 128-4096 之间。");
+  }
+
+  const options = visualReuseOptions();
+  const textMode = normalizeVisualReuseTextMode(nodes.visualReuseTextMode?.value);
+  return {
+    coreRequirement: nodes.visualReuseNotes?.value.trim() || "",
+    assetType: options.assetTypeValue,
+    assetTypeLabel: selectText(nodes.visualReuseAssetType, "按图片自动判断"),
+    reuseMode: options.reuseModeValue,
+    reuseModeLabel: selectText(nodes.visualReuseStrength, "精准继承"),
+    style: options.styleValue,
+    styleLabel: selectText(nodes.visualReuseStyle, "保持原图风格"),
+    generationMode,
+    textMode,
+    textContent: textMode === "with-text" ? (nodes.visualReuseTextContent?.value.trim() || "") : "",
+    width,
+    height,
+    sizeMode: nodes.sizeMode?.value || "custom",
+    resolution: activeResolution,
+    ratioLabel: nodes.sizePickerText?.textContent || `${width} × ${height}`,
+    references: targets.map((item, index) => ({
+      id: item.id,
+      name: item.name,
+      width: item.width,
+      height: item.height,
+      dimensionsVerified: Boolean(item.dimensionsVerified),
+      dimensionsVerifiedAt: item.dimensionsVerifiedAt || "",
+      assetSource: normalizeAssetSource(item.assetSource, item.src),
+      roles: effectiveVisualReuseRoles(item, index),
+      rolesManual: Boolean(item.visualReuseRolesManual),
+      strength: item.visualReuseWeightManual
+        ? normalizeVisualReuseWeight(item.visualReuseWeight)
+        : defaultVisualReuseWeight(index, effectiveVisualReuseRoles(item, index), item.visualReuseRolesManual),
+      locked: item.visualReuseLocked !== false
+    }))
+  };
+}
+
+function createCurrentReusePlanDraft(targets = getVisualReuseTargetImages(), extra = {}) {
+  return reusePlanApi().createDraft({
+    ...currentReusePlanInput(targets),
+    ...extra
+  });
+}
+
+function isReusePlanCurrent(plan = promptMeta.reusePlan) {
+  if (promptMethod !== "reuse" || !plan) return false;
+  try {
+    return plan.inputFingerprint === createCurrentReusePlanDraft().inputFingerprint;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureActualReferenceDimensions(targets) {
+  let correctedCount = 0;
+  for (let index = 0; index < targets.length; index += 1) {
+    const item = targets[index];
+    const source = item.dataUrl || item.src;
+    if (!source) {
+      throw new Error(`参考图 ${index + 1} 缺少可读取的图片来源。`);
+    }
+    let dimensions;
+    try {
+      dimensions = await readImageDimensions(source);
+    } catch {
+      throw new Error(`参考图 ${index + 1} 无法完成真实尺寸校验，请重新添加这张图片。`);
+    }
+    if (!dimensions.width || !dimensions.height) {
+      throw new Error(`参考图 ${index + 1} 没有可用的真实像素尺寸。`);
+    }
+    if (item.width !== dimensions.width || item.height !== dimensions.height) {
+      correctedCount += 1;
+    }
+    item.width = dimensions.width;
+    item.height = dimensions.height;
+    item.dimensionsVerified = true;
+    item.dimensionsVerifiedAt = new Date().toISOString();
+  }
+
+  if (correctedCount) {
+    syncActiveImageState();
+  } else {
+    renderImageStack();
+  }
+  saveWorkspaceState();
+  return correctedCount;
+}
+
+function sourceKindLabel(kind) {
+  return {
+    "local-file": "本地文件",
+    "clipboard-file": "剪贴板文件",
+    "clipboard-url": "粘贴链接",
+    "page-drag": "网页拖入",
+    "context-menu": "网页右键",
+    "web-url": "网页链接",
+    legacy: "旧数据"
+  }[kind] || "其他来源";
+}
+
+function renderVisualReusePlan(planInput) {
+  if (!nodes.visualReusePlan) return;
+  if (!planInput || promptMethod !== "reuse") {
+    nodes.visualReusePlan.hidden = true;
+    if (nodes.visualReusePlanFacts) nodes.visualReusePlanFacts.innerHTML = "";
+    if (nodes.visualReuseLineageList) nodes.visualReuseLineageList.innerHTML = "";
+    if (nodes.visualReusePlanBtn) nodes.visualReusePlanBtn.textContent = "查看方案";
+    return;
+  }
+
+  let plan;
+  try {
+    plan = reusePlanApi().normalizePlan(planInput);
+  } catch {
+    nodes.visualReusePlan.hidden = true;
+    return;
+  }
+  const issues = Array.isArray(plan.validation?.issues) ? plan.validation.issues : [];
+  const errorCount = issues.filter((issue) => issue.severity === "error").length;
+  const warningCount = issues.filter((issue) => issue.severity === "warning").length;
+  nodes.visualReusePlan.hidden = false;
+  nodes.visualReusePlanTitle.textContent = `复用方案 · ${plan.references.length} 张参考图`;
+  nodes.visualReusePlanStatus.textContent = errorCount
+    ? `${errorCount} 项待修正`
+    : warningCount
+      ? `已建立 · ${warningCount} 项提示`
+      : "已校验";
+  nodes.visualReusePlanSummary.textContent = plan.analysis?.summary
+    || plan.intent?.coreRequirement
+    || "方案已建立。";
+
+  const facts = [
+    ["主体", plan.analysis?.subject || "按主体角色确定"],
+    ["构图", plan.analysis?.composition || `${plan.canvas.width} × ${plan.canvas.height}`],
+    ["风格", plan.analysis?.style || plan.intent?.styleLabel || "按参考图"],
+    ["文字", plan.textStrategy?.mode === "none"
+      ? "无文字"
+      : plan.textStrategy?.mode === "reserve"
+        ? "仅预留文字区"
+        : plan.textStrategy?.mode === "with-text"
+          ? (plan.textStrategy.content || "生成可见文字")
+          : "按用途判断"]
+  ];
+  nodes.visualReusePlanFacts.innerHTML = "";
+  facts.forEach(([label, value]) => {
+    const fact = document.createElement("div");
+    fact.className = "visual-reuse-plan-fact";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const content = document.createElement("strong");
+    content.textContent = value;
+    fact.append(name, content);
+    nodes.visualReusePlanFacts.append(fact);
+  });
+
+  nodes.visualReuseLineageList.innerHTML = "";
+  plan.references.forEach((reference) => {
+    const item = document.createElement("li");
+    const dimensions = `${reference.dimensions.width} × ${reference.dimensions.height}`;
+    item.textContent = `图 ${reference.order} · ${sourceKindLabel(reference.source.kind)} · ${dimensions} · ${reference.roleLabels.join("＋")} → 新视觉`;
+    nodes.visualReuseLineageList.append(item);
+  });
+  if (nodes.visualReusePlanBtn) nodes.visualReusePlanBtn.textContent = "更新方案";
+}
+
+function syncGenerateAction() {
+  if (!nodes.generateBtn) return;
+  if (promptMethod === "reuse") {
+    const ready = isReusePlanCurrent();
+    nodes.generateBtn.disabled = !ready;
+    nodes.generateBtn.textContent = ready ? "生成新视觉" : "先查看方案";
+    return;
+  }
+  nodes.generateBtn.disabled = false;
+  nodes.generateBtn.textContent = "生成图片";
+}
+
+function compileReusePlanToPrompt(planInput) {
+  const compiled = reusePlanApi().compile(planInput);
+  nodes.promptInput.value = compiled.chinese;
+  promptMeta = {
+    source: compiled.chinese,
+    chinese: compiled.chinese,
+    english: compiled.english,
+    structure: compiled.structure,
+    roleCheck: compiled.roleCheck,
+    selfCheck: compiled.selfCheck,
+    visualReuseFingerprint: visualReuseReferenceFingerprint(getVisualReuseTargetImages()),
+    reusePlan: compiled.plan,
+    reusePlanFingerprint: compiled.plan.inputFingerprint
+  };
+  renderVisualReusePlan(compiled.plan);
+  syncGenerateAction();
+  syncPromptCharCount();
+  return compiled;
+}
+
+function adaptReusePlanToCurrentCanvas(planInput) {
+  const previous = reusePlanApi().normalizePlan(planInput);
+  const draft = createCurrentReusePlanDraft(getVisualReuseTargetImages(), {
+    id: previous.id,
+    createdAt: previous.createdAt,
+    parentPlanId: previous.lineage?.parentPlanId
+  });
+  const next = {
+    ...draft,
+    status: previous.status === "draft" ? "ready" : previous.status,
+    analysis: previous.analysis,
+    analysisEn: previous.analysisEn,
+    referenceInsights: previous.referenceInsights,
+    roleCheck: previous.roleCheck,
+    selfCheck: previous.selfCheck,
+    textStrategy: {
+      ...draft.textStrategy,
+      layout: previous.textStrategy?.layout || "",
+      rationale: previous.textStrategy?.rationale || ""
+    },
+    lineage: {
+      ...previous.lineage,
+      sourceAssetIds: draft.lineage.sourceAssetIds
+    },
+    compiler: previous.compiler
+  };
+  next.validation = reusePlanApi().validate(next);
+  return next;
+}
+
+function syncReusePlanForCanvasChange() {
+  if (isRestoringState || promptMethod !== "reuse" || !promptMeta.reusePlan) return;
+  try {
+    const compiled = compileReusePlanToPrompt(adaptReusePlanToCurrentCanvas(promptMeta.reusePlan));
+    saveWorkspaceState();
+    setStatus(`目标尺寸已更新为 ${compiled.plan.canvas.width} × ${compiled.plan.canvas.height}，复用方案与提示词已同步保留。`);
+  } catch (error) {
+    syncGenerateAction();
+    setStatus(error?.message || "目标尺寸更新失败，请检查尺寸后重试。");
+  }
+}
+
+// Legacy v1.5/v1.7 response helpers are retained for old workspace compatibility.
+// The AssetFlow main path now analyzes into ReusePlan and compiles prompts in reuse-plan.js.
 function visualReuseReferenceLine(item, index = 0) {
   const roles = effectiveVisualReuseRoles(item, index);
   const roleMetas = roles.map((role) => visualReuseRoleMeta(role, index));
@@ -2534,7 +3430,7 @@ function visualReuseOptions() {
   const assetTypeValue = nodes.visualReuseAssetType?.value || "auto";
   const reuseModeValue = normalizeVisualReuseMode(nodes.visualReuseStrength?.value);
   const styleValue = nodes.visualReuseStyle?.value || "original";
-  const textModeValue = nodes.visualReuseTextMode?.value || "auto";
+  const textModeValue = normalizeVisualReuseTextMode(nodes.visualReuseTextMode?.value);
   const assetTypeMap = {
     auto: "Auto detect",
     poster: "Poster",
@@ -2595,6 +3491,8 @@ function visualReuseOptions() {
     style: visualReuseLabel(styleMap, styleValue, "Keep original style direction"),
     textMode: visualReuseLabel(textModeMap, textModeValue, "Decide text treatment by use case"),
     notes: nodes.visualReuseNotes?.value.trim() || "",
+    coreRequirement: nodes.visualReuseNotes?.value.trim() || "",
+    textContent: nodes.visualReuseTextContent?.value.trim() || "",
     ratio: nodes.sizePickerText?.textContent || selectText(nodes.sizeMode) || "Auto",
     generation: generationMode === "image" ? "Image to image" : "Text to image"
   };
@@ -3081,7 +3979,7 @@ async function callVisualReusePromptApi(imageInput, instruction) {
           role: "user",
           content: contentParts
         }
-      ], 2800))
+      ], 3600))
   });
 
   const raw = await response.text();
@@ -3102,42 +4000,54 @@ async function generateVisualReusePrompt() {
     setStatus("请先添加至少 1 张参考图，再使用视觉复用。");
     return;
   }
-
-  const includeDetailed = Boolean(nodes.reverseDetailToggle?.checked);
-  reversePromptDetailed = includeDetailed;
-  const options = {
-    ...visualReuseOptions(),
-    includeDetailed
-  };
-  const instruction = visualReuseInstruction(options, targets);
+  if (!nodes.visualReuseNotes?.value.trim()) {
+    setStatus("请先填写核心需求，说明最终要做什么以及需要保留或改变什么。");
+    nodes.visualReuseNotes?.focus();
+    return;
+  }
 
   setPromptThinking(true);
   try {
+    setStatus(`正在校验 ${targets.length} 张参考图的真实尺寸...`);
+    const correctedCount = await ensureActualReferenceDimensions(targets);
+    const draft = createCurrentReusePlanDraft(targets);
+    const draftValidation = reusePlanApi().validate(draft);
+    const draftErrors = draftValidation.issues.filter((issue) => issue.severity === "error");
+    if (draftErrors.length) {
+      throw new Error(draftErrors.map((issue) => issue.message).join(" "));
+    }
+    const instruction = reusePlanApi().buildAnalysisInstruction(draft);
     setStatus(targets.length > 1
-      ? `正在分析 ${targets.length} 张参考图，生成视觉复用提示词...`
-      : "正在分析参考图，生成视觉复用提示词...");
+      ? `正在分析 ${targets.length} 张参考图，建立 ReusePlan...`
+      : "正在分析参考图，建立 ReusePlan...");
     const content = await callVisualReusePromptApi(targets, instruction);
-    const parsed = parseVisualReusePromptResponse(content);
-    const chinese = cleanHomepagePromptText(parsed.chinese || content);
-    nodes.promptInput.value = chinese;
-    promptMeta = {
-      source: chinese,
-      chinese,
-      english: includeDetailed ? (parsed.english || "") : "",
-      structure: includeDetailed ? (parsed.structure || "") : "",
-      roleCheck: includeDetailed ? (parsed.roleCheck || "") : "",
-      selfCheck: includeDetailed ? (parsed.selfCheck || "") : "",
-      visualReuseFingerprint: visualReuseReferenceFingerprint(targets)
-    };
-    setVisualReusePanelOpen(false);
+    const plan = reusePlanApi().applyAnalysisResponse(draft, content);
+    compileReusePlanToPrompt(plan);
     saveWorkspaceState();
-    setStatus(targets.length > 1
-      ? (includeDetailed ? "视觉复用提示词已生成，并保留详细结构。" : "视觉复用中文提示词已生成。")
-      : (includeDetailed ? "视觉复用提示词已生成，并保留详细结构。" : "视觉复用中文提示词已生成。"));
+    resetPromptViewportToTop();
+    const correctionTip = correctedCount ? `，并修正了 ${correctedCount} 张图片的记录尺寸` : "";
+    setStatus(`ReusePlan 已建立${correctionTip}。确认方案后可生成新视觉。`);
   } catch (error) {
-    setStatus(error.message || "视觉复用失败，请检查反推 API 设置。");
+    renderVisualReusePlan(null);
+    syncGenerateAction();
+    setStatus(error.message || "复用方案建立失败，请检查反推 API 设置。");
   } finally {
     setPromptThinking(false);
+  }
+}
+
+function generateNewVisualFromReusePlan() {
+  if (!isReusePlanCurrent()) {
+    setStatus("当前参考图、核心需求或尺寸已变化，请先查看并更新方案。");
+    setVisualReusePanelOpen(true);
+    return;
+  }
+  try {
+    compileReusePlanToPrompt(promptMeta.reusePlan);
+    saveWorkspaceState();
+    generate();
+  } catch (error) {
+    setStatus(error.message || "ReusePlan 编译失败，请更新方案后重试。");
   }
 }
 
@@ -3459,7 +4369,7 @@ function promptMetaFromInput() {
     return emptyPromptMeta();
   }
   if (promptMeta.source === text && (promptMeta.chinese || promptMeta.english)) {
-    return includeDetailed
+    return includeDetailed || promptMethod === "reuse"
       ? promptMeta
       : {
         ...promptMeta,
@@ -3506,16 +4416,41 @@ async function translatePromptSmart() {
 function clearPrompt() {
   nodes.promptInput.value = "";
   promptMeta = emptyPromptMeta();
+  renderVisualReusePlan(null);
+  syncGenerateAction();
+  syncPromptCharCount();
   setStatus("提示词已清空。");
   saveWorkspaceState();
 }
 
 function syncGenerationModeTabs() {
   const shouldDimGenerationMode = promptMethod === "reuse";
+  const activeMode = shouldDimGenerationMode ? "reuse" : generationMode;
   nodes.textToImageModeBtn?.setAttribute("aria-selected", !shouldDimGenerationMode && generationMode === "text" ? "true" : "false");
   nodes.imageToImageModeBtn?.setAttribute("aria-selected", !shouldDimGenerationMode && generationMode === "image" ? "true" : "false");
+  nodes.visualReuseBtn?.setAttribute("aria-selected", shouldDimGenerationMode ? "true" : "false");
   nodes.textToImageModeBtn?.classList.toggle("is-dimmed-by-method", shouldDimGenerationMode);
   nodes.imageToImageModeBtn?.classList.toggle("is-dimmed-by-method", shouldDimGenerationMode);
+  if (nodes.generationModeNav) {
+    nodes.generationModeNav.dataset.activeMode = activeMode;
+  }
+  if (nodes.generationModeIndicator) {
+    const index = activeMode === "image" ? 1 : activeMode === "reuse" ? 2 : 0;
+    nodes.generationModeIndicator.style.transform = `translateX(calc(${index * 100}% + ${index * 4}px))`;
+  }
+  if (nodes.generationWorkspace) {
+    nodes.generationWorkspace.dataset.mode = activeMode;
+  }
+  if (nodes.referenceUploadPanel) {
+    nodes.referenceUploadPanel.hidden = false;
+    nodes.referenceUploadPanel.setAttribute("aria-hidden", "false");
+  }
+  if (nodes.dropZoneTitle) {
+    nodes.dropZoneTitle.textContent = "拖拽图片到此处";
+  }
+  if (nodes.dropZoneHint) {
+    nodes.dropZoneHint.textContent = `或点击上传参考图，最多 ${MAX_UPLOAD_IMAGES} 张`;
+  }
 }
 
 function setGenerationMode(mode, options = {}) {
@@ -3525,12 +4460,16 @@ function setGenerationMode(mode, options = {}) {
     setVisualReusePanelOpen(false);
     nodes.visualReuseBtn?.setAttribute("aria-selected", "false");
     nodes.dropZone?.classList.remove("is-reuse-mode");
+    nodes.promptInput.readOnly = false;
+    nodes.promptInput.placeholder = "图片提示词会出现在这里，也可以直接输入中文或英文。";
+    renderVisualReusePlan(null);
   }
   syncImageUploadLimitUi();
   if (promptMethod !== "reuse") {
     trimImagesToCurrentModeLimit({ silent: true });
   }
   syncGenerationModeTabs();
+  syncGenerateAction();
   resetPromptViewportToTop();
 
   if (!options.silent) {
@@ -3591,7 +4530,8 @@ function openPinnedWindow() {
 }
 
 function clearGenerationState() {
-  window.clearInterval(generationTimer);
+  generationTimers.forEach((timer) => window.clearInterval(timer));
+  generationTimers.clear();
   if (progressSmoothingFrame) {
     window.cancelAnimationFrame(progressSmoothingFrame);
     progressSmoothingFrame = 0;
@@ -3630,6 +4570,15 @@ function updateGeneratingItemProgress(target, progress, label = "") {
     startProgressSmoothing();
   }
   applyGeneratingItemProgress(item, { forceLabel: Boolean(label) });
+}
+
+function generationTaskLabel(item, label = "正在生成") {
+  const taskId = String(item?.taskId || "").trim();
+  if (!taskId) return label;
+  const shortTaskId = taskId.slice(-8);
+  return String(label || "正在生成").includes(shortTaskId)
+    ? String(label || "正在生成")
+    : `${label || "正在生成"} · ${shortTaskId}`;
 }
 
 function generationCardSelector(id) {
@@ -3762,6 +4711,16 @@ async function blobFromImageUrl(url) {
   return response.blob();
 }
 
+async function assertGalleryStorageCapacity(blob) {
+  if (!blob?.size || !navigator.storage?.estimate) return;
+  const estimate = await navigator.storage.estimate();
+  const usage = Number(estimate.usage) || 0;
+  const quota = Number(estimate.quota) || 0;
+  if (quota && usage + blob.size > quota * 0.9) {
+    throw new Error("浏览器本地图库空间不足，请清理部分已生成图片后重试");
+  }
+}
+
 async function createImageThumbnailBlob(blob, maxEdge = 520) {
   if (!blob?.type?.startsWith("image/") || !window.createImageBitmap) return null;
 
@@ -3789,6 +4748,7 @@ async function createImageThumbnailBlob(blob, maxEdge = 520) {
 
 async function saveImageToIndexedDb(item) {
   const blob = await blobFromImageUrl(item.url);
+  await assertGalleryStorageCapacity(blob);
   const id = item.localStoreId || `image-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const thumbnailBlob = await createImageThumbnailBlob(blob);
   await withLocalImageStore("readwrite", (store) => {
@@ -3842,6 +4802,8 @@ function galleryRecordFromItem(item) {
     promptCn: item.promptCn || "",
     promptEn: item.promptEn || "",
     promptStructure: item.promptStructure || "",
+    reusePlan: item.reusePlan || null,
+    assetLineage: item.assetLineage || null,
     mode: normalizeGalleryMode(item.mode),
     source: normalizeGallerySource(item.source || item.generationSource, item.mode),
     createdAt: item.createdAt || Date.now()
@@ -3858,6 +4820,8 @@ function galleryItemFromRecord(record, index = 0) {
     promptCn: record.promptCn || "",
     promptEn: record.promptEn || "",
     promptStructure: record.promptStructure || "",
+    reusePlan: record.reusePlan || null,
+    assetLineage: record.assetLineage || null,
     mode: normalizeGalleryMode(record.mode),
     source: normalizeGallerySource(record.source || record.generationSource, record.mode),
     url: record.url || "",
@@ -3915,6 +4879,40 @@ async function removeGalleryRecordFromIndexedDb(item) {
       });
     } catch {
       // Ignore image-store cleanup failures.
+    }
+  }
+}
+
+async function clearGalleryFromStatusAction() {
+  const completedItems = galleryItems.filter((item) => !item.isGenerating);
+  if (!completedItems.length) {
+    setStatus("图库已经为空，无需清理。");
+    return;
+  }
+
+  const confirmed = window.confirm(`确定清理 ${completedItems.length} 条已生成图片吗？此操作无法撤销。`);
+  if (!confirmed) return;
+
+  if (nodes.statusActionBtn) {
+    nodes.statusActionBtn.disabled = true;
+  }
+
+  try {
+    for (const item of completedItems) {
+      await removeGalleryRecordFromIndexedDb(item);
+      if (item.localObjectUrl) URL.revokeObjectURL(item.localObjectUrl);
+      if (item.thumbnailObjectUrl) URL.revokeObjectURL(item.thumbnailObjectUrl);
+    }
+    galleryItems = galleryItems.filter((item) => item.isGenerating);
+    clearGalleryStorage();
+    renderGallery();
+    saveWorkspaceState();
+    setStatus("图库已清理，可以继续保存新图片。");
+  } catch (error) {
+    setStatus(`图库清理失败：${error?.message || "浏览器本地存储不可用"}。`);
+  } finally {
+    if (nodes.statusActionBtn) {
+      nodes.statusActionBtn.disabled = false;
     }
   }
 }
@@ -4139,7 +5137,10 @@ function createGalleryItem(item) {
   title.textContent = item.model;
 
   const meta = document.createElement("span");
-  meta.textContent = `${item.width} × ${item.height} · ${item.index}`;
+  const taskSuffix = item.isGenerating && item.taskId
+    ? ` · 任务 ${String(item.taskId).slice(-8)}`
+    : "";
+  meta.textContent = `${item.width} × ${item.height} · ${item.index}${taskSuffix}`;
 
   const prompt = document.createElement("span");
   prompt.textContent = item.prompt || "无提示词";
@@ -4225,7 +5226,7 @@ async function openPageLightbox(item) {
     payload: {
       items,
       activeIndex,
-      eagle: currentEagleConfig()
+      eagle: { mode: currentEagleConfig().mode }
     }
   });
   const ok = Boolean(response?.ok);
@@ -4429,8 +5430,7 @@ async function collectToEagleApi(item) {
           index: item.index,
           prompt: item.prompt || "",
           website: window.location.href
-        },
-        eagle
+        }
       }
     });
     if (!response?.ok) {
@@ -4460,15 +5460,16 @@ function collectToEagleProtocol(item, options = {}) {
     : "已尝试通过 eagle:// 协议发送到 Eagle。如果没有响应，请确认 Eagle 已安装并允许协议打开。");
 }
 
-function currentGalleryPageSize() {
-  const grid = nodes.galleryGrid;
-  if (!grid) return GALLERY_PAGE_SIZE_SINGLE;
-
-  const width = grid.clientWidth || 0;
+function galleryPageSizeForWidth(width) {
   const columns = width >= 800 ? 3 : width >= 500 ? 2 : 1;
   if (columns >= 3) return GALLERY_PAGE_SIZE_WIDE;
   if (columns === 2) return GALLERY_PAGE_SIZE_DOUBLE;
   return GALLERY_PAGE_SIZE_SINGLE;
+}
+
+function currentGalleryPageSize() {
+  const grid = nodes.galleryGrid;
+  return galleryPageSizeForWidth(grid?.clientWidth || 0);
 }
 
 function renderGallery() {
@@ -4508,7 +5509,7 @@ function renderGallery() {
 async function restoreGalleryItemsFromIndexedDb() {
   const indexedItems = await loadGalleryRecordsFromIndexedDb();
   if (indexedItems.length) {
-    galleryItems = indexedItems.slice(0, 48);
+    galleryItems = indexedItems;
     renderGallery();
     return;
   }
@@ -4522,6 +5523,51 @@ async function restoreGalleryItemsFromIndexedDb() {
   }
 
   renderGallery();
+}
+
+function galleryRecoveryKey(item) {
+  return item?.galleryId
+    || item?.localStoreId
+    || item?.originalUrl
+    || item?.url
+    || `${item?.index || ""}|${item?.model || ""}|${item?.createdAt || ""}`;
+}
+
+async function recoverGalleryFromStorage() {
+  if (!nodes.galleryRecoverBtn || nodes.galleryRecoverBtn.disabled) return;
+  nodes.galleryRecoverBtn.disabled = true;
+  setStatus("正在重新扫描当前插件身份下的本地图库和已完成任务。");
+
+  try {
+    const indexedItems = await loadGalleryRecordsFromIndexedDb();
+    const runningItems = galleryItems.filter((item) => item.isGenerating);
+    const completedItems = galleryItems.filter((item) => !item.isGenerating);
+    const seen = new Set();
+    const recoveredItems = [...indexedItems, ...completedItems].filter((item) => {
+      const key = galleryRecoveryKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    galleryItems = [...runningItems, ...recoveredItems];
+    galleryPage = 1;
+    renderGallery();
+    await consumeCompletedGenerationResults();
+    renderGallery();
+    saveWorkspaceState();
+
+    const recoveredCount = galleryItems.filter((item) => !item.isGenerating).length;
+    if (recoveredCount) {
+      setStatus(`图库扫描完成，当前插件身份下共找到 ${recoveredCount} 张已生成图片。`);
+    } else {
+      setStatus("当前插件身份下没有找到旧图库；请在 Chrome 中重新加载原来的插件目录后再恢复。");
+    }
+  } catch (error) {
+    setStatus(`图库恢复失败：${error?.message || "浏览器本地图库不可用"}。`);
+  } finally {
+    nodes.galleryRecoverBtn.disabled = false;
+  }
 }
 
 function baseUrlWithPath(baseUrl, path) {
@@ -4581,7 +5627,7 @@ function networkErrorMessage(error, url) {
   })();
 
   if (error?.message === "Failed to fetch" && isLocalPreviewPage()) {
-    return `本地预览页被浏览器跨域策略拦截，无法直接请求 ${target}。请加载 dist/image-prompt-builder 为 Chrome 扩展后再生成图片。`;
+    return `本地预览页被浏览器跨域策略拦截，无法直接请求 ${target}。请加载 dist/assetflow 为 Chrome 扩展后再生成图片。`;
   }
 
   if (error?.message === "Failed to fetch") {
@@ -4636,8 +5682,11 @@ async function fetchJson(url, options, contextLabel = "请求", requestOptions =
 
 function friendlyApiErrorMessage(message, providerLabel = "当前服务") {
   const text = String(message || "");
+  if (/Download multimodal file timed out|Failed to download multimodal (?:file|content)|Failed to download image/i.test(text)) {
+    return `${providerLabel} 无法下载网页参考图。AssetFlow 会优先改用 Base64 传图；请重新点击“反推提示词”。若仍失败，请先把图片下载到本地，再从上传区添加。`;
+  }
   if (/Standard Model API is restricted to Enterprise-Shared API Keys/i.test(text)) {
-    return `${providerLabel} 权限拒绝：RunningHub Standard-API 需要企业共享 Key。请刷新插件，使用已切换的 AI 应用接口重新生成。`;
+    return `${providerLabel} 权限拒绝：当前 API Key 未开通所选 RunningHub Standard-API。请在 RunningHub 密钥页确认接口权限，或切换到“消费级会员（AI应用）”。`;
   }
   if (/User location is not supported/i.test(text)) {
     return `${providerLabel} 返回：当前网络地区不支持使用该 API。可以切换到 Google Gemini、SiliconFlow，或使用可用地区的 OpenAI-compatible 中转服务。`;
@@ -4656,6 +5705,52 @@ function parseDataUrl(dataUrl) {
   return match ? { mimeType: match[1], data: match[2] } : null;
 }
 
+function base64ByteLength(value) {
+  const base64 = String(value || "").replace(/\s/g, "");
+  if (!base64) return 0;
+  const padding = base64.endsWith("==") ? 2 : (base64.endsWith("=") ? 1 : 0);
+  return Math.floor(base64.length * 3 / 4) - padding;
+}
+
+function isStandaloneLocalPreview() {
+  return ["127.0.0.1", "localhost"].includes(location.hostname)
+    && new URLSearchParams(location.search).has("standalone");
+}
+
+async function fetchImageResponse(sourceUrl) {
+  let directResponse = null;
+  let directError = null;
+  const directController = new AbortController();
+  const directTimeoutId = setTimeout(() => directController.abort(), 12000);
+  try {
+    directResponse = await fetch(sourceUrl, { signal: directController.signal });
+    if (directResponse.ok) return directResponse;
+  } catch (error) {
+    directError = error;
+  } finally {
+    clearTimeout(directTimeoutId);
+  }
+
+  if (isStandaloneLocalPreview() && /^https?:\/\//i.test(sourceUrl)) {
+    const proxyUrl = `/__assetflow/image-proxy?url=${encodeURIComponent(sourceUrl)}`;
+    const proxyResponse = await fetch(proxyUrl);
+    if (proxyResponse.ok) return proxyResponse;
+
+    let proxyMessage = "";
+    try {
+      proxyMessage = (await proxyResponse.json())?.error || "";
+    } catch {
+      // The HTTP status below is enough when the preview proxy has no JSON body.
+    }
+    throw new Error(proxyMessage || `本地预览读取网页图片失败：HTTP ${proxyResponse.status}`);
+  }
+
+  if (directResponse) {
+    throw new Error(`图片读取失败：HTTP ${directResponse.status}`);
+  }
+  throw new Error(directError?.message || "图片读取失败");
+}
+
 async function imageSourceAsDataUrl(imageItem = imageState) {
   if (imageItem.dataUrl) return imageItem.dataUrl;
 
@@ -4667,11 +5762,7 @@ async function imageSourceAsDataUrl(imageItem = imageState) {
     return imageItem.src;
   }
 
-  const response = await fetch(imageItem.src);
-  if (!response.ok) {
-    throw new Error(`图片读取失败：${response.status}`);
-  }
-
+  const response = await fetchImageResponse(imageItem.src);
   const blob = await response.blob();
   if (!blob.type.startsWith("image/")) {
     throw new Error("读取到的资源不是图片。");
@@ -4680,20 +5771,31 @@ async function imageSourceAsDataUrl(imageItem = imageState) {
   return fileToDataUrl(blob);
 }
 
+async function qwenInlineImageDataUrl(imageItem = imageState) {
+  let dataUrl;
+  try {
+    dataUrl = await imageSourceAsDataUrl(imageItem);
+  } catch (error) {
+    throw new Error(`千问无法读取这张网页参考图：${error?.message || "图片读取失败"}。请先下载图片，再从上传区添加。`);
+  }
+
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed || !parsed.mimeType.startsWith("image/")) {
+    throw new Error("千问视觉输入必须是可读取的图片格式。");
+  }
+  if (base64ByteLength(parsed.data) > 7 * 1024 * 1024) {
+    throw new Error("参考图超过 7 MB，无法以内嵌方式发送给千问。请压缩图片后重新上传。");
+  }
+  return dataUrl;
+}
+
 function sizeForApi() {
-  const mode = nodes.sizeMode.value;
   const width = Number(nodes.widthInput.value) || 1024;
   const height = Number(nodes.heightInput.value) || 1024;
-
-  if (mode === "2k") return "1920x1080";
-  if (mode === "4k") return "3840x2160";
   return `${width}x${height}`;
 }
 
 function sizeForSeedreamApi() {
-  const mode = nodes.sizeMode.value;
-  if (mode === "2k") return "2K";
-  if (mode === "4k") return "4K";
   return sizeForApi();
 }
 
@@ -4719,10 +5821,7 @@ function sizeForApimartApi() {
 }
 
 function resolutionForApimartApi() {
-  const mode = nodes.sizeMode.value;
-  if (mode === "2k") return "2k";
-  if (mode === "4k") return "4k";
-  return "1k";
+  return ["2k", "4k"].includes(activeResolution) ? activeResolution : "1k";
 }
 
 function nearestRunningHubRatio(width, height) {
@@ -4752,10 +5851,7 @@ function aspectRatioForRunningHubApi(width, height) {
 }
 
 function resolutionForRunningHubApi() {
-  const mode = nodes.sizeMode.value;
-  if (mode === "2k") return "2k";
-  if (mode === "4k") return "4k";
-  return "1k";
+  return ["2k", "4k"].includes(activeResolution) ? activeResolution : "1k";
 }
 
 function selectedSizeRule(width, height) {
@@ -4806,15 +5902,28 @@ function promptWithSizePriority(prompt, width, height) {
 }
 
 function normalizeRunningHubApiMode(value) {
-  return value === RUNNINGHUB_API_MODE_ENTERPRISE
-    ? RUNNINGHUB_API_MODE_ENTERPRISE
-    : RUNNINGHUB_API_MODE_CONSUMER;
+  if (value === RUNNINGHUB_API_MODE_ENTERPRISE) return RUNNINGHUB_API_MODE_ENTERPRISE;
+  if (value === RUNNINGHUB_API_MODE_OFFICIAL) return RUNNINGHUB_API_MODE_OFFICIAL;
+  return RUNNINGHUB_API_MODE_CONSUMER;
+}
+
+function isRunningHubStandardApiMode(value) {
+  return normalizeRunningHubApiMode(value) !== RUNNINGHUB_API_MODE_CONSUMER;
+}
+
+function isRunningHubG2Model(value) {
+  return value === RUNNINGHUB_G2_MODEL || value === RUNNINGHUB_G2_OFFICIAL_MODEL;
 }
 
 function runningHubApiModeLabel(value) {
-  return normalizeRunningHubApiMode(value) === RUNNINGHUB_API_MODE_ENTERPRISE
-    ? "企业级共享 Standard-API"
-    : "消费级会员 AI应用";
+  const normalizedMode = normalizeRunningHubApiMode(value);
+  if (normalizedMode === RUNNINGHUB_API_MODE_OFFICIAL) {
+    return "官方稳定版 Standard-API";
+  }
+  if (normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE) {
+    return "企业级共享低价渠道 Standard-API";
+  }
+  return "消费级会员 AI应用";
 }
 
 function isRunningHubPendingCode(code) {
@@ -5239,7 +6348,7 @@ async function uploadRunningHubImage({ baseUrl, apiKey, apiMode, imageItem, inde
   }
 
   let response;
-  const url = baseUrlWithPath(baseUrl, normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE
+  const url = baseUrlWithPath(baseUrl, isRunningHubStandardApiMode(normalizedMode)
     ? RUNNINGHUB_API_PATHS.standardUpload
     : RUNNINGHUB_API_PATHS.appUpload);
   try {
@@ -5266,10 +6375,10 @@ async function uploadRunningHubImage({ baseUrl, apiKey, apiMode, imageItem, inde
     throw new Error(data?.error?.message || data?.errorMessage || data?.message || data?.msg || `RunningHub 参考图上传失败：${response.status}`);
   }
 
-  if (normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE) {
+  if (isRunningHubStandardApiMode(normalizedMode)) {
     const downloadUrl = data?.data?.download_url || data?.data?.downloadUrl || data?.download_url || data?.downloadUrl;
     if (!downloadUrl) {
-      throw new Error("RunningHub 企业级参考图上传成功，但没有返回 download_url。");
+      throw new Error("RunningHub Standard-API 参考图上传成功，但没有返回 download_url。");
     }
     return downloadUrl;
   }
@@ -5429,7 +6538,7 @@ async function pollRunningHubTask({ baseUrl, apiKey, apiMode, taskId, count, onP
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, attempt === 1 ? 5000 : 4000));
 
-    const data = await fetchJson(baseUrlWithPath(baseUrl, normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE
+    const data = await fetchJson(baseUrlWithPath(baseUrl, isRunningHubStandardApiMode(normalizedMode)
       ? RUNNINGHUB_API_PATHS.standardQuery
       : RUNNINGHUB_API_PATHS.appOutputs), {
       method: "POST",
@@ -5437,7 +6546,7 @@ async function pollRunningHubTask({ baseUrl, apiKey, apiMode, taskId, count, onP
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`
       },
-      body: JSON.stringify(normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE
+      body: JSON.stringify(isRunningHubStandardApiMode(normalizedMode)
         ? { taskId }
         : { apiKey, taskId })
     }, "RunningHub 任务查询", { allowCodes: ["804"] });
@@ -5500,14 +6609,18 @@ async function callRunningHubG2({
   onTaskSubmitted
 }) {
   const normalizedMode = normalizeRunningHubApiMode(apiMode);
-  if (normalizedMode === RUNNINGHUB_API_MODE_ENTERPRISE) {
+  if (isRunningHubStandardApiMode(normalizedMode)) {
+    const isOfficial = normalizedMode === RUNNINGHUB_API_MODE_OFFICIAL;
+    const apiLabel = isOfficial ? "官方稳定版（quality: low）" : "企业级共享低价渠道";
     const body = {
       prompt,
       aspectRatio: aspectRatioForRunningHubApi(width, height),
       resolution: resolutionForRunningHubApi(),
-      quality: "medium"
+      quality: isOfficial ? "low" : "medium"
     };
-    let endpoint = RUNNINGHUB_API_PATHS.standardTextToImage;
+    let endpoint = isOfficial
+      ? RUNNINGHUB_API_PATHS.officialTextToImage
+      : RUNNINGHUB_API_PATHS.standardTextToImage;
 
     if (useImageReferences) {
       const imageUrls = await selectedImageUrlsForRunningHubApi({
@@ -5518,13 +6631,15 @@ async function callRunningHubG2({
         onProgress
       });
       if (!imageUrls.length) {
-        throw new Error("RunningHub 企业级图生图需要先上传或粘贴参考图片。");
+        throw new Error(`RunningHub ${apiLabel}图生图需要先上传或粘贴参考图片。`);
       }
       body.imageUrls = imageUrls;
-      endpoint = RUNNINGHUB_API_PATHS.standardImageToImage;
-      setStatus(`RunningHub 企业级共享接口正在使用 ${imageUrls.length} 张参考图生成。`);
+      endpoint = isOfficial
+        ? RUNNINGHUB_API_PATHS.officialImageToImage
+        : RUNNINGHUB_API_PATHS.standardImageToImage;
+      setStatus(`RunningHub ${apiLabel}接口正在使用 ${imageUrls.length} 张参考图生成。`);
     } else {
-      setStatus("RunningHub 企业级共享接口正在使用低价渠道文生图生成。");
+      setStatus(`RunningHub ${apiLabel}接口正在进行文生图生成。`);
     }
 
     onProgress?.(null, "正在提交任务");
@@ -5535,7 +6650,7 @@ async function callRunningHubG2({
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify(body)
-    }, "RunningHub 企业级提交");
+    }, `RunningHub ${apiLabel}提交`);
 
     const taskId = extractRunningHubTaskId(data);
     if (!taskId) {
@@ -5570,7 +6685,7 @@ async function callRunningHubG2({
       baseUrl,
       apiMode: normalizedMode
     });
-    setStatus(`RunningHub 企业级任务已提交：${taskId}。正在等待生成结果。`);
+    setStatus(`RunningHub ${apiLabel}任务已提交：${taskId}。正在等待生成结果。`);
     const urls = await pollRunningHubTask({ baseUrl, apiKey, apiMode: normalizedMode, taskId, count, onProgress });
     return urls.map((url, index) => ({
       index: `#${galleryItems.length + index + 1}`,
@@ -5730,11 +6845,19 @@ async function callImageGenerationApi({
       mode,
       source,
       onProgress,
-      onTaskSubmitted
+      onTaskSubmitted: (task) => onTaskSubmitted?.({
+        ...task,
+        apiKey,
+        baseUrl,
+        apiMode: image.runninghubMode
+      })
     });
   }
 
-  if (provider === "runninghub" && imageModel === RUNNINGHUB_G2_MODEL) {
+  if (provider === "runninghub" && isRunningHubG2Model(imageModel)) {
+    const runningHubMode = imageModel === RUNNINGHUB_G2_OFFICIAL_MODEL
+      ? RUNNINGHUB_API_MODE_OFFICIAL
+      : image.runninghubMode;
     return callRunningHubG2({
       prompt,
       displayPrompt,
@@ -5748,11 +6871,16 @@ async function callImageGenerationApi({
       apiKey,
       baseUrl,
       useImageReferences,
-      apiMode: image.runninghubMode,
+      apiMode: runningHubMode,
       mode,
       source,
       onProgress,
-      onTaskSubmitted
+      onTaskSubmitted: (task) => onTaskSubmitted?.({
+        ...task,
+        apiKey,
+        baseUrl,
+        apiMode: runningHubMode
+      })
     });
   }
 
@@ -5812,7 +6940,20 @@ async function callImageGenerationApi({
   }));
 }
 
-function createGeneratingItems({ count, model, width, height, prompt, promptCn, promptEn, promptStructure, mode, source }) {
+function createGeneratingItems({
+  count,
+  model,
+  width,
+  height,
+  prompt,
+  promptCn,
+  promptEn,
+  promptStructure,
+  reusePlan,
+  assetLineage,
+  mode,
+  source
+}) {
   const batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return Array.from({ length: count }, (_value, index) => ({
     index: `#${galleryItems.length + index + 1}`,
@@ -5824,6 +6965,8 @@ function createGeneratingItems({ count, model, width, height, prompt, promptCn, 
     promptCn,
     promptEn,
     promptStructure,
+    reusePlan: reusePlan || null,
+    assetLineage: assetLineage || null,
     mode,
     source: normalizeGallerySource(source, mode),
     url: "",
@@ -5840,6 +6983,8 @@ function pendingTaskToGeneratingItem(task) {
   return {
     index: task.index || `#${galleryItems.length + 1}`,
     generationId: task.generationId,
+    pendingTaskId: task.id || "",
+    taskId: task.taskId || "",
     model: task.model || "Generated Image",
     width: Number(task.width) || 1024,
     height: Number(task.height) || 1024,
@@ -5847,6 +6992,8 @@ function pendingTaskToGeneratingItem(task) {
     promptCn: task.promptCn || "",
     promptEn: task.promptEn || "",
     promptStructure: task.promptStructure || "",
+    reusePlan: task.reusePlan || null,
+    assetLineage: task.assetLineage || null,
     mode: normalizeGalleryMode(task.mode),
     source: normalizeGallerySource(task.source || task.generationSource, task.mode),
     url: "",
@@ -5869,7 +7016,7 @@ function ensurePendingGenerationPlaceholders(tasks) {
     existingIds.add(task.generationId);
   });
   if (placeholders.length) {
-    galleryItems = [...placeholders, ...galleryItems].slice(0, 48);
+    galleryItems = [...placeholders, ...galleryItems];
     galleryPage = 1;
     changed = true;
   }
@@ -5892,6 +7039,8 @@ function replaceGeneratingItem(target, item) {
     ...item,
     index: target.index,
     generationId: "",
+    pendingTaskId: "",
+    taskId: "",
     progress: 100,
     progressTarget: 100,
     hasRealProgress: true,
@@ -5904,6 +7053,7 @@ function replaceGeneratingItem(target, item) {
 }
 
 async function runRealGeneration(payload, placeholders) {
+  const batchGenerationIds = new Set(placeholders.map((item) => item.generationId).filter(Boolean));
   try {
     setStatus("正在调用生图 API，请稍等。");
 
@@ -5915,7 +7065,11 @@ async function runRealGeneration(payload, placeholders) {
       const [item] = await callImageGenerationApi({
         ...payload,
         count: 1,
-        onProgress: (progress, label) => updateGeneratingItemProgress(placeholders[index], progress, label),
+        onProgress: (progress, label) => updateGeneratingItemProgress(
+          placeholders[index],
+          progress,
+          generationTaskLabel(placeholders[index], label)
+        ),
         onTaskSubmitted: (task) => {
           const pendingId = upsertPendingGenerationTask({
             ...task,
@@ -5929,21 +7083,31 @@ async function runRealGeneration(payload, placeholders) {
             promptCn: payload.promptCn,
             promptEn: payload.promptEn,
             promptStructure: payload.promptStructure,
+            reusePlan: payload.reusePlan || null,
+            assetLineage: payload.assetLineage || null,
             mode: payload.mode,
             source: payload.source,
             count: 1
           });
           placeholders[index].pendingTaskId = pendingId;
+          placeholders[index].taskId = task.taskId || "";
+          updateGeneratingItemProgress(
+            placeholders[index],
+            null,
+            generationTaskLabel(placeholders[index], "任务已提交，正在生成")
+          );
         }
       });
       if (item) {
         updateGeneratingItemProgress(placeholders[index], null, "正在载入图片");
         item.index = placeholders[index].index;
+        item.reusePlan = payload.reusePlan || placeholders[index].reusePlan || null;
+        item.assetLineage = payload.assetLineage || placeholders[index].assetLineage || null;
         const savedItem = await persistGalleryItemImage(item);
         removePendingGenerationTask({ id: placeholders[index].pendingTaskId, generationId: placeholders[index].generationId });
         items.push(savedItem);
         if (!replaceGeneratingItem(placeholders[index], savedItem)) {
-          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((entry) => entry.generationId !== placeholders[index].generationId)].slice(0, 48);
+          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((entry) => entry.generationId !== placeholders[index].generationId)];
           galleryPage = 1;
           renderGallery();
           saveWorkspaceState();
@@ -5961,7 +7125,7 @@ async function runRealGeneration(payload, placeholders) {
       const pendingGenerationIds = new Set(loadPendingGenerationTasks().map((task) => task.generationId));
       let keptPending = false;
       galleryItems = galleryItems.filter((item) => {
-        if (!item.isGenerating) return true;
+        if (!item.isGenerating || !batchGenerationIds.has(item.generationId)) return true;
         const shouldKeep = pendingGenerationIds.has(item.generationId);
         if (shouldKeep) {
           keptPending = true;
@@ -5977,7 +7141,9 @@ async function runRealGeneration(payload, placeholders) {
         return;
       }
     }
-    galleryItems = galleryItems.filter((item) => !item.isGenerating);
+    galleryItems = galleryItems.filter((item) => (
+      !item.isGenerating || !batchGenerationIds.has(item.generationId)
+    ));
     renderGallery();
     saveWorkspaceState();
     setStatus(friendlyApiErrorMessage(error.message || "生图 API 调用失败。", payload.model || "生图 API"));
@@ -5989,14 +7155,10 @@ async function resolvePendingGenerationTask(task) {
     || pendingTaskToGeneratingItem(task);
   const config = currentApiConfigFromForm();
   const imageConfig = config.image || {};
-  if (task.provider && imageConfig.provider && task.provider !== imageConfig.provider) {
-    setStatus(`有未完成的 ${task.provider} 生成任务，请切回对应生图服务商后继续恢复。`);
-    return;
-  }
-  const baseUrl = task.baseUrl || imageConfig.baseUrl || defaultBaseUrl(imageConfig.provider);
-  const apiKey = imageConfig.apiKey;
+  const baseUrl = task.baseUrl || imageConfig.baseUrl || defaultBaseUrl(task.provider || imageConfig.provider);
+  const apiKey = task.apiKey || imageConfig.apiKey;
   if (!baseUrl || !apiKey) {
-    setStatus("有未完成的生成任务，但当前生图 API 配置不完整。保存 API 后会继续查询。");
+    setStatus("有未完成的生成任务，但缺少提交任务时的生图 API 配置。保存对应 API 后会继续查询。");
     return;
   }
 
@@ -6008,7 +7170,11 @@ async function resolvePendingGenerationTask(task) {
         apiKey,
         taskId: task.taskId,
         count: task.count || 1,
-        onProgress: (progress, label) => updateGeneratingItemProgress(placeholder, progress, label)
+        onProgress: (progress, label) => updateGeneratingItemProgress(
+          placeholder,
+          progress,
+          generationTaskLabel(placeholder, label)
+        )
       })
       : await pollRunningHubTask({
         baseUrl,
@@ -6016,7 +7182,11 @@ async function resolvePendingGenerationTask(task) {
         apiMode: task.apiMode || imageConfig.runninghubMode,
         taskId: task.taskId,
         count: task.count || 1,
-        onProgress: (progress, label) => updateGeneratingItemProgress(placeholder, progress, label)
+        onProgress: (progress, label) => updateGeneratingItemProgress(
+          placeholder,
+          progress,
+          generationTaskLabel(placeholder, label)
+        )
       });
     const [url] = urls;
     if (!url) throw new Error("任务完成后没有返回图片 URL。");
@@ -6031,13 +7201,15 @@ async function resolvePendingGenerationTask(task) {
       promptCn: task.promptCn || placeholder.promptCn,
       promptEn: task.promptEn || placeholder.promptEn,
       promptStructure: task.promptStructure || placeholder.promptStructure,
+      reusePlan: task.reusePlan || placeholder.reusePlan || null,
+      assetLineage: task.assetLineage || placeholder.assetLineage || null,
       mode: normalizeGalleryMode(task.mode),
       source: normalizeGallerySource(task.source || placeholder.source, task.mode || placeholder.mode),
       url
     });
     removePendingGenerationTask({ id: task.id, generationId: task.generationId });
     if (!replaceGeneratingItem(placeholder, savedItem)) {
-      galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)].slice(0, 48);
+      galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)];
       galleryPage = 1;
       renderGallery();
       saveWorkspaceState();
@@ -6082,13 +7254,32 @@ async function consumeCompletedGenerationResults() {
       continue;
     }
 
+    const localRecords = Array.isArray(record.items) ? record.items.filter((item) => item?.localStoreId) : [];
     const urls = Array.isArray(record.urls) ? record.urls.filter(Boolean) : [];
-    if (!urls.length) {
-      remaining.push(record);
-      continue;
-    }
 
     try {
+      for (let itemIndex = 0; itemIndex < localRecords.length; itemIndex += 1) {
+        const storedRecord = localRecords[itemIndex];
+        const savedItem = galleryItemFromRecord(storedRecord, galleryItems.length);
+        const alreadyImported = galleryItems.some((item) => (
+          !item.isGenerating && (item.galleryId === savedItem.galleryId || item.localStoreId === savedItem.localStoreId)
+        ));
+        if (alreadyImported) continue;
+
+        const placeholder = itemIndex === 0
+          ? (galleryItems.find((item) => item.generationId === task.generationId) || pendingTaskToGeneratingItem(task))
+          : null;
+        if (placeholder && replaceGeneratingItem(placeholder, savedItem)) {
+          importedCount += 1;
+        } else {
+          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)];
+          galleryPage = 1;
+          renderGallery();
+          saveWorkspaceState();
+          importedCount += 1;
+        }
+      }
+
       for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
         const url = urls[urlIndex];
         const alreadyImported = galleryItems.some((item) => (
@@ -6109,6 +7300,8 @@ async function consumeCompletedGenerationResults() {
           promptCn: task.promptCn || placeholder?.promptCn || "",
           promptEn: task.promptEn || placeholder?.promptEn || "",
           promptStructure: task.promptStructure || placeholder?.promptStructure || "",
+          reusePlan: task.reusePlan || placeholder?.reusePlan || null,
+          assetLineage: task.assetLineage || placeholder?.assetLineage || null,
           mode: normalizeGalleryMode(task.mode),
           source: normalizeGallerySource(task.source || placeholder?.source, task.mode || placeholder?.mode),
           url
@@ -6116,7 +7309,7 @@ async function consumeCompletedGenerationResults() {
         if (placeholder && replaceGeneratingItem(placeholder, savedItem)) {
           importedCount += 1;
         } else {
-          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)].slice(0, 48);
+          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)];
           galleryPage = 1;
           renderGallery();
           saveWorkspaceState();
@@ -6125,7 +7318,7 @@ async function consumeCompletedGenerationResults() {
       }
       removePendingGenerationTask({ id: task.id, generationId: task.generationId });
     } catch {
-      remaining.push(record);
+      remaining.push({ ...record, items: localRecords });
     }
   }
 
@@ -6174,15 +7367,21 @@ function generate() {
   const sourcePrompt = bundle.english || bundle.chinese || displayPrompt;
   const prompt = promptWithSizePriority(sourcePrompt, width, height);
   const model = nodes.modelSelect.options[nodes.modelSelect.selectedIndex].text;
-  const effectiveGenerationMode = generationMode === "image" && imageItems.length > 0 ? "image" : "text";
+  const effectiveGenerationMode = promptMethod === "reuse" && imageItems.length > 0
+    ? "image"
+    : generationMode === "image" && imageItems.length > 0
+      ? "image"
+      : "text";
   const generationSource = promptMethod === "reuse" ? "reuse" : effectiveGenerationMode;
+  const reusePlan = generationSource === "reuse" ? bundle.reusePlan : null;
+  const assetLineage = reusePlan ? reusePlanApi().lineageSnapshot(reusePlan) : null;
   if (generationMode === "image" && effectiveGenerationMode === "text") {
     setGenerationMode("text", { silent: true });
   }
 
   if (!isVisualReusePromptCurrent()) {
-    setStatus("当前复用提示词不属于这组参考图，请先点击“生成复用提示词”。");
-    nodes.promptInput.focus();
+    setStatus("当前复用方案不属于这组参考图或参数，请先点击“查看方案”。");
+    setVisualReusePanelOpen(true);
     return;
   }
 
@@ -6192,7 +7391,6 @@ function generate() {
     return;
   }
 
-  clearGenerationState();
   const placeholders = createGeneratingItems({
     count,
     model,
@@ -6202,10 +7400,12 @@ function generate() {
     promptCn: bundle.chinese,
     promptEn: bundle.english,
     promptStructure: bundle.structure,
+    reusePlan,
+    assetLineage,
     mode: effectiveGenerationMode,
     source: generationSource
   });
-  galleryItems = [...placeholders, ...galleryItems].slice(0, 48);
+  galleryItems = [...placeholders, ...galleryItems];
   galleryPage = 1;
   renderGallery();
   saveWorkspaceState();
@@ -6217,6 +7417,8 @@ function generate() {
       promptCn: bundle.chinese,
       promptEn: bundle.english,
       promptStructure: bundle.structure,
+      reusePlan,
+      assetLineage,
       useImageReferences: effectiveGenerationMode === "image",
       count,
       width,
@@ -6229,7 +7431,7 @@ function generate() {
   }
 
   let progress = 0;
-  generationTimer = window.setInterval(() => {
+  const generationTimer = window.setInterval(() => {
     progress = Math.min(100, progress + 8 + Math.round(Math.random() * 11));
     setStatus(progress >= 100 ? "正在收尾。" : `模拟生成中 ${progress}%。`);
     placeholders.forEach((placeholder) => {
@@ -6238,6 +7440,7 @@ function generate() {
 
     if (progress >= 100) {
       window.clearInterval(generationTimer);
+      generationTimers.delete(generationTimer);
       placeholders.forEach((placeholder, index) => {
         replaceGeneratingItem(placeholder, {
           index: placeholder.index,
@@ -6248,6 +7451,8 @@ function generate() {
           promptCn: bundle.chinese,
           promptEn: bundle.english,
           promptStructure: bundle.structure,
+          reusePlan,
+          assetLineage,
           mode: effectiveGenerationMode,
           source: generationSource,
           url: ""
@@ -6256,6 +7461,7 @@ function generate() {
       setStatus("模拟生成完成。配置真实 API 后会显示生成图片。");
     }
   }, 180);
+  generationTimers.add(generationTimer);
 
   if (apiConfig?.image?.apiKey) {
     setStatus(`正在用 ${apiConfig.image.providerLabel} 生图 API 配置模拟提交任务；接入网络请求后会调用真实生图 API。`);
@@ -6264,25 +7470,405 @@ function generate() {
   }
 }
 
+function createCustomProviderId() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return `provider-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeCustomApiProvider(value) {
+  const provider = value && typeof value === "object" ? value : {};
+  const kind = provider.kind === "image" ? "image" : "prompt";
+  return {
+    id: String(provider.id || createCustomProviderId()),
+    kind,
+    name: String(provider.name || "").trim().slice(0, 40),
+    baseUrl: String(provider.baseUrl || "").trim(),
+    apiKey: String(provider.apiKey || "").trim(),
+    model: String(provider.model || "").trim(),
+    protocol: "openai-compatible",
+    createdAt: provider.createdAt || new Date().toISOString(),
+    updatedAt: provider.updatedAt || new Date().toISOString()
+  };
+}
+
+function customProviderOptionValue(providerId) {
+  return `${CUSTOM_PROVIDER_OPTION_PREFIX}${providerId}`;
+}
+
+function customProviderModelValue(providerId) {
+  return `${CUSTOM_PROVIDER_MODEL_PREFIX}${providerId}`;
+}
+
+function customProviderIdFromValue(value, prefix) {
+  const text = String(value || "");
+  return text.startsWith(prefix) ? text.slice(prefix.length) : "";
+}
+
+function customProviderById(providerId) {
+  return customApiProviders.find((provider) => provider.id === providerId) || null;
+}
+
+function customProviderFromSelectValue(value) {
+  return customProviderById(customProviderIdFromValue(value, CUSTOM_PROVIDER_OPTION_PREFIX));
+}
+
+function customProviderFromModelValue(value) {
+  return customProviderById(customProviderIdFromValue(value, CUSTOM_PROVIDER_MODEL_PREFIX));
+}
+
+function customProviderForKind(providerId, kind) {
+  const provider = customProviderById(providerId);
+  return provider?.kind === kind ? provider : null;
+}
+
+function saveCustomApiProviders() {
+  localStorage.setItem(CUSTOM_API_PROVIDERS_STORAGE_KEY, JSON.stringify(customApiProviders));
+  chromeStorageLocalSet({ [CUSTOM_API_PROVIDERS_STORAGE_KEY]: customApiProviders });
+}
+
+function loadCustomApiProviders() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(CUSTOM_API_PROVIDERS_STORAGE_KEY) || "[]");
+    customApiProviders = Array.isArray(stored)
+      ? stored.map(normalizeCustomApiProvider).filter((provider) => provider.name && provider.baseUrl && provider.model)
+      : [];
+  } catch {
+    customApiProviders = [];
+    localStorage.removeItem(CUSTOM_API_PROVIDERS_STORAGE_KEY);
+  }
+  renderCustomProviderOptions();
+  renderCustomProviderList();
+}
+
+function removeCustomProviderOptions(select) {
+  if (!select) return;
+  [...select.querySelectorAll("option[data-custom-provider-id]")].forEach((option) => option.remove());
+}
+
+function renderCustomProviderOptions() {
+  const promptValue = nodes.promptApiProvider?.value || "";
+  const imageValue = nodes.imageApiProvider?.value || "";
+  const promptModelValue = nodes.promptModelSelect?.value || "";
+  const imageModelValue = nodes.apiImageModelSelect?.value || "";
+  const modelValue = nodes.modelSelect?.value || "";
+  removeCustomProviderOptions(nodes.promptApiProvider);
+  removeCustomProviderOptions(nodes.imageApiProvider);
+  removeCustomProviderOptions(nodes.promptModelSelect);
+  removeCustomProviderOptions(nodes.apiImageModelSelect);
+  removeCustomProviderOptions(nodes.modelSelect);
+
+  customApiProviders.forEach((provider) => {
+    const option = document.createElement("option");
+    option.value = customProviderOptionValue(provider.id);
+    option.textContent = `${provider.name}（自定义）`;
+    option.dataset.customProviderId = provider.id;
+    const target = provider.kind === "image" ? nodes.imageApiProvider : nodes.promptApiProvider;
+    target?.append(option);
+
+    const apiModelOption = document.createElement("option");
+    apiModelOption.value = customProviderModelValue(provider.id);
+    apiModelOption.textContent = `${provider.name} · ${provider.model}`;
+    apiModelOption.dataset.customProviderId = provider.id;
+    if (provider.kind === "image") {
+      nodes.apiImageModelSelect?.append(apiModelOption);
+    } else {
+      nodes.promptModelSelect?.append(apiModelOption);
+    }
+
+    if (provider.kind === "image" && nodes.modelSelect) {
+      const modelOption = document.createElement("option");
+      modelOption.value = customProviderModelValue(provider.id);
+      modelOption.textContent = `${provider.name} · ${provider.model}`;
+      modelOption.dataset.customProviderId = provider.id;
+      nodes.modelSelect.append(modelOption);
+    }
+  });
+
+  if ([...nodes.promptApiProvider.options].some((option) => option.value === promptValue)) {
+    nodes.promptApiProvider.value = promptValue;
+  }
+  if ([...nodes.imageApiProvider.options].some((option) => option.value === imageValue)) {
+    nodes.imageApiProvider.value = imageValue;
+  }
+  if ([...nodes.promptModelSelect.options].some((option) => option.value === promptModelValue)) {
+    nodes.promptModelSelect.value = promptModelValue;
+  }
+  if ([...nodes.apiImageModelSelect.options].some((option) => option.value === imageModelValue)) {
+    nodes.apiImageModelSelect.value = imageModelValue;
+  }
+  if ([...nodes.modelSelect.options].some((option) => option.value === modelValue)) {
+    nodes.modelSelect.value = modelValue;
+  }
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
+  renderModelMenu();
+}
+
+function maskedCustomProviderKey(value) {
+  const key = String(value || "");
+  if (!key) return "无 Key";
+  if (key.length <= 8) return "Key 已保存";
+  return `${key.slice(0, 3)}•••${key.slice(-3)}`;
+}
+
+function providerActionIcon(iconName) {
+  const pathSets = {
+    apply: ["M20 6 9 17l-5-5"],
+    edit: ["M12 20h9", "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"],
+    delete: ["M3 6h18", "M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2", "M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"]
+  };
+  const paths = pathSets[iconName] || [];
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.8");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  paths.forEach((pathData) => {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", pathData);
+    svg.append(path);
+  });
+  return svg;
+}
+
+function providerActionButton(label, action, provider, iconName) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.append(providerActionIcon(iconName), document.createTextNode(label));
+  button.addEventListener("click", () => action(provider));
+  return button;
+}
+
+function renderCustomProviderList() {
+  if (!nodes.customProviderList || !nodes.customProviderEmpty) return;
+  nodes.customProviderList.innerHTML = "";
+  nodes.customProviderEmpty.hidden = customApiProviders.length > 0;
+
+  customApiProviders.forEach((provider) => {
+    const card = document.createElement("article");
+    card.className = "custom-provider-card";
+    const copy = document.createElement("div");
+    copy.className = "custom-provider-card-copy";
+    const badge = document.createElement("span");
+    badge.className = "custom-provider-kind";
+    badge.textContent = provider.kind === "image" ? "生图" : "反推提示词";
+    const name = document.createElement("strong");
+    name.textContent = provider.name;
+    const meta = document.createElement("div");
+    meta.className = "custom-provider-card-meta";
+    meta.textContent = `${provider.model} · ${provider.baseUrl} · ${maskedCustomProviderKey(provider.apiKey)}`;
+    copy.append(badge, name, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "custom-provider-card-actions";
+    actions.append(
+      providerActionButton("应用", applyCustomApiProvider, provider, "apply"),
+      providerActionButton("编辑", openCustomProviderForm, provider, "edit")
+    );
+    const removeButton = providerActionButton("删除", deleteCustomApiProvider, provider, "delete");
+    removeButton.classList.add("is-danger");
+    actions.append(removeButton);
+    card.append(copy, actions);
+    nodes.customProviderList.append(card);
+  });
+}
+
+function resetCustomProviderFormStatus(message = "", state = "") {
+  if (!nodes.customProviderFormStatus) return;
+  nodes.customProviderFormStatus.textContent = message;
+  nodes.customProviderFormStatus.dataset.state = state;
+}
+
+function openCustomProviderForm(provider = null) {
+  if (!nodes.customProviderForm) return;
+  const value = provider || {};
+  nodes.customProviderId.value = value.id || "";
+  nodes.customProviderKind.value = value.kind === "image" ? "image" : "prompt";
+  nodes.customProviderName.value = value.name || "";
+  nodes.customProviderBaseUrl.value = value.baseUrl || "";
+  nodes.customProviderApiKey.value = value.apiKey || "";
+  nodes.customProviderModel.value = value.model || "";
+  nodes.customProviderFormTitle.textContent = provider ? "编辑服务商" : "添加服务商";
+  nodes.customProviderForm.hidden = false;
+  resetCustomProviderFormStatus();
+  nodes.customProviderName.focus();
+}
+
+function closeCustomProviderForm() {
+  if (!nodes.customProviderForm) return;
+  nodes.customProviderForm.hidden = true;
+  nodes.customProviderForm.reset();
+  nodes.customProviderId.value = "";
+  resetCustomProviderFormStatus();
+}
+
+function validCustomProviderBaseUrl(value) {
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function applyCustomApiProvider(provider) {
+  if (!provider) return;
+  renderCustomProviderOptions();
+  if (provider.kind === "prompt") {
+    nodes.promptApiProvider.value = customProviderOptionValue(provider.id);
+    nodes.promptApiBaseUrl.value = provider.baseUrl;
+    nodes.promptApiKey.value = provider.apiKey;
+    nodes.promptModelSelect.value = customProviderModelValue(provider.id);
+    nodes.promptCustomModelName.value = provider.model;
+    syncDeepSeekPromptUi();
+    syncPromptCustomModelField();
+  } else {
+    nodes.imageApiProvider.value = customProviderOptionValue(provider.id);
+    nodes.imageApiBaseUrl.value = provider.baseUrl;
+    nodes.imageApiKey.value = provider.apiKey;
+    nodes.apiImageModelSelect.value = customProviderModelValue(provider.id);
+    nodes.customModelName.value = provider.model;
+    nodes.modelSelect.value = customProviderModelValue(provider.id);
+    syncCustomModelField();
+    syncRunningHubApiModeField();
+    syncModelPicker();
+  }
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
+  markApiConfigDirty();
+  saveWorkspaceState();
+  setStatus(`已应用自定义服务商“${provider.name}”，保存 API 配置后即可持续使用。`);
+}
+
+function deleteCustomApiProvider(provider) {
+  if (!provider || !window.confirm(`确定删除自定义服务商“${provider.name}”吗？`)) return;
+  const promptSelected = nodes.promptApiProvider.value === customProviderOptionValue(provider.id);
+  const imageSelected = nodes.imageApiProvider.value === customProviderOptionValue(provider.id);
+  const modelSelected = nodes.modelSelect.value === customProviderModelValue(provider.id);
+  customApiProviders = customApiProviders.filter((item) => item.id !== provider.id);
+  saveCustomApiProviders();
+  renderCustomProviderOptions();
+  renderCustomProviderList();
+  if (promptSelected) {
+    nodes.promptApiProvider.value = "openai";
+    nodes.promptApiBaseUrl.value = defaultBaseUrl("openai");
+    nodes.promptApiKey.value = "";
+    nodes.promptModelSelect.value = "gpt-4.1-mini";
+    syncDeepSeekPromptUi({ fromModel: true });
+    syncPromptCustomModelField();
+  }
+  if (imageSelected) {
+    nodes.imageApiProvider.value = "runninghub";
+    nodes.imageApiBaseUrl.value = defaultBaseUrl("runninghub");
+    nodes.imageApiKey.value = "";
+    nodes.apiImageModelSelect.value = RUNNINGHUB_G2_MODEL;
+    nodes.runningHubApiMode.value = RUNNINGHUB_API_MODE_CONSUMER;
+    syncRunningHubApiModeField();
+  }
+  if (modelSelected) {
+    nodes.modelSelect.value = RUNNINGHUB_G2_MODEL;
+    syncModelPicker();
+  }
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
+  markApiConfigDirty();
+  setStatus(`已删除自定义服务商“${provider.name}”。`);
+}
+
+function saveCustomProviderFromForm(event) {
+  event.preventDefault();
+  const existingId = nodes.customProviderId.value.trim();
+  const existing = customProviderById(existingId);
+  const provider = normalizeCustomApiProvider({
+    ...existing,
+    id: existingId || createCustomProviderId(),
+    kind: nodes.customProviderKind.value,
+    name: nodes.customProviderName.value,
+    baseUrl: nodes.customProviderBaseUrl.value,
+    apiKey: nodes.customProviderApiKey.value,
+    model: nodes.customProviderModel.value,
+    updatedAt: new Date().toISOString()
+  });
+
+  if (!provider.name) {
+    resetCustomProviderFormStatus("请填写服务商名称。", "error");
+    return;
+  }
+  if (!validCustomProviderBaseUrl(provider.baseUrl)) {
+    resetCustomProviderFormStatus("Base URL 必须是有效的 http 或 https 地址。", "error");
+    return;
+  }
+  if (!provider.apiKey) {
+    resetCustomProviderFormStatus("请填写 API Key。", "error");
+    return;
+  }
+  if (!provider.model) {
+    resetCustomProviderFormStatus("请填写真实模型名。", "error");
+    return;
+  }
+  const duplicate = customApiProviders.find((item) => (
+    item.id !== provider.id
+    && item.kind === provider.kind
+    && item.name.toLocaleLowerCase() === provider.name.toLocaleLowerCase()
+  ));
+  if (duplicate) {
+    resetCustomProviderFormStatus("同一用途下已有同名服务商，请修改名称。", "error");
+    return;
+  }
+
+  const existingIndex = customApiProviders.findIndex((item) => item.id === provider.id);
+  if (existingIndex >= 0) {
+    customApiProviders.splice(existingIndex, 1, provider);
+  } else {
+    customApiProviders.push(provider);
+  }
+  saveCustomApiProviders();
+  renderCustomProviderOptions();
+  renderCustomProviderList();
+  applyCustomApiProvider(provider);
+  closeCustomProviderForm();
+}
+
 function currentApiConfigFromForm() {
-  const promptProvider = nodes.promptApiProvider.value || "openai";
-  const imageProvider = nodes.imageApiProvider.value || "openai";
-  const imageModel = nodes.apiImageModelSelect.value === "custom"
-    ? nodes.customModelName.value.trim()
-    : nodes.apiImageModelSelect.value;
+  const promptCustomProvider = customProviderFromSelectValue(nodes.promptApiProvider.value);
+  const imageCustomProvider = customProviderFromSelectValue(nodes.imageApiProvider.value);
+  const promptProvider = promptCustomProvider ? "custom" : (nodes.promptApiProvider.value || "openai");
+  const imageProvider = imageCustomProvider ? "custom" : (nodes.imageApiProvider.value || "openai");
+  const promptLanguageModel = nodes.promptLanguageModelSelect?.value === "custom"
+    ? nodes.promptLanguageModelName?.value.trim()
+    : nodes.promptLanguageModelSelect?.value;
+  const promptModel = promptCustomProvider
+    ? promptCustomProvider.model
+    : nodes.promptModelSelect.value === "custom"
+      ? nodes.promptCustomModelName?.value.trim()
+      : nodes.promptModelSelect.value;
+  const imageModel = imageCustomProvider
+    ? imageCustomProvider.model
+    : nodes.apiImageModelSelect.value === "custom"
+      ? nodes.customModelName.value.trim()
+      : nodes.apiImageModelSelect.value;
   return {
     prompt: {
       provider: promptProvider,
-      providerLabel: selectedOptionText(nodes.promptApiProvider, "OpenAI"),
+      providerId: promptCustomProvider?.id || "",
+      providerLabel: promptCustomProvider?.name || selectedOptionText(nodes.promptApiProvider, "OpenAI"),
       baseUrl: nodes.promptApiBaseUrl.value.trim(),
       apiKey: nodes.promptApiKey.value.trim(),
-      model: promptProvider === "deepseek" ? deepSeekModelFromMode(nodes.deepSeekThinkingMode?.value) : nodes.promptModelSelect.value,
+      model: promptProvider === "deepseek" ? deepSeekModelFromMode(nodes.deepSeekThinkingMode?.value) : promptModel,
+      customModelName: nodes.promptCustomModelName?.value.trim() || "",
+      languageModel: promptProvider === "volcengine"
+        ? (promptLanguageModel || "glm-5.2")
+        : "",
       deepSeekThinkingMode: normalizeDeepSeekThinkingMode(nodes.deepSeekThinkingMode?.value),
       deepSeekThinking: promptProvider === "deepseek" && deepSeekThinkingEnabled(nodes.deepSeekThinkingMode?.value)
     },
     image: {
       provider: imageProvider,
-      providerLabel: selectedOptionText(nodes.imageApiProvider, "OpenAI"),
+      providerId: imageCustomProvider?.id || "",
+      providerLabel: imageCustomProvider?.name || selectedOptionText(nodes.imageApiProvider, "OpenAI"),
       baseUrl: nodes.imageApiBaseUrl.value.trim(),
       apiKey: nodes.imageApiKey.value.trim(),
       model: imageModel,
@@ -6311,6 +7897,8 @@ function applyApiConfig(config) {
         baseUrl: config.baseUrl || "",
         apiKey: config.apiKey || "",
         model: config.promptModel || "gpt-4.1-mini",
+        customModelName: config.promptCustomModelName || "",
+        languageModel: config.promptLanguageModel || "",
         deepSeekThinkingMode: config.deepSeekThinkingMode || "flash-off",
         deepSeekThinking: Boolean(config.deepSeekThinking)
       },
@@ -6333,20 +7921,44 @@ function applyApiConfig(config) {
   };
 
   apiConfig = config;
-  const rawPromptProvider = config.prompt?.provider || "openai";
+  const savedPromptCustomProvider = customProviderForKind(config.prompt?.providerId, "prompt");
+  const rawPromptProvider = savedPromptCustomProvider
+    ? customProviderOptionValue(savedPromptCustomProvider.id)
+    : (config.prompt?.provider || "openai");
   const promptProvider = setSelectValue(nodes.promptApiProvider, rawPromptProvider, "openai");
   nodes.promptApiBaseUrl.value = promptProvider === rawPromptProvider
     ? (config.prompt?.baseUrl || defaultBaseUrl(promptProvider))
     : defaultBaseUrl(promptProvider);
   nodes.promptApiKey.value = config.prompt?.apiKey || "";
-  nodes.promptModelSelect.value = config.prompt?.model || "gpt-4.1-mini";
+  const savedPromptModel = config.prompt?.model || "gpt-4.1-mini";
+  const hasSavedPromptModel = [...nodes.promptModelSelect.options].some((option) => option.value === savedPromptModel);
+  nodes.promptModelSelect.value = savedPromptCustomProvider
+    ? customProviderModelValue(savedPromptCustomProvider.id)
+    : (hasSavedPromptModel ? savedPromptModel : "custom");
+  if (nodes.promptCustomModelName) {
+    nodes.promptCustomModelName.value = savedPromptCustomProvider?.model
+      || config.prompt?.customModelName
+      || (hasSavedPromptModel ? "" : savedPromptModel);
+  }
+  const savedLanguageModel = config.prompt?.languageModel || "glm-5.2";
+  const hasSavedLanguageModel = [...(nodes.promptLanguageModelSelect?.options || [])]
+    .some((option) => option.value === savedLanguageModel);
+  if (nodes.promptLanguageModelSelect) {
+    nodes.promptLanguageModelSelect.value = hasSavedLanguageModel ? savedLanguageModel : "custom";
+  }
+  if (nodes.promptLanguageModelName) {
+    nodes.promptLanguageModelName.value = hasSavedLanguageModel ? "" : savedLanguageModel;
+  }
   if (nodes.deepSeekThinkingMode) {
     nodes.deepSeekThinkingMode.value = normalizeDeepSeekThinkingMode(
       config.prompt?.deepSeekThinkingMode
       || deepSeekModeFromModel(config.prompt?.model, Boolean(config.prompt?.deepSeekThinking))
     );
   }
-  const rawImageProvider = config.image?.provider || "openai";
+  const savedImageCustomProvider = customProviderForKind(config.image?.providerId, "image");
+  const rawImageProvider = savedImageCustomProvider
+    ? customProviderOptionValue(savedImageCustomProvider.id)
+    : (config.image?.provider || "openai");
   const imageProvider = setSelectValue(nodes.imageApiProvider, rawImageProvider, "openai");
   nodes.imageApiBaseUrl.value = imageProvider === rawImageProvider
     ? (config.image?.baseUrl || defaultBaseUrl(imageProvider))
@@ -6356,22 +7968,32 @@ function applyApiConfig(config) {
     nodes.runningHubApiMode.value = normalizeRunningHubApiMode(config.image?.runninghubMode);
   }
   const savedImageModel = config.image?.model || "gpt-image-1";
-  nodes.apiImageModelSelect.value = [...nodes.apiImageModelSelect.options].some((option) => option.value === savedImageModel)
-    ? savedImageModel
-    : "custom";
-  nodes.customModelName.value = config.image?.customModelName || "";
+  nodes.apiImageModelSelect.value = savedImageCustomProvider
+    ? customProviderModelValue(savedImageCustomProvider.id)
+    : [...nodes.apiImageModelSelect.options].some((option) => option.value === savedImageModel)
+      ? savedImageModel
+      : "custom";
+  syncRunningHubModeForModel(savedImageModel);
+  nodes.customModelName.value = savedImageCustomProvider?.model || config.image?.customModelName || "";
   if (nodes.eagleApiMode) nodes.eagleApiMode.value = config.eagle.mode;
   if (nodes.eagleApiBaseUrl) nodes.eagleApiBaseUrl.value = config.eagle.baseUrl;
   if (nodes.eagleApiToken) nodes.eagleApiToken.value = config.eagle.token;
   nodes.modelSelect.value = config.image?.model && [...nodes.modelSelect.options].some((option) => option.value === config.image.model)
     ? config.image.model
     : nodes.modelSelect.value;
+  if (savedImageCustomProvider
+    && [...nodes.modelSelect.options].some((option) => option.value === customProviderModelValue(savedImageCustomProvider.id))) {
+    nodes.modelSelect.value = customProviderModelValue(savedImageCustomProvider.id);
+  }
   const runningHubMeta = imageProvider === "runninghub"
     ? ` · ${runningHubApiModeLabel(nodes.runningHubApiMode?.value)}`
     : "";
   nodes.apiMeta.textContent = `反推:${config.prompt?.providerLabel || "未配置"} · 生图:${config.image?.providerLabel || "未配置"}${runningHubMeta}`;
   syncDeepSeekPromptUi({ fromModel: true });
+  syncPromptCustomModelField();
   syncCustomModelField();
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
   syncModelPicker();
 }
 
@@ -6384,6 +8006,8 @@ function loadApiConfig() {
     if (nodes.eagleApiMode) nodes.eagleApiMode.value = "api";
     if (nodes.eagleApiToken) nodes.eagleApiToken.value = "";
     syncDeepSeekPromptUi();
+    updateCustomProviderManagedUi();
+    updateApiHeroSummary();
     showApiSaveFeedback("首次使用，请填写后保存", "idle");
     return;
   }
@@ -6400,12 +8024,14 @@ function loadApiConfig() {
 }
 
 function showApiSaveFeedback(text, state = "saved") {
-  if (!nodes.apiSaveFeedback) return;
-  nodes.apiSaveFeedback.textContent = text;
+  if (!nodes.apiSaveFeedback || !nodes.apiSaveFeedbackText) return;
+  nodes.apiSaveFeedbackText.textContent = text;
   nodes.apiSaveFeedback.dataset.state = state;
 }
 
 function markApiConfigDirty() {
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
   showApiSaveFeedback(apiConfig ? "有未保存修改" : "填写后记得保存", "dirty");
 }
 
@@ -6446,6 +8072,8 @@ function saveApiConfig() {
     ? ` · ${runningHubApiModeLabel(config.image.runninghubMode)}`
     : "";
   nodes.apiMeta.textContent = `已保存 · 反推:${config.prompt.providerLabel} · 生图:${config.image.providerLabel}${runningHubMeta}`;
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
   showApiSaveFeedback("已保存，刷新后仍会保留", "saved");
   nodes.saveApiBtn.classList.add("is-saved");
   nodes.saveApiBtn.textContent = "已保存";
@@ -6496,7 +8124,7 @@ nodes.dropZone.addEventListener("drop", async (event) => {
 
   const files = [...(event.dataTransfer.files || [])].filter((item) => item.type.startsWith("image/"));
   if (files.length) {
-    await setImagesFromFiles(files);
+    await setImagesFromFiles(files, { kind: "local-file" });
     return;
   }
 
@@ -6507,7 +8135,7 @@ nodes.dropZone.addEventListener("drop", async (event) => {
   ]);
 
   if (urls.length) {
-    await addImagesFromUrls(urls, "网页拖入图片");
+    await addImagesFromUrls(urls, "网页拖入图片", { kind: "page-drag" });
     return;
   }
 
@@ -6517,7 +8145,7 @@ nodes.dropZone.addEventListener("drop", async (event) => {
 window.addEventListener("paste", async (event) => {
   const file = [...(event.clipboardData.files || [])].find((item) => item.type.startsWith("image/"));
   if (file) {
-    await setImageFromFile(file);
+    await setImageFromFile(file, { kind: "clipboard-file" });
     return;
   }
 
@@ -6526,7 +8154,7 @@ window.addEventListener("paste", async (event) => {
     ...normalizeDroppedUrls(event.clipboardData.getData("text/plain"))
   ]);
   if (pastedUrls.length) {
-    await addImagesFromUrls(pastedUrls, "粘贴的图片");
+    await addImagesFromUrls(pastedUrls, "粘贴的图片", { kind: "clipboard-url" });
   }
 });
 
@@ -6544,6 +8172,7 @@ nodes.promptInput.addEventListener("input", () => {
       visualReuseFingerprint: promptMethod === "reuse" ? visualReuseReferenceFingerprint() : ""
     };
   }
+  syncPromptCharCount();
   saveWorkspaceState();
 });
 nodes.copyPromptBtn?.addEventListener("click", copyPrompt);
@@ -6562,16 +8191,44 @@ nodes.promptResizeHandle?.addEventListener("pointerdown", startPromptResize);
   nodes.widthInput,
   nodes.heightInput
 ].forEach((node) => {
-  node.addEventListener("input", syncSizePicker);
+  node.addEventListener("input", () => {
+    nodes.sizeMode.value = "custom";
+    activeResolution = "custom";
+    syncSizePicker();
+  });
   node.addEventListener("change", syncSizePicker);
 });
+[
+  nodes.widthInput,
+  nodes.heightInput,
+  nodes.sizeMode
+].forEach((node) => {
+  node?.addEventListener("change", syncReusePlanForCanvasChange);
+});
 nodes.apiToggleBtn.addEventListener("click", () => {
-  nodes.apiPanel.hidden = !nodes.apiPanel.hidden;
+  setApiView(nodes.apiPanel.hidden);
+});
+nodes.apiTabButtons.forEach((button) => {
+  button.addEventListener("click", () => setApiTab(button.dataset.apiTab));
+});
+document.querySelectorAll("[data-api-goto]").forEach((button) => {
+  button.addEventListener("click", () => setApiTab(button.dataset.apiGoto));
 });
 nodes.promptApiProvider.addEventListener("change", () => {
+  const customProvider = customProviderFromSelectValue(nodes.promptApiProvider.value);
+  if (customProvider) {
+    applyCustomApiProvider(customProvider);
+    return;
+  }
   nodes.promptApiBaseUrl.value = defaultBaseUrl(nodes.promptApiProvider.value);
   if (nodes.promptApiProvider.value === "gemini") {
     nodes.promptModelSelect.value = "gemini-2.5-flash";
+  }
+  if (nodes.promptApiProvider.value === "volcengine") {
+    nodes.promptModelSelect.value = "doubao-seed-2-0-lite-260215";
+    if (nodes.promptLanguageModelSelect && !nodes.promptLanguageModelSelect.value) {
+      nodes.promptLanguageModelSelect.value = "glm-5.2";
+    }
   }
   if (nodes.promptApiProvider.value === "aliyun") {
     nodes.promptModelSelect.value = "qwen-vl-plus";
@@ -6581,9 +8238,17 @@ nodes.promptApiProvider.addEventListener("change", () => {
     nodes.promptModelSelect.value = deepSeekModelFromMode(nodes.deepSeekThinkingMode.value);
   }
   syncDeepSeekPromptUi();
+  syncPromptCustomModelField();
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
   markApiConfigDirty();
 });
 nodes.imageApiProvider.addEventListener("change", () => {
+  const customProvider = customProviderFromSelectValue(nodes.imageApiProvider.value);
+  if (customProvider) {
+    applyCustomApiProvider(customProvider);
+    return;
+  }
   nodes.imageApiBaseUrl.value = defaultBaseUrl(nodes.imageApiProvider.value);
   if (nodes.imageApiProvider.value === "apimart") {
     nodes.apiImageModelSelect.value = "gpt-image-2";
@@ -6599,12 +8264,20 @@ nodes.imageApiProvider.addEventListener("change", () => {
   if (nodes.imageApiProvider.value === "runninghub") {
     nodes.apiImageModelSelect.value = RUNNINGHUB_G2_MODEL;
     nodes.modelSelect.value = RUNNINGHUB_G2_MODEL;
+    syncRunningHubModeForModel(RUNNINGHUB_G2_MODEL);
     syncModelPicker();
   }
   syncRunningHubApiModeField();
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
   markApiConfigDirty();
 });
 nodes.apiImageModelSelect.addEventListener("change", () => {
+  const customProvider = customProviderFromModelValue(nodes.apiImageModelSelect.value);
+  if (customProvider) {
+    applyCustomApiProvider(customProvider);
+    return;
+  }
   syncCustomModelField();
   if ([...nodes.modelSelect.options].some((option) => option.value === nodes.apiImageModelSelect.value)) {
     nodes.modelSelect.value = nodes.apiImageModelSelect.value;
@@ -6618,11 +8291,14 @@ nodes.apiImageModelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "apimart";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("apimart");
   }
-  if (nodes.apiImageModelSelect.value === RUNNINGHUB_G2_MODEL) {
+  if (isRunningHubG2Model(nodes.apiImageModelSelect.value)) {
     nodes.imageApiProvider.value = "runninghub";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("runninghub");
+    syncRunningHubModeForModel(nodes.apiImageModelSelect.value);
   }
   syncRunningHubApiModeField();
+  updateCustomProviderManagedUi();
+  updateApiHeroSummary();
   markApiConfigDirty();
   saveWorkspaceState();
 });
@@ -6647,6 +8323,11 @@ document.querySelectorAll(".secret-toggle").forEach((button) => {
   });
 });
 nodes.modelSelect.addEventListener("change", () => {
+  const customProvider = customProviderFromModelValue(nodes.modelSelect.value);
+  if (customProvider) {
+    applyCustomApiProvider(customProvider);
+    return;
+  }
   syncModelPicker();
   if ([...nodes.apiImageModelSelect.options].some((option) => option.value === nodes.modelSelect.value)) {
     nodes.apiImageModelSelect.value = nodes.modelSelect.value;
@@ -6659,17 +8340,27 @@ nodes.modelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "apimart";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("apimart");
   }
-  if (nodes.modelSelect.value === RUNNINGHUB_G2_MODEL) {
+  if (isRunningHubG2Model(nodes.modelSelect.value)) {
     nodes.imageApiProvider.value = "runninghub";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("runninghub");
+    syncRunningHubModeForModel(nodes.modelSelect.value);
   }
   syncRunningHubApiModeField();
   saveWorkspaceState();
 });
 nodes.promptModelSelect?.addEventListener("change", () => {
+  const customProvider = customProviderFromModelValue(nodes.promptModelSelect.value);
+  if (customProvider) {
+    applyCustomApiProvider(customProvider);
+    return;
+  }
   if (nodes.promptModelSelect.value === "qwen-vl-plus") {
     nodes.promptApiProvider.value = "aliyun";
     nodes.promptApiBaseUrl.value = defaultBaseUrl("aliyun");
+    syncDeepSeekPromptUi({ fromModel: true });
+  } else if (nodes.promptModelSelect.value === "doubao-seed-2-0-lite-260215") {
+    nodes.promptApiProvider.value = "volcengine";
+    nodes.promptApiBaseUrl.value = defaultBaseUrl("volcengine");
     syncDeepSeekPromptUi({ fromModel: true });
   } else if (nodes.promptModelSelect.value.startsWith("deepseek-v4-")) {
     nodes.promptApiProvider.value = "deepseek";
@@ -6678,16 +8369,33 @@ nodes.promptModelSelect?.addEventListener("change", () => {
   } else {
     syncDeepSeekPromptUi({ fromModel: true });
   }
+  syncPromptCustomModelField();
+  markApiConfigDirty();
+});
+nodes.promptLanguageModelSelect?.addEventListener("change", () => {
+  syncPromptCustomModelField();
   markApiConfigDirty();
 });
 nodes.deepSeekThinkingMode?.addEventListener("change", () => {
   syncDeepSeekPromptUi();
   markApiConfigDirty();
 });
+nodes.runningHubApiMode?.addEventListener("change", () => {
+  syncRunningHubModelForApiMode();
+  syncRunningHubApiModeField();
+  updateApiHeroSummary();
+  saveWorkspaceState();
+});
+nodes.addCustomProviderBtn?.addEventListener("click", () => openCustomProviderForm());
+nodes.cancelCustomProviderBtn?.addEventListener("click", closeCustomProviderForm);
+nodes.customProviderForm?.addEventListener("submit", saveCustomProviderFromForm);
 [
   nodes.promptApiBaseUrl,
   nodes.promptApiKey,
   nodes.promptModelSelect,
+  nodes.promptCustomModelName,
+  nodes.promptLanguageModelSelect,
+  nodes.promptLanguageModelName,
   nodes.deepSeekThinkingMode,
   nodes.imageApiBaseUrl,
   nodes.imageApiKey,
@@ -6727,7 +8435,7 @@ nodes.imageToImageModeBtn?.addEventListener("click", () => setGenerationMode("im
 nodes.reversePromptBtn?.addEventListener("click", reversePrompt);
 nodes.reverseDetailToggle?.addEventListener("change", () => {
   reversePromptDetailed = Boolean(nodes.reverseDetailToggle.checked);
-  if (!reversePromptDetailed) {
+  if (!reversePromptDetailed && promptMethod !== "reuse") {
     promptMeta = {
       ...promptMeta,
       english: "",
@@ -6744,25 +8452,35 @@ nodes.visualReuseBtn?.addEventListener("click", () => {
   setVisualReusePanelOpen(true);
   resetPromptViewportToTop();
 });
-nodes.visualReuseGenerateBtn?.addEventListener("click", generateVisualReusePrompt);
+nodes.visualReusePlanBtn?.addEventListener("click", generateVisualReusePrompt);
 [
   nodes.visualReuseAssetType,
   nodes.visualReuseStrength,
   nodes.visualReuseStyle,
   nodes.visualReuseTextMode,
+  nodes.visualReuseTextContent,
   nodes.visualReuseNotes
 ].forEach((node) => {
   if (!node) return;
   const handleVisualReuseOptionChange = () => {
-    clearGeneratedPromptForReferenceChange("视觉复用参数已变化，请重新生成复用提示词。");
+    syncVisualReuseTextStrategyUi();
+    clearGeneratedPromptForReferenceChange("视觉复用参数已变化，请重新查看方案。");
     saveWorkspaceState();
   };
   node.addEventListener("input", handleVisualReuseOptionChange);
   node.addEventListener("change", handleVisualReuseOptionChange);
 });
 nodes.clearPromptBtn?.addEventListener("click", clearPrompt);
+nodes.statusActionBtn?.addEventListener("click", clearGalleryFromStatusAction);
+nodes.galleryRecoverBtn?.addEventListener("click", recoverGalleryFromStorage);
 nodes.resetAllBtn?.addEventListener("click", resetAll);
-nodes.generateBtn.addEventListener("click", generate);
+nodes.generateBtn.addEventListener("click", () => {
+  if (promptMethod === "reuse") {
+    generateNewVisualFromReusePlan();
+    return;
+  }
+  generate();
+});
 nodes.galleryPrevBtn?.addEventListener("click", () => {
   galleryPage = Math.max(1, galleryPage - 1);
   renderGallery();
@@ -6771,14 +8489,20 @@ nodes.galleryNextBtn?.addEventListener("click", () => {
   galleryPage += 1;
   renderGallery();
 });
-if (nodes.galleryGrid && "ResizeObserver" in window) {
-  const galleryResizeObserver = new ResizeObserver(() => {
-    const nextPageSize = currentGalleryPageSize();
-    if (nextPageSize === galleryPageSize) return;
-    galleryPageSize = nextPageSize;
-    renderGallery();
-  });
-  galleryResizeObserver.observe(nodes.galleryGrid);
+if (nodes.galleryGrid) {
+  let galleryResizeFrame = 0;
+  const syncGalleryPageSizeForViewport = () => {
+    if (galleryResizeFrame) return;
+    galleryResizeFrame = window.requestAnimationFrame(() => {
+      galleryResizeFrame = 0;
+      const nextPageSize = galleryPageSizeForWidth(nodes.galleryGrid.clientWidth || window.innerWidth || 0);
+      if (nextPageSize === galleryPageSize) return;
+      galleryPageSize = nextPageSize;
+      renderGallery();
+    });
+  };
+  window.addEventListener("resize", syncGalleryPageSizeForViewport, { passive: true });
+  syncGalleryPageSizeForViewport();
 }
 nodes.lightboxClose.addEventListener("click", closeLightbox);
 nodes.eagleCollectBtn?.addEventListener("click", collectToEagle);
@@ -6792,6 +8516,9 @@ window.addEventListener("keydown", async (event) => {
   if (event.key === "Escape") {
     setModelMenuOpen(false);
     setSizeMenuOpen(false);
+    if (nodes.appShell?.classList.contains("is-api-view")) {
+      setApiView(false);
+    }
   }
   if (event.key === "Escape" && !nodes.lightbox.hidden) {
     closeLightbox();
@@ -6810,6 +8537,8 @@ window.chrome?.storage?.onChanged?.addListener((changes, areaName) => {
   }
 });
 
+setApiTab("prompt");
+loadCustomApiProviders();
 renderModelMenu();
 renderSizeMenu();
 setupOptionalLocalIntegrations();
@@ -6821,5 +8550,12 @@ syncImageUploadLimitUi();
 consumePendingContextImage();
 restoreGalleryItemsFromIndexedDb()
   .then(consumeCompletedGenerationResults)
-  .then(resumePendingGenerationTasks);
-syncModelPicker();
+  .then(() => {
+    const restoredPendingTasks = loadPendingGenerationTasks();
+    if (restoredPendingTasks.length) {
+      mirrorPendingGenerationTasksToExtensionStorage(restoredPendingTasks);
+    }
+    return resumePendingGenerationTasks();
+  });
+renderModelMenu();
+syncPromptCharCount();

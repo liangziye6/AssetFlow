@@ -221,4 +221,58 @@ assert.notStrictEqual(resizedCompiled.plan.inputFingerprint, compiled.plan.input
 assert.match(resizedCompiled.chinese, /目标画布 2880 × 3840/);
 assert.match(resizedCompiled.chinese, /新品产品居中陈列/);
 
-console.log(`AssetFlow ${packageJson.version} checks passed.`);
+assert.match(popupHtml, /visual-reuse-primary-options[\s\S]*value="reserve" selected/, "视觉复用文字策略默认后期添加");
+assert.match(popupHtml, /<details class="visual-reuse-advanced">[\s\S]*id="visualReuseAssetType"/, "资产用途必须位于高级设置");
+assert.match(popupHtml, /id="visualReuseFullAnalysis"/, "完整方案分析必须可展开");
+assert.match(popupHtml, /id="lightboxLineage"[\s\S]*id="lightboxStrip"/, "详情页应先展示来源再展示历史结果");
+assert.match(popupJs, /该资产生成于来源追踪功能上线前/, "旧图库不得伪造来源");
+assert.match(popupJs, /await onReferencesPrepared\?\.\(images\.map/, "RunningHub 直传来源必须来自实际请求图片");
+assert.match(popupJs, /await options\.onReferencesPrepared\?\.\(usedItems\.map/, "APIMart 直传来源必须来自实际请求图片");
+assert.match(backgroundJs, /assetLineage:\s*task\.assetLineage/, "异步后台任务必须保留来源关系");
+assert.strictEqual(ReusePlan.normalizeTextMode("keep-original"), "keep-original");
+const fallbackPlan = ReusePlan.createDraft({
+  coreRequirement: "图1人物保持，图2参考标题排版，图3只参考红色线条装饰。",
+  width: 1024, height: 1024,
+  references: [1, 2, 3].map((number) => ({
+    id: `reference-${number}`, width: 512, height: 512, dimensionsVerified: true
+  }))
+});
+assert.deepStrictEqual(fallbackPlan.references.map((reference) => reference.roles.join(",")), ["subject", "auto", "auto"]);
+
+const lineageStart = popupJs.indexOf("async function generationLineageFromRequest(");
+const lineageEnd = popupJs.indexOf("async function imageFromIndexedDb(", lineageStart);
+assert.ok(lineageStart >= 0 && lineageEnd > lineageStart);
+const lineageContext = {
+  sourceAssetPreviewStoreId: async (item) => item ? `source-${item.id}` : "",
+  safeAssetSourceUrl: (url) => url || "",
+  normalizeAssetSource: () => ({ kind: "local-file" })
+};
+const generationLineageFromRequest = vm.runInNewContext(
+  `${popupJs.slice(lineageStart, lineageEnd)}\ngenerationLineageFromRequest`,
+  lineageContext
+);
+async function checkGenerationLineage() {
+  const references = ["a", "b", "c"].map((id, index) => ({
+    assetId: id, name: `图${index + 1}`, roles: [index ? "layout" : "subject"],
+    order: index + 1, source: { kind: "local-file" }
+  }));
+  const referenceItems = references.map((reference) => ({
+    id: reference.assetId, name: reference.name, src: "data:image/png;base64,AA"
+  }));
+  const payload = { source: "reuse", mode: "image", reusePlan: { references }, referenceItems };
+  const single = await generationLineageFromRequest(payload, ["a"]);
+  assert.deepStrictEqual(Array.from(single.directReferenceIds), ["a"]);
+  assert.deepStrictEqual(Array.from(single.analysisReferenceIds), ["b", "c"]);
+  assert.deepStrictEqual(Array.from(single.sourceAssets.map((asset) => asset.participation)), ["direct", "analysis", "analysis"]);
+  const multiple = await generationLineageFromRequest(payload, ["a", "b", "c"]);
+  assert.strictEqual(multiple.analysisReferenceIds.length, 0);
+  assert.strictEqual(multiple.directReferenceIds.length, 3);
+  const image = await generationLineageFromRequest({ source: "image", mode: "image", referenceItems }, ["b"]);
+  assert.deepStrictEqual(Array.from(image.directReferenceIds), ["b"]);
+  const text = await generationLineageFromRequest({ source: "text", mode: "text", referenceItems: [] }, []);
+  assert.strictEqual(text.sourceAssets.length, 0);
+}
+
+checkGenerationLineage()
+  .then(() => console.log(`AssetFlow ${packageJson.version} checks passed.`))
+  .catch((error) => { console.error(error); process.exitCode = 1; });

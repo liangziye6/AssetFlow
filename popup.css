@@ -5301,3 +5301,86 @@ html.standalone .app-shell.is-api-view {
     justify-content: flex-start;
   }
 }
+
+/* v1.9.14: decision summary and traceable source details */
+.visual-reuse-panel.is-open { max-height: 1600px; }
+.visual-reuse-role-advanced-title {
+  grid-column: 1 / -1;
+  color: rgba(190, 184, 216, 0.8);
+  font-size: 10px;
+}
+.visual-reuse-plan-fact strong { overflow-wrap: anywhere; }
+#visualReuseFullAnalysis { display: grid; gap: 6px; margin-top: 8px; }
+#visualReuseFullAnalysis p { margin: 0; color: rgba(218, 216, 235, 0.8); font-size: 10px; line-height: 1.55; }
+.lightbox-info { display: block; overflow: auto; }
+.lightbox-prompt, .lightbox-lineage { overflow: visible; white-space: normal; }
+.lightbox-prompt h3, .lightbox-lineage h3 { margin: 4px 0 8px; color: #fff; font-size: 14px; }
+.lightbox-prompt-copy { margin: 8px 0; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.lightbox-language-switch { display: flex; gap: 6px; }
+.lightbox-language-switch button, .lightbox-source-preview button {
+  padding: 5px 10px; border: 1px solid rgba(205,194,255,.25);
+  border-radius: 7px; color: #e9e5ff; background: rgba(86,70,155,.18); cursor: pointer;
+}
+.lightbox-language-switch button[aria-pressed="true"] { border-color: rgba(167,139,250,.8); background: rgba(111,86,208,.36); }
+.lightbox-prompt details { margin-top: 8px; }
+.lightbox-prompt details summary { cursor: pointer; color: #cfc5ff; }
+.lightbox-prompt pre { overflow-wrap: anywhere; white-space: pre-wrap; font: inherit; font-size: 11px; }
+.lightbox-lineage { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.12); }
+.lightbox-lineage p { margin: 6px 0 10px; color: rgba(222,222,238,.76); font-size: 11px; }
+.lightbox-lineage h4 { margin: 12px 0 7px; color: #d7d0ff; font-size: 11px; }
+.lightbox-source-card {
+  display: flex; align-items: center; width: 100%; gap: 9px; margin: 6px 0;
+  padding: 6px; border: 1px solid rgba(205,194,255,.15); border-radius: 9px;
+  color: #f2f0fa; background: rgba(255,255,255,.035); text-align: left; cursor: pointer;
+}
+.lightbox-source-card:hover, .lightbox-source-card:focus-visible {
+  border-color: rgba(167,139,250,.7); outline: none;
+}
+.lightbox-source-card img { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; background: rgba(255,255,255,.05); }
+.lightbox-source-card span { display: grid; min-width: 0; gap: 3px; }
+.lightbox-source-card strong, .lightbox-source-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lightbox-source-card strong { font-size: 11px; }
+.lightbox-source-card small { color: rgba(210,205,232,.68); font-size: 10px; }
+.lightbox-source-preview { display: grid; place-items: center; gap: 10px; min-width: 0; width: 100%; }
+.lightbox-source-preview[hidden] { display: none; }
+.lightbox-source-preview button { justify-self: start; }
+.lightbox-source-preview img { max-width: 100%; max-height: calc(100vh - 150px); object-fit: contain; }
+
+/* Keep the compiled prompt available without crowding the visual reuse plan. */
+.workspace[data-mode="reuse"] .prompt-composer > #promptInput,
+.workspace[data-mode="reuse"] .prompt-composer > #promptResizeHandle {
+  display: none;
+}
+
+.reuse-compiled-prompt-details[hidden],
+.workspace:not([data-mode="reuse"]) .reuse-compiled-prompt-details {
+  display: none;
+}
+
+.reuse-compiled-prompt-details {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(205, 194, 255, 0.14);
+  color: rgba(234, 229, 255, 0.88);
+}
+
+.reuse-compiled-prompt-details > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reuse-compiled-prompt-details > summary:focus-visible {
+  outline: 2px solid #a991ff;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.reuse-compiled-prompt-details > pre {
+  max-height: 280px;
+  margin: 10px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.55;
+}

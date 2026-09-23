@@ -103,7 +103,7 @@
     if (["reserve", "weaken", "typography-only", "title-position"].includes(raw)) {
       return "reserve";
     }
-    if (raw === "none") return "none";
+    if (raw === "none" || raw === "keep-original") return raw;
     return "auto";
   }
 
@@ -135,10 +135,10 @@
 
   function normalizeRoles(value, index = 0) {
     const fallbackRoles = [
-      ["subject", "style"],
-      ["style", "color_material"],
-      ["composition", "layout"],
-      ["color_material", "decoration"]
+      ["subject"],
+      ["auto"],
+      ["auto"],
+      ["auto"]
     ];
     const roles = (Array.isArray(value) ? value : [value])
       .map((role) => cleanString(role))
@@ -186,7 +186,7 @@
       },
       roles,
       roleLabels: roles.map((role) => ROLE_LABELS[role]),
-      roleSource: reference.rolesManual || reference.visualReuseRolesManual ? "manual" : "fallback",
+      roleSource: reference.rolesManual || reference.visualReuseRolesManual ? "manual" : reference.rolesNaturalLanguage ? "requirement" : "fallback",
       strength: ["high", "medium", "low"].includes(reference.strength || reference.visualReuseWeight)
         ? (reference.strength || reference.visualReuseWeight)
         : (reference.rolesManual || reference.visualReuseRolesManual ? "high" : "medium"),
@@ -550,6 +550,7 @@
     const layout = cleanMultiline(plan.textStrategy.layout || plan.analysis.layout);
     if (language === "en") {
       if (mode === "none") return "No visible text, letters, numbers, logo, or watermark.";
+      if (mode === "keep-original") return joinText(["Keep the original reference text unchanged where it appears", layout]);
       if (mode === "reserve") return joinText(["Reserve a clean text area without generating readable copy", layout]);
       if (mode === "with-text") return joinText([
         content ? `Generate the exact visible copy: ${content}` : "Generate concise visible title copy",
@@ -558,6 +559,7 @@
       return joinText(["Use text only when required by the asset type", content, layout]);
     }
     if (mode === "none") return "不生成可见文字、字母、数字、Logo 或水印。";
+    if (mode === "keep-original") return joinText(["保留参考图中已有文字，不改写原文", layout]);
     if (mode === "reserve") return joinText(["只预留清晰文字区域，不直接生成可读文案", layout]);
     if (mode === "with-text") return joinText([
       content ? `直接生成指定文案“${content}”` : "生成简洁可见标题文案",

@@ -388,34 +388,18 @@
                   <li><span>3</span>生成视觉</li>
                 </ol>
                 <label class="visual-reuse-notes visual-reuse-core">
-                  <span>核心需求 <em>必填</em></span>
-                  <textarea id="visualReuseNotes" required aria-required="true" placeholder="说明最终要做什么，以及必须改变或保留什么。例如：为新品做一张竖版发布海报，保留图 1 的产品主体和图 2 的蓝紫光感，文案使用「NEW ERA」。"></textarea>
+                  <span>你想生成什么？ <em>必填</em></span>
+                  <textarea id="visualReuseNotes" required aria-required="true" placeholder="例如：使用图1人物，参考图2的字体和排版，加入图3的装饰语言，生成一张3:4新品广告海报。"></textarea>
                 </label>
                 <div class="visual-reuse-grid visual-reuse-primary-options">
                   <label>
-                    <span>资产用途</span>
-                    <select id="visualReuseAssetType">
-                      <option value="auto">按图片自动判断</option>
-                      <option value="xiaohongshu">小红书封面</option>
-                      <option value="ecommerce">电商主图</option>
-                      <option value="brand-kv">品牌 KV</option>
-                      <option value="poster">商业海报</option>
-                      <option value="advertising">广告视觉</option>
-                      <option value="ip">IP 延展</option>
-                      <option value="ui">UI 界面</option>
-                      <option value="video">视频首帧</option>
-                      <option value="event-kv">活动主视觉</option>
-                      <option value="product">产品宣传图</option>
-                      <option value="social">社媒图</option>
-                    </select>
-                  </label>
-                  <label>
                     <span>文字策略</span>
                     <select id="visualReuseTextMode">
-                      <option value="auto">按资产用途判断</option>
-                      <option value="with-text">直接生成指定文字</option>
-                      <option value="reserve">只预留文字区域</option>
+                      <option value="reserve" selected>参考排版，文字后期添加</option>
+                      <option value="with-text">生成指定文字</option>
                       <option value="none">不需要文字</option>
+                      <option value="keep-original">保留原图文字</option>
+                      <option value="auto" hidden>按资产用途判断（旧设置）</option>
                     </select>
                   </label>
                 </div>
@@ -424,21 +408,38 @@
                   <input id="visualReuseTextContent" type="text" maxlength="160" placeholder="例如：NEW ERA / 夏日上新">
                 </label>
                 <details class="visual-reuse-advanced">
-                  <summary>高级控制</summary>
+                  <summary>高级设置</summary>
                   <div class="visual-reuse-grid">
                     <label>
-                      <span>复用模式</span>
+                      <span>资产用途</span>
+                      <select id="visualReuseAssetType">
+                        <option value="auto">自动判断</option>
+                        <option value="xiaohongshu">小红书封面</option>
+                        <option value="ecommerce">电商主图</option>
+                        <option value="brand-kv">品牌 KV</option>
+                        <option value="poster">商业海报</option>
+                        <option value="advertising">广告视觉</option>
+                        <option value="ip">IP 延展</option>
+                        <option value="ui">UI 界面</option>
+                        <option value="video">视频首帧</option>
+                        <option value="event-kv">活动主视觉</option>
+                        <option value="product">产品宣传图</option>
+                        <option value="social">社媒图</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>创意自由度</span>
                       <select id="visualReuseStrength">
-                        <option value="precise_inherit">精准继承</option>
-                        <option value="balanced_reuse">平衡复用</option>
-                        <option value="creative_rewrite">创意改写</option>
+                        <option value="precise_inherit">低：尽量贴近参考</option>
+                        <option value="balanced_reuse" selected>中：平衡</option>
+                        <option value="creative_rewrite">高：允许明显重新设计</option>
                       </select>
                     </label>
                     <label>
                       <span>风格方向</span>
                       <select id="visualReuseStyle">
+                        <option value="auto" selected>跟随参考图 / 自动判断</option>
                         <option value="original">保持原图风格</option>
-                        <option value="auto">按参考图自动判断</option>
                         <option value="premium">更高级</option>
                         <option value="commercial">更商业化</option>
                         <option value="fashion">更时尚</option>
@@ -465,12 +466,17 @@
                   <p id="visualReusePlanSummary"></p>
                   <div id="visualReusePlanFacts" class="visual-reuse-plan-facts"></div>
                   <details class="visual-reuse-lineage">
-                    <summary>资产来源关系</summary>
+                    <summary>查看完整分析</summary>
+                    <div id="visualReuseFullAnalysis"></div>
                     <ul id="visualReuseLineageList"></ul>
                   </details>
                 </section>
                 <button id="visualReusePlanBtn" class="visual-reuse-generate" type="button">查看方案</button>
               </div>
+              <details id="reuseCompiledPromptDetails" class="reuse-compiled-prompt-details" hidden>
+                <summary>查看最终提示词</summary>
+                <pre id="reuseCompiledPromptPreview"></pre>
+              </details>
               <textarea id="promptInput" placeholder="图片提示词会出现在这里，也可以直接输入中文或英文。"></textarea>
               <div id="promptResizeHandle" class="prompt-resize-handle" role="separator" aria-label="调整提示词文本框高度"></div>
               <div class="prompt-toolbar">
@@ -613,10 +619,15 @@
         <div class="lightbox-layout">
           <div class="lightbox-main">
             <img id="lightboxImage" alt="放大预览">
+            <div id="lightboxSourcePreview" class="lightbox-source-preview" hidden>
+              <button id="lightboxSourceBack" type="button">返回生成图</button>
+              <img id="lightboxSourceImage" alt="来源图预览">
+            </div>
           </div>
           <div class="lightbox-info">
             <div id="lightboxMeta" class="lightbox-meta"></div>
             <div id="lightboxPrompt" class="lightbox-prompt"></div>
+            <section id="lightboxLineage" class="lightbox-lineage"></section>
           </div>
           <div id="lightboxStrip" class="lightbox-strip" aria-label="已生成图片"></div>
         </div>

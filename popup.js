@@ -18,6 +18,8 @@ const nodes = {
   generationWorkspace: document.querySelector("#generationWorkspace"),
   promptComposer: document.querySelector(".prompt-composer"),
   promptInput: document.querySelector("#promptInput"),
+  reuseCompiledPromptDetails: document.querySelector("#reuseCompiledPromptDetails"),
+  reuseCompiledPromptPreview: document.querySelector("#reuseCompiledPromptPreview"),
   promptCharCount: document.querySelector("#promptCharCount"),
   promptResizeHandle: document.querySelector("#promptResizeHandle"),
   copyPromptBtn: document.querySelector("#copyPromptBtn"),
@@ -41,6 +43,7 @@ const nodes = {
   visualReusePlanSummary: document.querySelector("#visualReusePlanSummary"),
   visualReusePlanFacts: document.querySelector("#visualReusePlanFacts"),
   visualReuseLineageList: document.querySelector("#visualReuseLineageList"),
+  visualReuseFullAnalysis: document.querySelector("#visualReuseFullAnalysis"),
   textToImageModeBtn: document.querySelector("#textToImageModeBtn"),
   imageToImageModeBtn: document.querySelector("#imageToImageModeBtn"),
   apiToggleBtn: document.querySelector("#apiToggleBtn"),
@@ -80,6 +83,10 @@ const nodes = {
   lightboxImage: document.querySelector("#lightboxImage"),
   lightboxMeta: document.querySelector("#lightboxMeta"),
   lightboxPrompt: document.querySelector("#lightboxPrompt"),
+  lightboxLineage: document.querySelector("#lightboxLineage"),
+  lightboxSourcePreview: document.querySelector("#lightboxSourcePreview"),
+  lightboxSourceImage: document.querySelector("#lightboxSourceImage"),
+  lightboxSourceBack: document.querySelector("#lightboxSourceBack"),
   lightboxStrip: document.querySelector("#lightboxStrip"),
   lightboxDownloadBtn: document.querySelector("#lightboxDownloadBtn"),
   eagleCollectBtn: document.querySelector("#eagleCollectBtn"),
@@ -320,6 +327,14 @@ function gallerySourceLabel(item = {}) {
     : generationModeLabel(item.mode);
 }
 
+function galleryCardSourceLabel(item = {}) {
+  const mode = gallerySourceLabel(item);
+  const lineage = item.assetLineage;
+  const count = Array.isArray(lineage?.sourceAssets) && lineage.sourceAssets.every((asset) => ["direct", "analysis"].includes(asset.participation))
+    ? lineage.sourceAssets.length : 0;
+  return count ? `${mode} · ${count}张${mode === "视觉复用" ? "参考" : "来源"}` : mode;
+}
+
 const API_STORAGE_KEY = "imageSparkApiConfig";
 const CUSTOM_API_PROVIDERS_STORAGE_KEY = "assetflowCustomApiProvidersV1";
 const CUSTOM_PROVIDER_OPTION_PREFIX = "custom-provider:";
@@ -347,7 +362,7 @@ function reusePlanApi() {
 
 function normalizeVisualReuseTextMode(value) {
   return window.AssetFlowReusePlan?.normalizeTextMode(value)
-    || (value === "none" ? "none" : value === "reserve" ? "reserve" : value === "with-text" ? "with-text" : "auto");
+    || (["none", "reserve", "with-text", "keep-original"].includes(value) ? value : "auto");
 }
 
 function safeAssetSourceUrl(value) {
@@ -495,47 +510,47 @@ function trimImagesToCurrentModeLimit({ silent = false } = {}) {
 const VISUAL_REUSE_IMAGE_ROLES = [
   {
     value: "subject",
-    label: "主体参考",
+    label: "主体与动作",
     prompt: "Subject reference: inherit the subject type, pose, action, outfit structure, hair silhouette, body angle, expression mood, gesture, props, subject scale, and camera relationship inside this role. At high strength, do not change pose, outfit structure, or subject mood unless the user explicitly asks."
   },
   {
     value: "composition",
-    label: "构图参考",
+    label: "构图与留白",
     prompt: "Composition reference: inherit the framing, subject placement, subject scale, visual center, whitespace direction, camera angle, depth relationship, and composition skeleton inside this role. At high strength, do not change core framing unless the user explicitly asks."
   },
   {
     value: "layout",
-    label: "排版参考",
+    label: "排版与字体",
     prompt: "Layout reference: inherit the title area, title scale, text hierarchy, text direction, information zones, spacing rhythm, and text-image relationship inside this role. At high strength, do not remove or weaken the title area unless the user chooses no text."
   },
   {
     value: "typography",
-    label: "字体参考",
+    label: "字体细节",
     prompt: "Typography reference: inherit font feeling, weight, width, compression, title scale, deformation style, text impact, material feeling, and relationship with the subject. Do not copy original wording, brand names, logos, or trademark text unless explicitly requested."
   },
   {
     value: "style",
-    label: "风格参考",
+    label: "风格与材质",
     prompt: "Style reference: inherit the overall aesthetic, commercial polish, artistic direction, rendering style, visual language, and design maturity. Do not copy unnecessary subjects or brand identifiers."
   },
   {
     value: "color_material",
-    label: "色彩质感",
+    label: "色彩与光影",
     prompt: "Color and material reference: inherit the main palette, secondary colors, color ratio, contrast, saturation, brightness, lighting direction, highlight style, shadow style, texture, grain, material, and atmosphere. At high strength, do not change the main color system unless the user asks."
   },
   {
     value: "decoration",
-    label: "装饰参考",
+    label: "装饰与细节",
     prompt: "Decoration reference: inherit decoration type, line language, light trails, particles, geometric accents, decoration density, and relationship with the subject. Decoration must always remain secondary and must never become the main subject, dominate composition, or occupy the core visual center."
   },
   {
     value: "auxiliary",
-    label: "辅助参考",
+    label: "辅助细节",
     prompt: "Auxiliary reference: use small props, local details, and secondary visual features. It must not override subject, composition, layout, typography, color, or style references."
   },
   {
     value: "auto",
-    label: "自动分析",
+    label: "自动判断",
     prompt: "Auto analysis reference: decide which small secondary traits are useful, but never override explicit Subject, Composition, Layout, Typography, Color / Material, Style, or Decoration references."
   }
 ];
@@ -546,10 +561,10 @@ const VISUAL_REUSE_ROLE_ALIASES = {
   analyze: "auto"
 };
 const VISUAL_REUSE_FALLBACK_ROLES = [
-  ["subject", "style"],
-  ["style", "color_material"],
-  ["composition", "layout"],
-  ["color_material", "decoration"]
+  ["subject"],
+  ["auto"],
+  ["auto"],
+  ["auto"]
 ];
 const VISUAL_REUSE_WEIGHT_OPTIONS = [
   { value: "high", label: "高", prompt: "High strength: accurately inherit the selected role traits and keep them as close to the reference as possible." },
@@ -1301,6 +1316,10 @@ function renderImageStack() {
     lockText.textContent = "锁定";
     lockLabel.append(lockInput, lockText);
 
+    const advancedCaption = document.createElement("span");
+    advancedCaption.className = "visual-reuse-role-advanced-title";
+    advancedCaption.textContent = "单张参考高级设置";
+    roleFooter.prepend(advancedCaption);
     roleFooter.append(weightLabel, lockLabel);
     roleMenu.append(roleList, roleFooter);
     roleEditor.append(roleButton, roleMenu);
@@ -2973,9 +2992,35 @@ function normalizeVisualReuseWeight(value) {
   return VISUAL_REUSE_WEIGHT_OPTIONS.some((weight) => weight.value === raw) ? raw : "";
 }
 
+function rolesFromCoreRequirement(index, requirement = nodes.visualReuseNotes?.value || "") {
+  const text = String(requirement || "");
+  const markers = [...text.matchAll(/图(?:片)?\s*([1-4])/g)];
+  const marker = markers.find((entry) => Number(entry[1]) === index + 1);
+  if (!marker) return [];
+  const markerIndex = markers.indexOf(marker);
+  const fragment = text.slice(marker.index + marker[0].length, markers[markerIndex + 1]?.index ?? text.length);
+  const roles = [];
+  if (/人物|角色|主体|产品|动作|姿势|服装|发型/.test(fragment)) roles.push("subject");
+  if (/构图|留白|画面布局|镜头|视角/.test(fragment)) roles.push("composition");
+  if (/排版|标题|字体|字形|文字位置/.test(fragment)) roles.push("layout");
+  if (/色彩|颜色|光影|光线|配色/.test(fragment)) roles.push("color_material");
+  if (/风格|材质|质感|肌理/.test(fragment)) roles.push("style");
+  if (/装饰|线条|细节|点缀|纹样/.test(fragment)) roles.push("decoration");
+  return roles.slice(0, 2);
+}
+
+function visualReuseRoleConflicts() {
+  return imageItems.flatMap((item, index) => {
+    const manual = normalizeVisualReuseRoles(item.visualReuseRoles || item.visualReuseRole);
+    const suggested = rolesFromCoreRequirement(index);
+    if (!manual.length || !suggested.length || suggested.some((role) => manual.includes(role))) return [];
+    return [`图${index + 1}：需求提到“${suggested.map((role) => visualReuseRoleMeta(role).label).join("、")}”，当前手动标签为“${manual.map((role) => visualReuseRoleMeta(role).label).join("、")}”。请核对。`];
+  });
+}
+
 function effectiveVisualReuseRoles(item, index = 0) {
   const manualRoles = normalizeVisualReuseRoles(item?.visualReuseRoles || item?.visualReuseRole);
-  return manualRoles.length ? manualRoles : fallbackVisualReuseRoles(index);
+  return manualRoles.length ? manualRoles : (rolesFromCoreRequirement(index).length ? rolesFromCoreRequirement(index) : fallbackVisualReuseRoles(index));
 }
 
 function visualReuseRoleMeta(value, index = 0) {
@@ -3017,8 +3062,7 @@ function updateVisualReuseRoleButton(button, item, index = 0) {
   const weight = item?.visualReuseWeightManual
     ? normalizeVisualReuseWeight(item.visualReuseWeight)
     : defaultVisualReuseWeight(index, roles, Boolean(item?.visualReuseRolesManual || manualRoles.length));
-  const lockLabel = item?.visualReuseLocked === false ? "未锁" : "锁定";
-  button.textContent = `${visualReuseRoleSummary(item, index)} · ${visualReuseWeightLabel(weight)} · ${lockLabel}`;
+  button.textContent = `图${index + 1} · ${visualReuseRoleSummary(item, index)}`;
   button.setAttribute("aria-label", `图 ${index + 1} 角色：${button.textContent}`);
 }
 
@@ -3134,6 +3178,7 @@ function currentReusePlanInput(targets = getVisualReuseTargetImages()) {
       assetSource: normalizeAssetSource(item.assetSource, item.src),
       roles: effectiveVisualReuseRoles(item, index),
       rolesManual: Boolean(item.visualReuseRolesManual),
+      rolesNaturalLanguage: !item.visualReuseRolesManual && rolesFromCoreRequirement(index).length > 0,
       strength: item.visualReuseWeightManual
         ? normalizeVisualReuseWeight(item.visualReuseWeight)
         : defaultVisualReuseWeight(index, effectiveVisualReuseRoles(item, index), item.visualReuseRolesManual),
@@ -3209,46 +3254,56 @@ function renderVisualReusePlan(planInput) {
   if (!nodes.visualReusePlan) return;
   if (!planInput || promptMethod !== "reuse") {
     nodes.visualReusePlan.hidden = true;
-    if (nodes.visualReusePlanFacts) nodes.visualReusePlanFacts.innerHTML = "";
-    if (nodes.visualReuseLineageList) nodes.visualReuseLineageList.innerHTML = "";
-    if (nodes.visualReusePlanBtn) nodes.visualReusePlanBtn.textContent = "查看方案";
+    if (nodes.reuseCompiledPromptDetails) {
+      nodes.reuseCompiledPromptDetails.hidden = true;
+      nodes.reuseCompiledPromptDetails.open = false;
+    }
+    nodes.visualReusePlanFacts.replaceChildren();
+    nodes.visualReuseFullAnalysis?.replaceChildren();
+    nodes.visualReuseLineageList.replaceChildren();
+    nodes.visualReusePlanBtn.textContent = "查看方案";
     return;
   }
-
   let plan;
-  try {
-    plan = reusePlanApi().normalizePlan(planInput);
-  } catch {
+  try { plan = reusePlanApi().normalizePlan(planInput); }
+  catch {
     nodes.visualReusePlan.hidden = true;
+    if (nodes.reuseCompiledPromptDetails) nodes.reuseCompiledPromptDetails.hidden = true;
     return;
   }
   const issues = Array.isArray(plan.validation?.issues) ? plan.validation.issues : [];
   const errorCount = issues.filter((issue) => issue.severity === "error").length;
   const warningCount = issues.filter((issue) => issue.severity === "warning").length;
   nodes.visualReusePlan.hidden = false;
+  if (nodes.reuseCompiledPromptDetails) {
+    nodes.reuseCompiledPromptDetails.hidden = !nodes.promptInput.value.trim();
+    if (nodes.reuseCompiledPromptPreview) nodes.reuseCompiledPromptPreview.textContent = nodes.promptInput.value;
+  }
   nodes.visualReusePlanTitle.textContent = `复用方案 · ${plan.references.length} 张参考图`;
-  nodes.visualReusePlanStatus.textContent = errorCount
-    ? `${errorCount} 项待修正`
-    : warningCount
-      ? `已建立 · ${warningCount} 项提示`
-      : "已校验";
-  nodes.visualReusePlanSummary.textContent = plan.analysis?.summary
-    || plan.intent?.coreRequirement
-    || "方案已建立。";
-
+  nodes.visualReusePlanStatus.textContent = errorCount ? `${errorCount} 项待修正`
+    : warningCount ? `已建立 · ${warningCount} 项提示` : "已校验";
+  nodes.visualReusePlanSummary.textContent = plan.analysis?.summary || plan.intent?.coreRequirement || "方案已建立。";
+  const refsFor = (roles) => plan.references.filter((reference) => roles.some((role) => reference.roles.includes(role)))
+    .map((reference) => `图${reference.order} · ${reference.roles.map((role) => visualReuseRoleMeta(role).label).join("＋")}`)
+    .join("；") || "自动判断";
+  const textLabel = {
+    reserve: "参考排版，文字后期添加",
+    "with-text": plan.textStrategy.content ? `生成指定文字：${plan.textStrategy.content}` : "生成指定文字",
+    none: "不需要文字",
+    "keep-original": "保留原图文字",
+    auto: "按资产用途判断"
+  }[plan.textStrategy?.mode] || "按资产用途判断";
   const facts = [
-    ["主体", plan.analysis?.subject || "按主体角色确定"],
-    ["构图", plan.analysis?.composition || `${plan.canvas.width} × ${plan.canvas.height}`],
-    ["风格", plan.analysis?.style || plan.intent?.styleLabel || "按参考图"],
-    ["文字", plan.textStrategy?.mode === "none"
-      ? "无文字"
-      : plan.textStrategy?.mode === "reserve"
-        ? "仅预留文字区"
-        : plan.textStrategy?.mode === "with-text"
-          ? (plan.textStrategy.content || "生成可见文字")
-          : "按用途判断"]
+    ["主体", refsFor(["subject"])],
+    ["排版", refsFor(["layout", "typography"])],
+    ["装饰", refsFor(["decoration", "auxiliary"])],
+    ["保持", plan.analysis?.inheritedTraits?.join("、") || "按参考角色保留核心特征"],
+    ["变化", plan.analysis?.changedTraits?.join("、") || plan.intent?.coreRequirement || "按核心需求调整"],
+    ["文字", textLabel],
+    ["预计生成策略", expectedReferenceStrategy(plan)]
   ];
-  nodes.visualReusePlanFacts.innerHTML = "";
+  visualReuseRoleConflicts().forEach((message) => facts.push(["建议核对", message]));
+  nodes.visualReusePlanFacts.replaceChildren();
   facts.forEach(([label, value]) => {
     const fact = document.createElement("div");
     fact.className = "visual-reuse-plan-fact";
@@ -3259,15 +3314,50 @@ function renderVisualReusePlan(planInput) {
     fact.append(name, content);
     nodes.visualReusePlanFacts.append(fact);
   });
-
-  nodes.visualReuseLineageList.innerHTML = "";
-  plan.references.forEach((reference) => {
-    const item = document.createElement("li");
-    const dimensions = `${reference.dimensions.width} × ${reference.dimensions.height}`;
-    item.textContent = `图 ${reference.order} · ${sourceKindLabel(reference.source.kind)} · ${dimensions} · ${reference.roleLabels.join("＋")} → 新视觉`;
-    nodes.visualReuseLineageList.append(item);
+  const analysis = plan.analysis || {};
+  const fields = [
+    ["画面类型", analysis.imageType], ["主体", analysis.subject],
+    ["动作姿态", analysis.action], ["场景", analysis.scene],
+    ["构图", analysis.composition], ["排版文字", analysis.layout],
+    ["色彩光照", analysis.colorLighting], ["材质质感", analysis.materialTexture],
+    ["风格", analysis.style], ["装饰", analysis.decoration],
+    ["继承要求", analysis.inheritedTraits?.join("、")],
+    ["变化要求", analysis.changedTraits?.join("、")],
+    ["避免", analysis.negativeConstraints?.join("、")],
+    ["Role Check", plan.roleCheck?.join("；")],
+    ["Self Check", plan.selfCheck?.join("；")],
+    ["Prompt Structure", promptMeta.structure]
+  ];
+  nodes.visualReuseFullAnalysis?.replaceChildren();
+  fields.forEach(([label, value]) => {
+    if (!value) return;
+    const row = document.createElement("p");
+    row.textContent = `${label}：${value}`;
+    nodes.visualReuseFullAnalysis?.append(row);
   });
-  if (nodes.visualReusePlanBtn) nodes.visualReusePlanBtn.textContent = "更新方案";
+  nodes.visualReuseLineageList.replaceChildren();
+  plan.references.forEach((reference) => {
+    const entry = document.createElement("li");
+    entry.textContent = `图${reference.order} · ${reference.name} · ${reference.dimensions.width} × ${reference.dimensions.height} · ${reference.roleLabels.join("＋")}`;
+    nodes.visualReuseLineageList.append(entry);
+  });
+  nodes.visualReusePlanBtn.textContent = "更新方案";
+}
+
+function expectedReferenceStrategy(plan) {
+  const config = currentApiConfigFromForm().image;
+  const model = config.model || nodes.modelSelect.value;
+  let direct = [];
+  if (config.provider === "apimart" && model === "gpt-image-2") {
+    direct = plan.references.map((reference) => reference.order);
+  } else if (config.provider === "runninghub" && isRunningHubG2Model(model)) {
+    const mode = model === RUNNINGHUB_G2_OFFICIAL_MODEL ? RUNNINGHUB_API_MODE_OFFICIAL : config.runninghubMode;
+    const selected = imageItems.map((item, index) => selectedImageIds.has(item.id) ? index + 1 : 0).filter(Boolean);
+    direct = isRunningHubStandardApiMode(normalizeRunningHubApiMode(mode)) ? selected : selected.slice(0, 1);
+    if (!direct.length && plan.references.length) direct = [1];
+  }
+  const analysis = plan.references.map((reference) => reference.order).filter((order) => !direct.includes(order));
+  return `${direct.length ? `图${direct.join("、")}预计直接参与生成` : "该模型当前使用纯文本请求"}${analysis.length ? `；图${analysis.join("、")}用于分析` : ""}。实际来源以提交请求为准。`;
 }
 
 function syncGenerateAction() {
@@ -4780,6 +4870,72 @@ async function saveImageToIndexedDb(item) {
   };
 }
 
+async function sourceAssetPreviewStoreId(item) {
+  if (!item?.id) return "";
+  const id = `source-${item.id}`;
+  try {
+    if ((await imageFromIndexedDb(id))?.blob) return id;
+    const blob = await blobFromImageUrl(item.dataUrl || item.src);
+    await assertGalleryStorageCapacity(blob);
+    const thumbnailBlob = await createImageThumbnailBlob(blob, 360);
+    await withLocalImageStore("readwrite", (store) => {
+      store.put({
+        id, blob, thumbnailBlob,
+        mimeType: blob.type || "image/png",
+        thumbnailMimeType: thumbnailBlob?.type || "",
+        createdAt: Date.now(),
+        meta: { name: item.name || "来源图", sourceAsset: true }
+      });
+    });
+    return id;
+  } catch {
+    return "";
+  }
+}
+
+async function generationLineageFromRequest(payload, directIds = []) {
+  const direct = new Set(directIds);
+  const referenceItems = payload.referenceItems || [];
+  const planReferences = payload.source === "reuse" ? (payload.reusePlan?.references || []) : [];
+  const references = payload.source === "reuse"
+    ? planReferences.map((reference) => ({
+        assetId: reference.assetId,
+        name: reference.name,
+        roles: reference.roles,
+        order: reference.order,
+        source: reference.source
+      }))
+    : referenceItems.filter((item) => direct.has(item.id)).map((item, index) => ({
+        assetId: item.id,
+        name: item.name,
+        roles: [],
+        order: index + 1,
+        source: normalizeAssetSource(item.assetSource, item.src)
+      }));
+  const sourceAssets = await Promise.all(references.map(async (reference) => {
+    const item = referenceItems.find((candidate) => candidate.id === reference.assetId);
+    return {
+      assetId: reference.assetId,
+      name: reference.name,
+      order: reference.order,
+      roles: reference.roles || [],
+      participation: direct.has(reference.assetId) ? "direct" : "analysis",
+      source: reference.source || null,
+      previewStoreId: await sourceAssetPreviewStoreId(item),
+      previewUrl: safeAssetSourceUrl(item?.src || reference.source?.uri)
+    };
+  }));
+  return {
+    ...(payload.assetLineage || {}),
+    relationshipType: payload.source === "reuse" ? "visual-reuse"
+      : payload.mode === "image" ? "image-to-image" : "text-to-image",
+    sourceAssetIds: sourceAssets.map((asset) => asset.assetId),
+    directReferenceIds: sourceAssets.filter((asset) => asset.participation === "direct").map((asset) => asset.assetId),
+    analysisReferenceIds: sourceAssets.filter((asset) => asset.participation === "analysis").map((asset) => asset.assetId),
+    sourceAssets
+  };
+}
+
 async function imageFromIndexedDb(id) {
   if (!id) return null;
   return withLocalImageStore("readonly", (store) => requestToPromise(store.get(id)));
@@ -4883,6 +5039,23 @@ async function removeGalleryRecordFromIndexedDb(item) {
   }
 }
 
+async function removeOrphanedSourceAssets(removedItems) {
+  const retained = new Set([...galleryItems, ...loadPendingGenerationTasks()]
+    .flatMap((item) => item?.assetLineage?.sourceAssets || [])
+    .map((source) => source.previewStoreId)
+    .filter(Boolean));
+  const orphaned = [...new Set(removedItems.flatMap((item) => item?.assetLineage?.sourceAssets || [])
+    .map((source) => source.previewStoreId).filter((id) => id && !retained.has(id)))];
+  if (!orphaned.length) return;
+  try {
+    await withLocalImageStore("readwrite", (store) => {
+      orphaned.forEach((id) => store.delete(id));
+    });
+  } catch {
+    // A failed cleanup must not delete gallery metadata or interrupt generation.
+  }
+}
+
 async function clearGalleryFromStatusAction() {
   const completedItems = galleryItems.filter((item) => !item.isGenerating);
   if (!completedItems.length) {
@@ -4904,6 +5077,7 @@ async function clearGalleryFromStatusAction() {
       if (item.thumbnailObjectUrl) URL.revokeObjectURL(item.thumbnailObjectUrl);
     }
     galleryItems = galleryItems.filter((item) => item.isGenerating);
+    await removeOrphanedSourceAssets(completedItems);
     clearGalleryStorage();
     renderGallery();
     saveWorkspaceState();
@@ -4983,6 +5157,7 @@ async function removeBrokenGalleryItem(item) {
   galleryItems = galleryItems.filter((galleryItem) => !isSameGalleryItem(galleryItem, item));
   if (galleryItems.length === before) return;
   await removeGalleryRecordFromIndexedDb(item);
+  await removeOrphanedSourceAssets([item]);
 
   if (!galleryItems.length) {
     clearGalleryStorage();
@@ -5069,7 +5244,7 @@ function createGalleryItem(item) {
     card.dataset.generationId = item.generationId || "";
     card.classList.add("is-generating");
   }
-  card.dataset.label = gallerySourceLabel(item);
+  card.dataset.label = galleryCardSourceLabel(item);
   card.title = `${item.model} · ${item.width} × ${item.height}`;
   card.style.setProperty("--image-ratio", `${Math.max(1, item.width || 1)} / ${Math.max(1, item.height || 1)}`);
 
@@ -5153,12 +5328,159 @@ function createGalleryItem(item) {
   return card;
 }
 
+const sourceThumbnailUrls = new Set();
+let sourcePreviewObjectUrl = "";
+
+function clearSourceThumbnailUrls() {
+  sourceThumbnailUrls.forEach((url) => URL.revokeObjectURL(url));
+  sourceThumbnailUrls.clear();
+}
+
+function closeSourcePreview() {
+  if (sourcePreviewObjectUrl) URL.revokeObjectURL(sourcePreviewObjectUrl);
+  sourcePreviewObjectUrl = "";
+  nodes.lightboxSourceImage?.removeAttribute("src");
+  if (nodes.lightboxSourcePreview) nodes.lightboxSourcePreview.hidden = true;
+  if (nodes.lightboxImage) nodes.lightboxImage.hidden = false;
+}
+
+async function openSourcePreview(source) {
+  closeSourcePreview();
+  let url = source.previewUrl || source.source?.uri || "";
+  if (source.previewStoreId) {
+    try {
+      const stored = await imageFromIndexedDb(source.previewStoreId);
+      if (stored?.blob) {
+        sourcePreviewObjectUrl = URL.createObjectURL(stored.blob);
+        url = sourcePreviewObjectUrl;
+      }
+    } catch {
+      // A remote source URL may still be available.
+    }
+  }
+  if (!url) {
+    setStatus("来源图预览不可用；来源关系和角色仍已保留。");
+    return;
+  }
+  nodes.lightboxSourceImage.src = url;
+  nodes.lightboxImage.hidden = true;
+  nodes.lightboxSourcePreview.hidden = false;
+}
+
+async function populateSourceThumbnail(img, source) {
+  if (source.previewStoreId) {
+    try {
+      const stored = await imageFromIndexedDb(source.previewStoreId);
+      const blob = stored?.thumbnailBlob || stored?.blob;
+      if (blob && img.isConnected) {
+        const url = URL.createObjectURL(blob);
+        sourceThumbnailUrls.add(url);
+        img.src = url;
+        return;
+      }
+    } catch {
+      // Use the original remote address if present.
+    }
+  }
+  img.src = source.previewUrl || source.source?.uri || "";
+}
+
+function renderLightboxDetails(item) {
+  clearSourceThumbnailUrls();
+  const prompt = nodes.lightboxPrompt;
+  prompt.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = "提示词与解析";
+  prompt.append(heading);
+  const languages = [
+    ["中文", item.promptCn || item.prompt || "无提示词"],
+    ["English", item.promptEn]
+  ].filter((entry) => entry[1]);
+  const copy = document.createElement("p");
+  copy.className = "lightbox-prompt-copy";
+  const showLanguage = (index) => {
+    copy.textContent = languages[index]?.[1] || "无提示词";
+    buttons.querySelectorAll("button").forEach((button, buttonIndex) => {
+      button.setAttribute("aria-pressed", buttonIndex === index ? "true" : "false");
+    });
+  };
+  const buttons = document.createElement("div");
+  buttons.className = "lightbox-language-switch";
+  languages.forEach(([label], index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", () => showLanguage(index));
+    buttons.append(button);
+  });
+  prompt.append(buttons, copy);
+  showLanguage(0);
+  if (item.promptStructure || item.reusePlan) {
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "展开完整分析";
+    const full = document.createElement("pre");
+    full.textContent = item.promptStructure || JSON.stringify(item.reusePlan?.analysis || {}, null, 2);
+    details.append(summary, full);
+    prompt.append(details);
+  }
+
+  const section = nodes.lightboxLineage;
+  section.replaceChildren();
+  const title = document.createElement("h3");
+  title.textContent = "生成来源";
+  const mode = document.createElement("p");
+  mode.textContent = `生成模式：${gallerySourceLabel(item)}`;
+  section.append(title, mode);
+  const lineage = item.assetLineage;
+  const assets = lineage?.sourceAssets;
+  const traceable = Array.isArray(assets)
+    && Array.isArray(lineage?.directReferenceIds)
+    && Array.isArray(lineage?.analysisReferenceIds)
+    && assets.every((asset) => asset.participation === "direct" || asset.participation === "analysis");
+  if (!traceable) {
+    const legacy = document.createElement("p");
+    legacy.textContent = "该资产生成于来源追踪功能上线前，无法确认实际输入图片。";
+    section.append(legacy);
+    return;
+  }
+  if (!assets.length) {
+    const empty = document.createElement("p");
+    empty.textContent = item.mode === "text" ? "来源：无参考图片" : "本次供应商请求未包含图片输入。";
+    section.append(empty);
+    return;
+  }
+  for (const [participation, label] of [["direct", "直接参与生成"], ["analysis", "分析参考"]]) {
+    const group = assets.filter((asset) => asset.participation === participation);
+    if (!group.length) continue;
+    const groupTitle = document.createElement("h4");
+    groupTitle.textContent = label;
+    section.append(groupTitle);
+    group.forEach((source) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "lightbox-source-card";
+      const image = document.createElement("img");
+      image.alt = source.name || "来源图";
+      image.loading = "lazy";
+      populateSourceThumbnail(image, source);
+      const body = document.createElement("span");
+      const name = document.createElement("strong");
+      name.textContent = source.name || `图${source.order || ""}`;
+      const roles = document.createElement("small");
+      roles.textContent = (source.roles || []).map((role) => visualReuseRoleMeta(role).label).join("＋")
+        || (participation === "analysis" ? "用于分析" : "图像输入");
+      body.append(name, roles);
+      card.append(image, body);
+      card.addEventListener("click", () => openSourcePreview(source));
+      section.append(card);
+    });
+  }
+}
+
 async function openLightbox(item, options = {}) {
   const readyItem = await ensureGalleryFullObjectUrl(item);
   if (!readyItem?.url && !readyItem?.localStoreId) return;
-  if (!options.forceLocal && await openPageLightbox(readyItem)) {
-    return;
-  }
   openLocalLightbox(readyItem);
 }
 
@@ -5170,7 +5492,8 @@ function openLocalLightbox(item) {
   nodes.lightboxImage.src = item.url;
   nodes.lightboxImage.title = "点击右侧图片可切换预览";
   nodes.lightboxMeta.textContent = `${item.model} · ${item.width} × ${item.height} · ${item.index}`;
-  nodes.lightboxPrompt.textContent = item.prompt || "无提示词";
+  closeSourcePreview();
+  renderLightboxDetails(item);
   renderLightboxStrip();
   nodes.lightbox.hidden = false;
   document.body.classList.add("lightbox-open");
@@ -5294,6 +5617,9 @@ function closeLightbox() {
   nodes.lightboxImage.removeAttribute("src");
   nodes.lightboxMeta.textContent = "";
   nodes.lightboxPrompt.textContent = "";
+  nodes.lightboxLineage.replaceChildren();
+  closeSourcePreview();
+  clearSourceThumbnailUrls();
   nodes.lightboxStrip.innerHTML = "";
   document.body.classList.remove("lightbox-open");
 }
@@ -6138,20 +6464,23 @@ function isCancelledTaskStatus(status) {
 
 async function selectedImageDataUrlsForApi(options = {}) {
   const max = options.max || MAX_UPLOAD_IMAGES;
+  const sourceItems = options.items || imageItems;
   const selected = (options.useAll
-    ? imageItems
-    : imageItems.filter((item) => selectedImageIds.has(item.id))
+    ? sourceItems
+    : sourceItems.filter((item) => selectedImageIds.has(item.id))
   ).slice(0, max);
   const urls = [];
+  const usedItems = [];
 
   for (const item of selected) {
     try {
       urls.push(await imageSourceAsDataUrl(item));
+      usedItems.push(item);
     } catch {
       // Ignore unreadable optional reference images; prompt-only generation should still work.
     }
   }
-
+  await options.onReferencesPrepared?.(usedItems.map((item) => item.id));
   return urls;
 }
 
@@ -6391,11 +6720,11 @@ async function uploadRunningHubImage({ baseUrl, apiKey, apiMode, imageItem, inde
   return fileName;
 }
 
-async function selectedImageUrlsForRunningHubApi({ baseUrl, apiKey, apiMode, max = 1, onProgress }) {
-  const selected = imageItems
-    .filter((item) => selectedImageIds.has(item.id))
+async function selectedImageUrlsForRunningHubApi({ baseUrl, apiKey, apiMode, max = 1, onProgress, onReferencesPrepared, referenceItems = imageItems, selectedReferenceIds = [...selectedImageIds] }) {
+  const selected = referenceItems
+    .filter((item) => selectedReferenceIds.includes(item.id))
     .slice(0, max);
-  const images = selected.length ? selected : imageItems.slice(0, max);
+  const images = selected.length ? selected : referenceItems.slice(0, max);
   const values = [];
 
   for (let index = 0; index < images.length; index += 1) {
@@ -6410,6 +6739,7 @@ async function selectedImageUrlsForRunningHubApi({ baseUrl, apiKey, apiMode, max
     values.push(await uploadRunningHubImage({ baseUrl, apiKey, apiMode, imageItem: item, index }));
   }
 
+  await onReferencesPrepared?.(images.map((item) => item.id));
   return values;
 }
 
@@ -6475,6 +6805,8 @@ async function callApimartGptImage2({
   mode,
   source,
   onProgress,
+  onReferencesPrepared,
+  referenceItems,
   onTaskSubmitted
 }) {
   const body = {
@@ -6485,8 +6817,9 @@ async function callApimartGptImage2({
     resolution: resolutionForApimartApi()
   };
   const imageUrls = useImageReferences
-    ? await selectedImageDataUrlsForApi({ useAll: true, max: 16 })
+    ? await selectedImageDataUrlsForApi({ useAll: true, max: 16, onReferencesPrepared, items: referenceItems })
     : [];
+  if (!useImageReferences) await onReferencesPrepared?.([]);
 
   if (imageUrls.length) {
     body.image_urls = imageUrls;
@@ -6606,6 +6939,9 @@ async function callRunningHubG2({
   mode,
   source,
   onProgress,
+  onReferencesPrepared,
+  referenceItems,
+  selectedReferenceIds,
   onTaskSubmitted
 }) {
   const normalizedMode = normalizeRunningHubApiMode(apiMode);
@@ -6628,7 +6964,10 @@ async function callRunningHubG2({
         apiKey,
         apiMode: normalizedMode,
         max: 16,
-        onProgress
+        onProgress,
+        onReferencesPrepared,
+        referenceItems,
+        selectedReferenceIds
       });
       if (!imageUrls.length) {
         throw new Error(`RunningHub ${apiLabel}图生图需要先上传或粘贴参考图片。`);
@@ -6640,6 +6979,7 @@ async function callRunningHubG2({
       setStatus(`RunningHub ${apiLabel}接口正在使用 ${imageUrls.length} 张参考图生成。`);
     } else {
       setStatus(`RunningHub ${apiLabel}接口正在进行文生图生成。`);
+      await onReferencesPrepared?.([]);
     }
 
     onProgress?.(null, "正在提交任务");
@@ -6707,13 +7047,14 @@ async function callRunningHubG2({
   const demo = await fetchRunningHubAppDemo({ baseUrl, apiKey, webappId });
   let imageValues = [];
   if (useImageReferences) {
-    imageValues = await selectedImageUrlsForRunningHubApi({ baseUrl, apiKey, apiMode: normalizedMode, max: 1, onProgress });
+    imageValues = await selectedImageUrlsForRunningHubApi({ baseUrl, apiKey, apiMode: normalizedMode, max: 1, onProgress, onReferencesPrepared, referenceItems, selectedReferenceIds });
     if (!imageValues.length) {
       throw new Error("RunningHub 图生图需要先上传或粘贴参考图片。");
     }
     setStatus("RunningHub 全能图片G-2.0 低价渠道版正在使用图生图 AI应用生成。");
   } else {
     setStatus("RunningHub 全能图片G-2.0 低价渠道版正在使用文生图 AI应用生成。");
+    await onReferencesPrepared?.([]);
   }
 
   const nodeInfoList = prepareRunningHubAppNodeInfoList({
@@ -6803,6 +7144,9 @@ async function callImageGenerationApi({
   mode,
   source,
   onProgress,
+  onReferencesPrepared,
+  referenceItems,
+  selectedReferenceIds,
   onTaskSubmitted
 }) {
   const config = currentApiConfigFromForm();
@@ -6841,10 +7185,12 @@ async function callImageGenerationApi({
       model,
       apiKey,
       baseUrl,
-      useImageReferences: useImageReferences && imageItems.length > 0,
+      useImageReferences: useImageReferences && referenceItems.length > 0,
       mode,
       source,
       onProgress,
+      onReferencesPrepared,
+      referenceItems,
       onTaskSubmitted: (task) => onTaskSubmitted?.({
         ...task,
         apiKey,
@@ -6875,6 +7221,9 @@ async function callImageGenerationApi({
       mode,
       source,
       onProgress,
+      onReferencesPrepared,
+      referenceItems,
+      selectedReferenceIds,
       onTaskSubmitted: (task) => onTaskSubmitted?.({
         ...task,
         apiKey,
@@ -6909,6 +7258,7 @@ async function callImageGenerationApi({
     }
   }
 
+  await onReferencesPrepared?.([]);
   onProgress?.(null, "正在提交请求");
   const data = await fetchJson(baseUrlWithPath(baseUrl, "/images/generations"), {
     method: "POST",
@@ -7065,6 +7415,10 @@ async function runRealGeneration(payload, placeholders) {
       const [item] = await callImageGenerationApi({
         ...payload,
         count: 1,
+        onReferencesPrepared: async (directIds) => {
+          payload.assetLineage = await generationLineageFromRequest(payload, directIds);
+          placeholders[index].assetLineage = payload.assetLineage;
+        },
         onProgress: (progress, label) => updateGeneratingItemProgress(
           placeholders[index],
           progress,
@@ -7375,6 +7729,8 @@ function generate() {
   const generationSource = promptMethod === "reuse" ? "reuse" : effectiveGenerationMode;
   const reusePlan = generationSource === "reuse" ? bundle.reusePlan : null;
   const assetLineage = reusePlan ? reusePlanApi().lineageSnapshot(reusePlan) : null;
+  const referenceItems = imageItems.map((item) => ({ ...item }));
+  const selectedReferenceIds = [...selectedImageIds];
   if (generationMode === "image" && effectiveGenerationMode === "text") {
     setGenerationMode("text", { silent: true });
   }
@@ -7419,6 +7775,8 @@ function generate() {
       promptStructure: bundle.structure,
       reusePlan,
       assetLineage,
+      referenceItems,
+      selectedReferenceIds,
       useImageReferences: effectiveGenerationMode === "image",
       count,
       width,
@@ -8464,6 +8822,7 @@ nodes.visualReusePlanBtn?.addEventListener("click", generateVisualReusePrompt);
   if (!node) return;
   const handleVisualReuseOptionChange = () => {
     syncVisualReuseTextStrategyUi();
+    if (node === nodes.visualReuseNotes) renderImageStack();
     clearGeneratedPromptForReferenceChange("视觉复用参数已变化，请重新查看方案。");
     saveWorkspaceState();
   };
@@ -8505,6 +8864,7 @@ if (nodes.galleryGrid) {
   syncGalleryPageSizeForViewport();
 }
 nodes.lightboxClose.addEventListener("click", closeLightbox);
+nodes.lightboxSourceBack?.addEventListener("click", closeSourcePreview);
 nodes.eagleCollectBtn?.addEventListener("click", collectToEagle);
 nodes.lightboxDownloadBtn.addEventListener("click", () => downloadImage(activeLightboxItem));
 nodes.lightbox.addEventListener("click", (event) => {

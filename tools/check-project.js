@@ -20,6 +20,8 @@ function checkJavaScriptSyntax(relativePath) {
   "popup.js",
   "preview-server.js",
   "reuse-plan.js",
+  "template-library.js",
+  "template-library-ui.js",
   "soft-aurora.js"
 ].forEach(checkJavaScriptSyntax);
 
@@ -31,14 +33,35 @@ assert.strictEqual(packageJson.name, "assetflow", "package 产品名必须是 as
 
 const popupHtml = read("popup.html");
 const popupCss = read("popup.css");
+const templateCss = read("template-library.css");
+const templateData = JSON.parse(read("templates/templates.json"));
+const TemplateLibrary = require(path.join(root, "template-library.js"));
 const softAurora = read("soft-aurora.js");
 const packageExtension = read("package-extension.js");
 const popupJs = read("popup.js");
 const backgroundJs = read("background.js");
 const previewServer = read("preview-server.js");
+assert.match(popupHtml, /soft-aurora\.js[\s\S]*reuse-plan\.js[\s\S]*template-library\.js[\s\S]*popup\.js[\s\S]*template-library-ui\.js/, "模板模块必须按依赖顺序加载");
+assert.match(popupHtml, /template-library\.css/, "模板库样式必须加载");
+assert.strictEqual(templateData.length, 22, "v1.9.15 首批模板应有 22 个");
+assert.deepStrictEqual(templateData.reduce((count, item) => { count[item.category] = (count[item.category] || 0) + 1; return count; }, {}), { scene: 8, play: 8, structure: 6 });
+TemplateLibrary.validateTemplates(templateData);
+for (const item of templateData) {
+  assert.match(item.thumbnail, /\.webp$/, "模板缩略图应优先使用 WebP");
+  const image = fs.readFileSync(path.join(root, item.thumbnail));
+  assert.strictEqual(image.toString("ascii", 0, 4), "RIFF", "WebP 文件头无效：" + item.id);
+  assert.strictEqual(image.toString("ascii", 8, 12), "WEBP", "WebP 格式无效：" + item.id);
+}
+assert.strictEqual(TemplateLibrary.filter(templateData, { mode: "text", query: "漫画" }).length, 1);
+assert.ok(TemplateLibrary.filter(templateData, { mode: "image" }).some((item) => item.id === "keep-subject-scene"));
+assert.ok(!TemplateLibrary.filter(templateData, { mode: "text" }).some((item) => item.id === "keep-subject-scene"));
+assert.match(TemplateLibrary.resolveText(templateData[0], { ratio: "3:4" }), /3:4/);
+assert.strictEqual(TemplateLibrary.presetForExistingImages(templateData.find((item) => item.id === "reuse-three-poster"), 2).length, 2);
+assert.match(templateCss, /\.template-drawer/, "模板库抽屉样式必须存在");
 assert.match(popupHtml, /soft-aurora\.js[\s\S]*reuse-plan\.js[\s\S]*popup\.js/, "Soft Aurora 与 ReusePlan 必须在 popup.js 之前加载");
 assert.match(popupHtml, /reuse-plan\.js[\s\S]*popup\.js/, "ReusePlan 必须在 popup.js 之前加载");
-assert.match(popupHtml, /<h1 id="heroTitle">AssetFlow<\/h1>/, "首页主标题必须只保留 AssetFlow");
+assert.match(popupHtml, /id="heroTitleText"[^>]*hidden>AssetFlow<\/span><img id="heroWordmark"[^>]*src="assets\/logo-wordmark.png"/, "首页必须使用新字标并保留可访问标题");
+assert.match(popupHtml, /rel="icon"[^>]*href="assets\/icon-32.png"/, "预览页 favicon 应使用新图标");
 assert.match(popupHtml, /id="apiTabs"[\s\S]*data-api-tab="prompt"[\s\S]*data-api-tab="image"[\s\S]*data-api-tab="custom"[\s\S]*data-api-tab="eagle"/, "API 页面必须提供四个独立配置页签");
 assert.match(popupHtml, /id="apiPromptSection"[\s\S]*id="apiImageSection"[\s\S]*id="apiCustomSection"[\s\S]*id="apiEagleSection"/, "API 页面必须按源码拆分四个内容面板");
 assert.match(popupJs, /function setApiView\(isOpen\)[\s\S]*API 接入[\s\S]*HOME_HERO_TITLE/, "设置开关必须联动切换 Hero 标题并能返回首页");

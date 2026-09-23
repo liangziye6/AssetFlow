@@ -1,0 +1,427 @@
+[
+  {
+    "id": "commercial-person",
+    "name": "商业人物海报",
+    "mode": "text",
+    "category": "scene",
+    "subCategory": "poster",
+    "summary": "人物主视觉与商业标题留白",
+    "thumbnail": "templates/thumbnails/commercial-person.webp",
+    "promptTemplate": "为{subject}制作一张{ratio}商业人物海报：人物姿态鲜明，置于{scene}，主体突出，标题区域清晰，使用{style}视觉语言与有层次的光影，保留足够信息留白。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "人物",
+      "商业",
+      "海报"
+    ]
+  },
+  {
+    "id": "product-kv",
+    "name": "产品主视觉 KV",
+    "mode": "text",
+    "category": "scene",
+    "subCategory": "product",
+    "summary": "突出产品轮廓和材质的品牌视觉",
+    "thumbnail": "templates/thumbnails/product-kv.webp",
+    "promptTemplate": "为{subject}制作一张{ratio}产品主视觉 KV：置于{scene}，以产品为唯一主角，强化材质、边缘光与空间层次，采用{style}设计，预留品牌标题和卖点区域。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "产品",
+      "品牌",
+      "KV"
+    ]
+  },
+  {
+    "id": "event-poster",
+    "name": "活动促销海报",
+    "mode": "universal",
+    "category": "scene",
+    "subCategory": "poster",
+    "summary": "明确活动信息与视觉层级",
+    "thumbnail": "templates/thumbnails/event-poster.webp",
+    "promptTemplate": "制作一张{ratio}活动促销海报：核心主题为{title}，主体是{subject}；在{scene}中建立明确的信息层级、强识别标题区和行动引导，整体采用{style}风格。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "活动",
+      "促销",
+      "海报"
+    ]
+  },
+  {
+    "id": "xhs-cover",
+    "name": "小红书封面",
+    "mode": "text",
+    "category": "scene",
+    "subCategory": "social",
+    "summary": "适合手机端阅读的醒目封面",
+    "thumbnail": "templates/thumbnails/xhs-cover.webp",
+    "promptTemplate": "制作一张{ratio}小红书封面：主题为{title}，展示{subject}，构图聚焦且适合手机端阅读，标题简短醒目，色彩有记忆点，视觉风格为{style}。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "小红书",
+      "封面",
+      "社媒"
+    ]
+  },
+  {
+    "id": "comic-game-cover",
+    "name": "漫画／游戏封面",
+    "mode": "text",
+    "category": "scene",
+    "subCategory": "cover",
+    "summary": "角色张力与叙事氛围兼备",
+    "thumbnail": "templates/thumbnails/comic-game-cover.webp",
+    "promptTemplate": "为{subject}制作一张{ratio}漫画或游戏封面：设置在{scene}，采用有叙事张力的角色动作、层次清晰的前中后景、适量标题留白与{style}视觉风格。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "漫画",
+      "游戏",
+      "封面"
+    ]
+  },
+  {
+    "id": "magazine-cover",
+    "name": "杂志封面",
+    "mode": "text",
+    "category": "scene",
+    "subCategory": "cover",
+    "summary": "编辑感版式与主体共存",
+    "thumbnail": "templates/thumbnails/magazine-cover.webp",
+    "promptTemplate": "制作一张{ratio}杂志封面：以{subject}为封面主体，置于{scene}，使用有节奏的标题排版、边距与留白，采用{style}光影和精致材质。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "杂志",
+      "封面",
+      "排版"
+    ]
+  },
+  {
+    "id": "ecommerce-main",
+    "name": "电商产品主图",
+    "mode": "image",
+    "category": "scene",
+    "subCategory": "commerce",
+    "summary": "保留产品结构并提升主图质感",
+    "thumbnail": "templates/thumbnails/ecommerce-main.webp",
+    "promptTemplate": "保留参考图中{subject}的轮廓、比例与关键细节，将背景调整为{scene}，改善光影与材质表现，形成{ratio}电商产品主图；保持产品真实，不添加无关物品。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "电商",
+      "产品",
+      "主图"
+    ]
+  },
+  {
+    "id": "tech-brand",
+    "name": "科技品牌视觉",
+    "mode": "reuse",
+    "category": "scene",
+    "subCategory": "brand",
+    "summary": "以多张参考图组合科技品牌元素",
+    "thumbnail": "templates/thumbnails/tech-brand.webp",
+    "promptTemplate": "结合已有参考图中的主体、构图和色彩线索，为{subject}制作一张{ratio}科技品牌视觉；场景为{scene}，使用{style}质感，保持各参考图角色边界清晰。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "科技",
+      "品牌",
+      "视觉"
+    ]
+  },
+  {
+    "id": "cyber-purple",
+    "name": "蓝紫科技感",
+    "mode": "universal",
+    "category": "play",
+    "subCategory": "tech",
+    "summary": "蓝紫光带与克制的科技细节",
+    "thumbnail": "templates/thumbnails/cyber-purple.webp",
+    "promptTemplate": "为{subject}创建{ratio}视觉：深蓝与紫色为主色，使用克制的光带、微弱霓虹边缘和清晰层次，在{scene}中保持主体可读，整体有现代科技感。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "蓝紫",
+      "科技",
+      "赛博"
+    ]
+  },
+  {
+    "id": "floating-3d",
+    "name": "3D 漂浮主视觉",
+    "mode": "text",
+    "category": "play",
+    "subCategory": "3d",
+    "summary": "漂浮构图与立体材质",
+    "thumbnail": "templates/thumbnails/floating-3d.webp",
+    "promptTemplate": "为{subject}制作{ratio}的 3D 漂浮主视觉：主体悬浮于{scene}，透视自然，材质细节清楚，以柔和环境光和精确高光形成空间深度。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "3D",
+      "漂浮",
+      "立体"
+    ]
+  },
+  {
+    "id": "minimal-space",
+    "name": "极简留白",
+    "mode": "universal",
+    "category": "play",
+    "subCategory": "minimal",
+    "summary": "用空间和单一焦点强调主体",
+    "thumbnail": "templates/thumbnails/minimal-space.webp",
+    "promptTemplate": "以{subject}为唯一视觉焦点制作{ratio}画面；背景为{scene}，减少装饰，保留大面积留白，使用克制配色和{style}质感，确保主体与文字区域清晰。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "极简",
+      "留白",
+      "版式"
+    ]
+  },
+  {
+    "id": "collage-magazine",
+    "name": "拼贴杂志",
+    "mode": "image",
+    "category": "play",
+    "subCategory": "collage",
+    "summary": "保留主体，重组图形与纸张层次",
+    "thumbnail": "templates/thumbnails/collage-magazine.webp",
+    "promptTemplate": "保留参考图中{subject}的核心形态，将周围视觉改为拼贴杂志版式：叠加裁切形状、纸张纹理和层级文字，在{ratio}画幅中保持主体清晰。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "拼贴",
+      "杂志",
+      "排版"
+    ]
+  },
+  {
+    "id": "double-exposure",
+    "name": "双重曝光",
+    "mode": "text",
+    "category": "play",
+    "subCategory": "photo",
+    "summary": "人物轮廓与场景交叠",
+    "thumbnail": "templates/thumbnails/double-exposure.webp",
+    "promptTemplate": "制作一张{ratio}双重曝光视觉：以{subject}的轮廓为主形，将{scene}自然融入轮廓内部，保持面部或主体结构清晰，以{style}色彩和柔和过渡营造情绪。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "双重曝光",
+      "人物",
+      "摄影"
+    ]
+  },
+  {
+    "id": "forced-perspective",
+    "name": "大透视冲击",
+    "mode": "image",
+    "category": "play",
+    "subCategory": "perspective",
+    "summary": "保留主体身份，强化纵深",
+    "thumbnail": "templates/thumbnails/forced-perspective.webp",
+    "promptTemplate": "保留参考图中{subject}的身份和关键结构，改用低机位大透视构图，在{scene}中强化近大远小与运动方向，避免形体失真，输出{ratio}视觉。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "透视",
+      "冲击",
+      "动感"
+    ]
+  },
+  {
+    "id": "glass-material",
+    "name": "玻璃质感",
+    "mode": "image",
+    "category": "play",
+    "subCategory": "material",
+    "summary": "透明材质与细腻折射",
+    "thumbnail": "templates/thumbnails/glass-material.webp",
+    "promptTemplate": "保留参考图中{subject}的形状与比例，把材质表现调整为通透玻璃：加入真实折射、边缘高光和柔和阴影，背景为{scene}，画幅{ratio}。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "玻璃",
+      "材质",
+      "透明"
+    ]
+  },
+  {
+    "id": "cinematic-light",
+    "name": "电影感光影",
+    "mode": "universal",
+    "category": "play",
+    "subCategory": "cinematic",
+    "summary": "通过主光与暗部塑造氛围",
+    "thumbnail": "templates/thumbnails/cinematic-light.webp",
+    "promptTemplate": "为{subject}制作{ratio}电影感视觉：在{scene}中建立明确主光、深层暗部和少量轮廓光，控制饱和度与色彩对比，营造{style}叙事氛围。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "电影感",
+      "光影",
+      "氛围"
+    ]
+  },
+  {
+    "id": "text-structure",
+    "name": "标准文生图结构",
+    "mode": "text",
+    "category": "structure",
+    "subCategory": "prompt",
+    "summary": "按主体、场景、构图组织输入",
+    "thumbnail": "templates/thumbnails/text-structure.webp",
+    "promptTemplate": "主体：{subject}。场景：{scene}。构图：突出主体并预留合理留白。光影：主次清楚。材质：细节可信。风格：{style}。画幅：{ratio}。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "文生图",
+      "结构",
+      "提示词"
+    ]
+  },
+  {
+    "id": "keep-subject-scene",
+    "name": "保持主体换背景",
+    "mode": "image",
+    "category": "structure",
+    "subCategory": "edit",
+    "summary": "锁定主体，明确新场景",
+    "thumbnail": "templates/thumbnails/keep-subject-scene.webp",
+    "promptTemplate": "保留参考图中{subject}的身份、姿态、比例和关键细节；将背景替换为{scene}，调整环境光以匹配新场景。不要改变主体五官、服装结构或产品轮廓。输出{ratio}画面。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "图生图",
+      "主体",
+      "背景"
+    ]
+  },
+  {
+    "id": "keep-subject-style",
+    "name": "保持主体换风格",
+    "mode": "image",
+    "category": "structure",
+    "subCategory": "edit",
+    "summary": "保持轮廓，只改变视觉语言",
+    "thumbnail": "templates/thumbnails/keep-subject-style.webp",
+    "promptTemplate": "保留参考图中{subject}的身份、主要轮廓和构图关系；只将整体视觉风格调整为{style}，保留关键识别细节，避免增删主体，输出{ratio}画面。",
+    "rolePreset": [],
+    "textStrategy": "reserve",
+    "tags": [
+      "图生图",
+      "主体",
+      "风格"
+    ]
+  },
+  {
+    "id": "reuse-two",
+    "name": "图1主体＋图2排版",
+    "mode": "reuse",
+    "category": "structure",
+    "subCategory": "multi-reference",
+    "summary": "主体和排版分工明确",
+    "thumbnail": "templates/thumbnails/reuse-two.webp",
+    "promptTemplate": "使用图1的主体与动作，参考图2的排版与字体，为{subject}生成一张{ratio}视觉；主体保持清晰，文字区域与图像关系明确，整体场景为{scene}。",
+    "rolePreset": [
+      {
+        "slot": 1,
+        "roles": [
+          "subject"
+        ]
+      },
+      {
+        "slot": 2,
+        "roles": [
+          "layout"
+        ]
+      }
+    ],
+    "textStrategy": "reserve",
+    "tags": [
+      "视觉复用",
+      "双图",
+      "排版"
+    ]
+  },
+  {
+    "id": "reuse-three-poster",
+    "name": "图1主体＋图2排版＋图3装饰",
+    "mode": "reuse",
+    "category": "structure",
+    "subCategory": "multi-reference",
+    "summary": "三图商业海报复用",
+    "thumbnail": "templates/thumbnails/reuse-three-poster.webp",
+    "promptTemplate": "使用图1的主体与动作，参考图2的排版与字体，加入图3的装饰与细节，生成一张{ratio}商业海报；主题为{title}，保持主体优先，装饰不抢视觉中心。",
+    "rolePreset": [
+      {
+        "slot": 1,
+        "roles": [
+          "subject"
+        ]
+      },
+      {
+        "slot": 2,
+        "roles": [
+          "layout"
+        ]
+      },
+      {
+        "slot": 3,
+        "roles": [
+          "decoration"
+        ]
+      }
+    ],
+    "textStrategy": "post-edit",
+    "tags": [
+      "视觉复用",
+      "三图",
+      "海报"
+    ]
+  },
+  {
+    "id": "reuse-product-three",
+    "name": "产品＋构图＋色彩三图复用",
+    "mode": "reuse",
+    "category": "structure",
+    "subCategory": "multi-reference",
+    "summary": "产品、构图、色彩各司其职",
+    "thumbnail": "templates/thumbnails/reuse-product-three.webp",
+    "promptTemplate": "使用图1的产品主体，参考图2的构图与留白，继承图3的色彩与光影，生成一张{ratio}产品视觉；置于{scene}，产品轮廓准确，色彩与构图保持清晰分工。",
+    "rolePreset": [
+      {
+        "slot": 1,
+        "roles": [
+          "subject"
+        ]
+      },
+      {
+        "slot": 2,
+        "roles": [
+          "composition"
+        ]
+      },
+      {
+        "slot": 3,
+        "roles": [
+          "color_material"
+        ]
+      }
+    ],
+    "textStrategy": "reserve",
+    "tags": [
+      "视觉复用",
+      "三图",
+      "产品"
+    ]
+  }
+]

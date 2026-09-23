@@ -22,14 +22,17 @@ const files = [
   "popup.css",
   "soft-aurora.js",
   "reuse-plan.js",
+  "template-library.js",
   "popup.js",
+  "template-library-ui.js",
+  "template-library.css",
   "options.html",
   "options.css",
   "options.js",
   "README.md",
 ];
 
-const directories = ["docs"];
+const directories = ["docs", "templates"];
 const assetReferenceFiles = [
   "manifest.json",
   "content.js",
@@ -142,7 +145,10 @@ function createZip() {
 }
 
 async function main() {
-  const assets = await referencedAssets();
+  const bundledSvgIcons = (await fsp.readdir(path.join(root, "assets")))
+    .filter((name) => name.endsWith(".svg"))
+    .map((name) => path.posix.join("assets", name));
+  const assets = [...new Set([...(await referencedAssets()), ...bundledSvgIcons])].sort();
   await assertFilesPresent([...files, ...assets]);
 
   await fsp.mkdir(distDir, { recursive: true });

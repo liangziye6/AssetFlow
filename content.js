@@ -6,6 +6,9 @@
   const MAX_TEXT = 180;
   const VIEWER_THUMB_PAGE_SIZE = 20;
   const VIEWER_ID = "image-spark-page-viewer";
+  const VIEWER_ROLE_LABELS = { subject: "主体与动作", composition: "构图与留白", layout: "排版与字体", typography: "排版与字体", style: "风格与材质", color_material: "色彩与光影", decoration: "装饰与细节", auxiliary: "装饰与细节", auto: "自动判断" };
+  let sourcePreviewToken = 0;
+  let viewerPageOverflow = null;
   const ENABLE_EAGLE_INTEGRATION = true;
   let lastContextImage = null;
   let lastContextPoint = null;
@@ -359,8 +362,17 @@
   }
 
   function closeViewer() {
-    document.getElementById(VIEWER_ID)?.remove();
-    document.documentElement.style.removeProperty("overflow");
+    const host = document.getElementById(VIEWER_ID);
+    if (host) {
+      host.remove();
+      if (viewerPageOverflow?.value) {
+        document.documentElement.style.setProperty("overflow", viewerPageOverflow.value, viewerPageOverflow.priority);
+      } else {
+        document.documentElement.style.removeProperty("overflow");
+      }
+      viewerPageOverflow = null;
+    }
+    sourcePreviewToken += 1;
     viewerState.imageExpanded = false;
     viewerState.spacePressed = false;
     viewerState.panning = false;
@@ -643,6 +655,129 @@
     setActivePanel(0);
   }
 
+  function viewerSourceFallbackUrl(source) {
+    return source?.previewUrl || source?.source?.uri || "";
+  }
+
+  async function resolveViewerSourceImageUrl(source, variant = "thumbnail") {
+    if (source?.previewStoreId) {
+      const response = await sendRuntimeMessage({
+        type: "IMAGE_SPARK_GET_LOCAL_IMAGE",
+        payload: { id: source.previewStoreId, variant }
+      });
+      if (response?.dataUrl) return response.dataUrl;
+    }
+    return viewerSourceFallbackUrl(source);
+  }
+
+  function populateViewerSourceThumbnail(image, source) {
+    const fallback = viewerSourceFallbackUrl(source);
+    if (fallback) image.src = fallback;
+    if (!source?.previewStoreId) return;
+    const host = document.getElementById(VIEWER_ID);
+    resolveViewerSourceImageUrl(source, "thumbnail").then((url) => {
+      if (url && image.isConnected && document.getElementById(VIEWER_ID) === host) {
+        image.src = url;
+      }
+    });
+  }
+
+  function renderViewerSources(item) {
+    const host = document.getElementById(VIEWER_ID);
+    const panel = host?.shadowRoot?.querySelector(".source-panel");
+    if (!panel) return;
+    panel.replaceChildren();
+
+    const heading = document.createElement("h3");
+    heading.textContent = "生成来源";
+    const mode = document.createElement("p");
+    mode.className = "source-mode";
+    mode.textContent = "生成模式：" + viewerSourceLabel(item);
+    panel.append(heading, mode);
+
+    const lineage = item.assetLineage;
+    const assets = lineage?.sourceAssets;
+    const traceable = Array.isArray(assets)
+      && Array.isArray(lineage?.directReferenceIds)
+      && Array.isArray(lineage?.analysisReferenceIds)
+      && assets.every((source) => source.participation === "direct" || source.participation === "analysis");
+    if (!traceable || !assets.length) {
+      const empty = document.createElement("p");
+      empty.className = "source-empty";
+      empty.textContent = !traceable
+        ? "该资产生成于来源追踪功能上线前，无法确认实际输入图片。"
+        : item.mode === "text" ? "无直接参考图" : "本次供应商请求未包含图片输入。";
+      panel.append(empty);
+      return;
+    }
+
+    for (const [participation, title] of [["direct", "直接参与供应商生成"], ["analysis", "仅用于分析"]]) {
+      const group = assets.filter((source) => source.participation === participation);
+      if (!group.length) continue;
+      const section = document.createElement("section");
+      section.className = "source-group";
+      const groupHeading = document.createElement("h4");
+      groupHeading.textContent = title + " · " + group.length;
+      section.append(groupHeading);
+      for (const source of group) {
+        const card = document.createElement("button");
+        card.className = "source-card";
+        card.type = "button";
+        card.title = "预览" + (source.name || "来源图");
+        const image = document.createElement("img");
+        image.alt = source.name || "来源图";
+        image.loading = "lazy";
+        populateViewerSourceThumbnail(image, source);
+        const copy = document.createElement("span");
+        copy.className = "source-card-copy";
+        const name = document.createElement("strong");
+        name.textContent = `图${source.order || assets.indexOf(source) + 1} · ${source.name || "来源图"}`;
+        const roles = document.createElement("small");
+        const roleLabels = [...new Set((Array.isArray(source.roles) ? source.roles : [])
+          .map((role) => VIEWER_ROLE_LABELS[role] || String(role || "").trim())
+          .filter(Boolean))];
+        roles.textContent = roleLabels.join("＋") || (participation === "direct" ? "生成参考" : "分析参考");
+        copy.append(name, roles);
+        card.append(image, copy);
+        card.addEventListener("click", () => openViewerSourcePreview(source));
+        section.append(card);
+      }
+      panel.append(section);
+    }
+  }
+
+
+  async function openViewerSourcePreview(source) {
+    closeViewerImageZoom();
+    const host = document.getElementById(VIEWER_ID);
+    const token = ++sourcePreviewToken;
+    const url = await resolveViewerSourceImageUrl(source, "full");
+    if (token !== sourcePreviewToken || document.getElementById(VIEWER_ID) !== host) return;
+    if (!url) {
+      showViewerNotice("来源图预览不可用；来源关系和角色仍已保留。");
+      return;
+    }
+    const shadow = host?.shadowRoot;
+    const layer = shadow?.querySelector(".image-zoom");
+    const image = shadow?.querySelector(".image-zoom img");
+    if (!layer || !image) return;
+    resetViewerPan();
+    setViewerZoom(1);
+    image.src = url;
+    image.alt = source.name || "来源图";
+    const back = shadow.querySelector(".source-preview-back");
+    if (back) back.hidden = false;
+    const caption = shadow.querySelector(".source-preview-caption");
+    if (caption) {
+      caption.textContent = source.name || "来源图";
+      caption.hidden = false;
+    }
+    layer.hidden = false;
+    viewerState.imageExpanded = true;
+    updateViewerPanUi();
+    layer.focus({ preventScroll: true });
+  }
+
   function renderViewerThumbs() {
     const host = document.getElementById(VIEWER_ID);
     const shadow = host?.shadowRoot;
@@ -698,6 +833,11 @@
     resetViewerPan();
     setViewerZoom(1);
     renderPromptPanels(item);
+    renderViewerSources(item);
+    const previous = host.shadowRoot.querySelector(".stage-prev");
+    const next = host.shadowRoot.querySelector(".stage-next");
+    if (previous) previous.disabled = viewerState.activeIndex === 0;
+    if (next) next.disabled = viewerState.activeIndex === viewerState.items.length - 1;
     renderViewerThumbs();
   }
 
@@ -711,6 +851,11 @@
     const zoomImage = shadow.querySelector(".image-zoom img");
     if (!zoomLayer || !zoomImage) return;
 
+    sourcePreviewToken += 1;
+    const back = shadow.querySelector(".source-preview-back");
+    const caption = shadow.querySelector(".source-preview-caption");
+    if (back) back.hidden = true;
+    if (caption) caption.hidden = true;
     zoomImage.alt = `${item.model} ${item.index}`;
     applyViewerImage(zoomImage, item, "full");
     const zoomReadout = shadow.querySelector(".image-zoom .zoom-readout");
@@ -722,10 +867,15 @@
   }
 
   function closeViewerImageZoom() {
+    sourcePreviewToken += 1;
     const host = document.getElementById(VIEWER_ID);
     const shadow = host?.shadowRoot;
     const zoomLayer = shadow?.querySelector(".image-zoom");
     const zoomImage = shadow?.querySelector(".image-zoom img");
+    const back = shadow?.querySelector(".source-preview-back");
+    const caption = shadow?.querySelector(".source-preview-caption");
+    if (back) back.hidden = true;
+    if (caption) caption.hidden = true;
     if (!zoomLayer || zoomLayer.hidden) {
       viewerState.imageExpanded = false;
       return false;
@@ -1080,6 +1230,23 @@
           line-height: 1.35;
           pointer-events: none;
         }
+
+        .stage-nav {
+          position: absolute;
+          top: 50%;
+          z-index: 3;
+          width: 38px;
+          height: 44px;
+          padding: 0;
+          border-radius: 10px;
+          background: rgba(5, 7, 16, 0.64);
+          font-size: 28px;
+          line-height: 1;
+          transform: translateY(-50%);
+        }
+        .stage-prev { left: 18px; }
+        .stage-next { right: 18px; }
+        .stage-nav:disabled { opacity: 0.32; cursor: default; }
         .main-image {
           max-width: 100%;
           max-height: calc(100vh - 102px);
@@ -1113,6 +1280,30 @@
           transform-origin: center center;
           transition: transform 120ms ease;
           cursor: zoom-out;
+        }
+
+        .source-preview-back {
+          position: absolute;
+          top: 22px;
+          right: 22px;
+          z-index: 6;
+          padding: 0 14px;
+        }
+        .source-preview-back[hidden],
+        .source-preview-caption[hidden] { display: none; }
+        .source-preview-caption {
+          position: absolute;
+          bottom: 22px;
+          left: 50%;
+          z-index: 6;
+          max-width: min(720px, 88vw);
+          padding: 8px 14px;
+          border-radius: 999px;
+          color: #f7f7fb;
+          background: rgba(5, 7, 16, 0.75);
+          font-size: 12px;
+          text-align: center;
+          transform: translateX(-50%);
         }
         .image-zoom .zoom-readout {
           opacity: 1;
@@ -1390,6 +1581,58 @@
           line-height: 1.55;
           white-space: pre-wrap;
         }
+
+        .source-panel {
+          display: grid;
+          gap: 8px;
+          flex: 0 0 auto;
+          max-height: min(32vh, 270px);
+          overflow: auto;
+        }
+        .source-panel h3,
+        .source-group h4 { margin: 0; font-size: 12px; }
+        .source-panel h3 { font-size: 13px; color: #ffffff; }
+        .source-mode,
+        .source-empty {
+          margin: 0;
+          color: rgba(230, 229, 245, 0.72);
+          font-size: 11px;
+          line-height: 1.55;
+        }
+        .source-group { display: grid; gap: 6px; }
+        .source-group h4 { color: #cfc5ff; }
+        .source-card {
+          display: grid;
+          grid-template-columns: 52px minmax(0, 1fr);
+          align-items: center;
+          gap: 9px;
+          width: 100%;
+          height: auto;
+          min-height: 64px;
+          padding: 6px;
+          border-radius: 9px;
+          text-align: left;
+          background: rgba(255, 255, 255, 0.035);
+        }
+        .source-card img {
+          width: 52px;
+          height: 52px;
+          border-radius: 6px;
+          object-fit: cover;
+          background: rgba(255, 255, 255, 0.06);
+        }
+        .source-card-copy { display: grid; min-width: 0; gap: 4px; }
+        .source-card-copy strong,
+        .source-card-copy small {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .source-card-copy strong { font-size: 11px; }
+        .source-card-copy small {
+          color: rgba(210, 205, 232, 0.72);
+          font-size: 10px;
+        }
         .thumbs-panel {
           --gallery-glow-x: 50%;
           --gallery-glow-y: 50%;
@@ -1585,6 +1828,7 @@
           .prompt-switch-body {
             max-height: none;
           }
+          .source-panel { max-height: none; overflow: visible; }
           .thumbs-panel {
             flex: 0 1 auto;
           }
@@ -1604,14 +1848,19 @@
           <div class="stage">
             <div class="stage-title"></div>
             <img class="main-image" alt="放大预览">
+            <button class="stage-nav stage-prev" type="button" aria-label="上一张">‹</button>
+            <button class="stage-nav stage-next" type="button" aria-label="下一张">›</button>
             <div class="zoom-readout" aria-live="polite">100%</div>
           </div>
           <div class="image-zoom" hidden tabindex="-1" role="dialog" aria-modal="true" aria-label="图片放大预览">
             <img alt="整屏图片预览">
+            <button class="source-preview-back" type="button" hidden>返回生成图</button>
+            <div class="source-preview-caption" hidden></div>
             <div class="zoom-readout" aria-live="polite">100%</div>
           </div>
           <div class="side">
             <div class="prompt-stack"></div>
+            <section class="panel source-panel" aria-label="生成来源"></section>
             <div class="panel thumbs-panel">
               <div class="thumbs"></div>
               <div class="thumbs-pager" hidden>
@@ -1628,6 +1877,12 @@
 
     shadow.querySelector(".close").addEventListener("click", closeViewer);
     shadow.querySelector(".download").addEventListener("click", downloadViewerImage);
+    shadow.querySelector(".stage-prev").addEventListener("click", () => setActiveViewerItem(viewerState.activeIndex - 1));
+    shadow.querySelector(".stage-next").addEventListener("click", () => setActiveViewerItem(viewerState.activeIndex + 1));
+    shadow.querySelector(".source-preview-back").addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeViewerImageZoom();
+    });
     shadow.querySelector(".eagle")?.addEventListener("click", collectViewerImageToEagle);
     const stage = shadow.querySelector(".stage");
     const zoomLayer = shadow.querySelector(".image-zoom");
@@ -1755,6 +2010,10 @@
     });
 
     document.documentElement.append(host);
+    viewerPageOverflow = {
+      value: document.documentElement.style.getPropertyValue("overflow"),
+      priority: document.documentElement.style.getPropertyPriority("overflow")
+    };
     document.documentElement.style.overflow = "hidden";
     setActiveViewerItem(viewerState.activeIndex);
     return true;
@@ -1769,6 +2028,15 @@
       viewerState.spacePressed = true;
       updateViewerPanUi();
       return;
+    }
+
+    if (viewerOpen && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+      const target = event.composedPath?.()[0] || event.target;
+      if (!target || !["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) {
+        event.preventDefault();
+        setActiveViewerItem(viewerState.activeIndex + (event.key === "ArrowRight" ? 1 : -1));
+        return;
+      }
     }
 
     if (event.key === "Escape" && document.getElementById(VIEWER_ID)) {

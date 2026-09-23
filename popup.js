@@ -1,6 +1,7 @@
 const nodes = {
   appShell: document.querySelector(".app-shell"),
   heroTitle: document.querySelector("#heroTitle"),
+  heroTitleText: document.querySelector("#heroTitleText"),
   heroDescriptionText: document.querySelector("#heroDescriptionText"),
   apiHeroModeTag: document.querySelector("#apiHeroModeTag"),
   referenceUploadPanel: document.querySelector("#referenceUploadPanel"),
@@ -35,6 +36,7 @@ const nodes = {
   visualReuseTextMode: document.querySelector("#visualReuseTextMode"),
   visualReuseTextContentField: document.querySelector("#visualReuseTextContentField"),
   visualReuseTextContent: document.querySelector("#visualReuseTextContent"),
+  visualReuseTextSubtitle: document.querySelector("#visualReuseTextSubtitle"),
   visualReuseNotes: document.querySelector("#visualReuseNotes"),
   visualReusePlanBtn: document.querySelector("#visualReusePlanBtn"),
   visualReusePlan: document.querySelector("#visualReusePlan"),
@@ -245,7 +247,10 @@ function setApiView(isOpen) {
   nodes.apiToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
   nodes.apiToggleBtn.setAttribute("aria-label", open ? "返回首页" : "设置");
   nodes.apiToggleBtn.title = open ? "返回首页" : "设置";
-  nodes.heroTitle.textContent = open ? "API 接入" : HOME_HERO_TITLE;
+  nodes.heroTitle.classList.toggle("is-api", open);
+  nodes.heroTitle.setAttribute("aria-label", open ? "API 接入" : HOME_HERO_TITLE);
+  nodes.heroTitleText.hidden = !open;
+  nodes.heroTitleText.textContent = open ? "API 接入" : HOME_HERO_TITLE;
   if (open) {
     setApiTab(activeApiTab);
     updateCustomProviderManagedUi();
@@ -289,6 +294,7 @@ let galleryPage = 1;
 const GALLERY_PAGE_SIZE_SINGLE = 3;
 const GALLERY_PAGE_SIZE_DOUBLE = 4;
 const GALLERY_PAGE_SIZE_WIDE = 6;
+const PAGE_VIEWER_ITEM_LIMIT = 24;
 let galleryPageSize = GALLERY_PAGE_SIZE_SINGLE;
 
 function emptyPromptMeta(extra = {}) {
@@ -525,7 +531,7 @@ const VISUAL_REUSE_IMAGE_ROLES = [
   },
   {
     value: "typography",
-    label: "字体细节",
+    label: "排版与字体",
     prompt: "Typography reference: inherit font feeling, weight, width, compression, title scale, deformation style, text impact, material feeling, and relationship with the subject. Do not copy original wording, brand names, logos, or trademark text unless explicitly requested."
   },
   {
@@ -545,7 +551,7 @@ const VISUAL_REUSE_IMAGE_ROLES = [
   },
   {
     value: "auxiliary",
-    label: "辅助细节",
+    label: "装饰与细节",
     prompt: "Auxiliary reference: use small props, local details, and secondary visual features. It must not override subject, composition, layout, typography, color, or style references."
   },
   {
@@ -554,6 +560,7 @@ const VISUAL_REUSE_IMAGE_ROLES = [
     prompt: "Auto analysis reference: decide which small secondary traits are useful, but never override explicit Subject, Composition, Layout, Typography, Color / Material, Style, or Decoration references."
   }
 ];
+const VISUAL_REUSE_PRIMARY_ROLE_VALUES = new Set(["subject", "composition", "layout", "color_material", "style", "decoration"]);
 const VISUAL_REUSE_ROLE_ALIASES = {
   primary: "subject",
   color: "color_material",
@@ -567,9 +574,9 @@ const VISUAL_REUSE_FALLBACK_ROLES = [
   ["auto"]
 ];
 const VISUAL_REUSE_WEIGHT_OPTIONS = [
-  { value: "high", label: "高", prompt: "High strength: accurately inherit the selected role traits and keep them as close to the reference as possible." },
-  { value: "medium", label: "中", prompt: "Medium strength: preserve core traits while allowing controlled local changes." },
-  { value: "low", label: "低", prompt: "Low strength: borrow only the general direction and allow clear changes." }
+  { value: "high", label: "严格保持", prompt: "High strength: accurately inherit the selected role traits and keep them as close to the reference as possible." },
+  { value: "medium", label: "明显参考", prompt: "Medium strength: preserve core traits while allowing controlled local changes." },
+  { value: "low", label: "灵感参考", prompt: "Low strength: borrow only the general direction and allow clear changes." }
 ];
 const ENABLE_EAGLE_INTEGRATION = true;
 const RUNNINGHUB_G2_MODEL = "runninghub-rhart-image-g-2";
@@ -792,7 +799,8 @@ function workspaceStateFromDom() {
       visualReuseWeight: normalizeVisualReuseWeight(item.visualReuseWeight),
       visualReuseWeightManual: Boolean(item.visualReuseWeightManual),
       visualReuseLocked: item.visualReuseLocked !== false,
-      visualReuseRolesManual: Boolean(item.visualReuseRolesManual)
+      visualReuseRolesManual: Boolean(item.visualReuseRolesManual),
+      visualReuseConflictAcknowledged: item.visualReuseConflictAcknowledged || ""
     })),
     activeImageId,
     selectedImageIds: [...selectedImageIds],
@@ -807,6 +815,7 @@ function workspaceStateFromDom() {
       style: nodes.visualReuseStyle?.value || "original",
       textMode: normalizeVisualReuseTextMode(nodes.visualReuseTextMode?.value),
       textContent: nodes.visualReuseTextContent?.value || "",
+      textSubtitle: nodes.visualReuseTextSubtitle?.value || "",
       notes: nodes.visualReuseNotes?.value || ""
     },
     options: {
@@ -1061,7 +1070,8 @@ function imageItemFromSource(image, index = 0) {
     visualReuseWeight: normalizeVisualReuseWeight(image.visualReuseWeight),
     visualReuseWeightManual: Boolean(image.visualReuseWeightManual),
     visualReuseLocked: image.visualReuseLocked !== false,
-    visualReuseRolesManual: Boolean(image.visualReuseRolesManual || image.visualReuseRole || visualReuseRoles.length)
+    visualReuseRolesManual: Boolean(image.visualReuseRolesManual || image.visualReuseRole || visualReuseRoles.length),
+    visualReuseConflictAcknowledged: image.visualReuseConflictAcknowledged || ""
   };
 }
 
@@ -1233,7 +1243,7 @@ function renderImageStack() {
       });
     };
     const effectiveRoles = effectiveVisualReuseRoles(item, index);
-    VISUAL_REUSE_IMAGE_ROLES.forEach((role) => {
+    VISUAL_REUSE_IMAGE_ROLES.filter((role) => VISUAL_REUSE_PRIMARY_ROLE_VALUES.has(role.value)).forEach((role) => {
       const row = document.createElement("label");
       row.className = "visual-reuse-role-option";
 
@@ -1278,7 +1288,7 @@ function renderImageStack() {
     const weightLabel = document.createElement("label");
     weightLabel.className = "visual-reuse-mini-field";
     const weightText = document.createElement("span");
-    weightText.textContent = "强度";
+    weightText.textContent = "参考强度";
     const weightSelect = document.createElement("select");
     weightSelect.className = "visual-reuse-weight-select";
     VISUAL_REUSE_WEIGHT_OPTIONS.forEach((weight) => {
@@ -1313,7 +1323,7 @@ function renderImageStack() {
       saveWorkspaceState();
     });
     const lockText = document.createElement("span");
-    lockText.textContent = "锁定";
+    lockText.textContent = "锁定角色";
     lockLabel.append(lockInput, lockText);
 
     const advancedCaption = document.createElement("span");
@@ -1532,6 +1542,7 @@ function loadWorkspaceState() {
       if (nodes.visualReuseStyle) nodes.visualReuseStyle.value = state.visualReuse.style || "original";
       if (nodes.visualReuseTextMode) nodes.visualReuseTextMode.value = normalizeVisualReuseTextMode(state.visualReuse.textMode);
       if (nodes.visualReuseTextContent) nodes.visualReuseTextContent.value = state.visualReuse.textContent || "";
+      if (nodes.visualReuseTextSubtitle) nodes.visualReuseTextSubtitle.value = state.visualReuse.textSubtitle || "";
       if (nodes.visualReuseNotes) nodes.visualReuseNotes.value = state.visualReuse.notes || "";
     }
     const hasRestoredImage = Boolean(imageItems.length || state.image?.src || state.images?.length);
@@ -3014,10 +3025,17 @@ function visualReuseRoleConflicts() {
     const manual = normalizeVisualReuseRoles(item.visualReuseRoles || item.visualReuseRole);
     const suggested = rolesFromCoreRequirement(index);
     if (!manual.length || !suggested.length || suggested.some((role) => manual.includes(role))) return [];
-    return [`图${index + 1}：需求提到“${suggested.map((role) => visualReuseRoleMeta(role).label).join("、")}”，当前手动标签为“${manual.map((role) => visualReuseRoleMeta(role).label).join("、")}”。请核对。`];
+    const signature = `${manual.join(",")}|${suggested.join(",")}`;
+    if (item.visualReuseConflictAcknowledged === signature) return [];
+    return {
+      item,
+      index,
+      suggested,
+      signature,
+      message: `图${index + 1}：需求提到“${suggested.map((role) => visualReuseRoleMeta(role).label).join("、")}”，当前角色为“${manual.map((role) => visualReuseRoleMeta(role).label).join("、")}”。`
+    };
   });
 }
-
 function effectiveVisualReuseRoles(item, index = 0) {
   const manualRoles = normalizeVisualReuseRoles(item?.visualReuseRoles || item?.visualReuseRole);
   return manualRoles.length ? manualRoles : (rolesFromCoreRequirement(index).length ? rolesFromCoreRequirement(index) : fallbackVisualReuseRoles(index));
@@ -3038,7 +3056,7 @@ function defaultVisualReuseWeight(index = 0, roles = [], isManual = false) {
 }
 
 function visualReuseWeightLabel(value) {
-  return VISUAL_REUSE_WEIGHT_OPTIONS.find((weight) => weight.value === value)?.label || "中";
+  return VISUAL_REUSE_WEIGHT_OPTIONS.find((weight) => weight.value === value)?.label || "明显参考";
 }
 
 function normalizeVisualReuseMode(value) {
@@ -3052,7 +3070,7 @@ function normalizeVisualReuseMode(value) {
 function visualReuseRoleSummary(item, index = 0) {
   const roles = effectiveVisualReuseRoles(item, index);
   const labels = roles.map((role) => visualReuseRoleMeta(role, index).label);
-  return labels.join(" + ");
+  return [...new Set(labels)].join(" + ");
 }
 
 function updateVisualReuseRoleButton(button, item, index = 0) {
@@ -3140,6 +3158,12 @@ function syncVisualReuseTextStrategyUi() {
   }
 }
 
+function visualReuseCopyContent() {
+  const title = nodes.visualReuseTextContent?.value.trim() || "";
+  const subtitle = nodes.visualReuseTextSubtitle?.value.trim() || "";
+  return [title, subtitle].filter(Boolean).join("\n");
+}
+
 function currentReusePlanInput(targets = getVisualReuseTargetImages()) {
   const width = Number(nodes.widthInput?.value);
   const height = Number(nodes.heightInput?.value);
@@ -3152,6 +3176,9 @@ function currentReusePlanInput(targets = getVisualReuseTargetImages()) {
 
   const options = visualReuseOptions();
   const textMode = normalizeVisualReuseTextMode(nodes.visualReuseTextMode?.value);
+  if (textMode === "with-text" && !nodes.visualReuseTextContent?.value.trim()) {
+    throw new Error("请填写要生成的标题。");
+  }
   return {
     coreRequirement: nodes.visualReuseNotes?.value.trim() || "",
     assetType: options.assetTypeValue,
@@ -3162,7 +3189,7 @@ function currentReusePlanInput(targets = getVisualReuseTargetImages()) {
     styleLabel: selectText(nodes.visualReuseStyle, "保持原图风格"),
     generationMode,
     textMode,
-    textContent: textMode === "with-text" ? (nodes.visualReuseTextContent?.value.trim() || "") : "",
+    textContent: textMode === "with-text" ? visualReuseCopyContent() : "",
     width,
     height,
     sizeMode: nodes.sizeMode?.value || "custom",
@@ -3283,26 +3310,33 @@ function renderVisualReusePlan(planInput) {
   nodes.visualReusePlanStatus.textContent = errorCount ? `${errorCount} 项待修正`
     : warningCount ? `已建立 · ${warningCount} 项提示` : "已校验";
   nodes.visualReusePlanSummary.textContent = plan.analysis?.summary || plan.intent?.coreRequirement || "方案已建立。";
-  const refsFor = (roles) => plan.references.filter((reference) => roles.some((role) => reference.roles.includes(role)))
-    .map((reference) => `图${reference.order} · ${reference.roles.map((role) => visualReuseRoleMeta(role).label).join("＋")}`)
-    .join("；") || "自动判断";
+  const roleSections = [
+    ["主体", ["subject"], "保持主体与动作"],
+    ["构图与留白", ["composition"], "参考构图、主体位置和留白"],
+    ["排版与字体", ["layout", "typography"], "参考标题比例、位置与字体气质"],
+    ["色彩与光影", ["color_material"], "参考配色与光影"],
+    ["风格与材质", ["style"], "参考风格与材质"],
+    ["装饰", ["decoration", "auxiliary"], "借鉴装饰语言"]
+  ];
+  const facts = roleSections.flatMap(([label, roles, guidance]) => {
+    const references = plan.references.filter((reference) => roles.some((role) => reference.roles.includes(role)));
+    if (!references.length) return [];
+    const origins = references.map((reference) => reference.order).join("、");
+    return [[label, `来自图${origins} · ${guidance}`]];
+  });
   const textLabel = {
     reserve: "参考排版，文字后期添加",
-    "with-text": plan.textStrategy.content ? `生成指定文字：${plan.textStrategy.content}` : "生成指定文字",
+    "with-text": plan.textStrategy.content ? `生成指定文字：${plan.textStrategy.content.replace(/\n/g, " / ")}` : "生成指定文字",
     none: "不需要文字",
     "keep-original": "保留原图文字",
     auto: "按资产用途判断"
   }[plan.textStrategy?.mode] || "按资产用途判断";
-  const facts = [
-    ["主体", refsFor(["subject"])],
-    ["排版", refsFor(["layout", "typography"])],
-    ["装饰", refsFor(["decoration", "auxiliary"])],
-    ["保持", plan.analysis?.inheritedTraits?.join("、") || "按参考角色保留核心特征"],
-    ["变化", plan.analysis?.changedTraits?.join("、") || plan.intent?.coreRequirement || "按核心需求调整"],
+  facts.push(
+    ["固定", plan.analysis?.inheritedTraits?.slice(0, 3).join("、") || "按参考角色保留核心特征"],
+    ["变化", plan.analysis?.changedTraits?.slice(0, 3).join("、") || plan.intent?.coreRequirement || "按核心需求调整"],
     ["文字", textLabel],
-    ["预计生成策略", expectedReferenceStrategy(plan)]
-  ];
-  visualReuseRoleConflicts().forEach((message) => facts.push(["建议核对", message]));
+    ["生成策略", expectedReferenceStrategy(plan)]
+  );
   nodes.visualReusePlanFacts.replaceChildren();
   facts.forEach(([label, value]) => {
     const fact = document.createElement("div");
@@ -3313,6 +3347,37 @@ function renderVisualReusePlan(planInput) {
     content.textContent = value;
     fact.append(name, content);
     nodes.visualReusePlanFacts.append(fact);
+  });
+  visualReuseRoleConflicts().forEach((conflict) => {
+    const card = document.createElement("div");
+    card.className = "visual-reuse-plan-conflict";
+    const message = document.createElement("strong");
+    message.textContent = conflict.message;
+    const actions = document.createElement("div");
+    actions.className = "visual-reuse-plan-conflict-actions";
+    const update = document.createElement("button");
+    update.type = "button";
+    update.textContent = "更新角色";
+    update.addEventListener("click", () => {
+      conflict.item.visualReuseRoles = conflict.suggested;
+      conflict.item.visualReuseRole = "";
+      conflict.item.visualReuseRolesManual = true;
+      conflict.item.visualReuseConflictAcknowledged = "";
+      renderImageStack();
+      clearGeneratedPromptForReferenceChange("已按核心需求更新参考角色，请重新查看方案。");
+      saveWorkspaceState();
+    });
+    const keep = document.createElement("button");
+    keep.type = "button";
+    keep.textContent = "保持当前设置";
+    keep.addEventListener("click", () => {
+      conflict.item.visualReuseConflictAcknowledged = conflict.signature;
+      card.remove();
+      saveWorkspaceState();
+    });
+    actions.append(update, keep);
+    card.append(message, actions);
+    nodes.visualReusePlanFacts.append(card);
   });
   const analysis = plan.analysis || {};
   const fields = [
@@ -3582,7 +3647,7 @@ function visualReuseOptions() {
     textMode: visualReuseLabel(textModeMap, textModeValue, "Decide text treatment by use case"),
     notes: nodes.visualReuseNotes?.value.trim() || "",
     coreRequirement: nodes.visualReuseNotes?.value.trim() || "",
-    textContent: nodes.visualReuseTextContent?.value.trim() || "",
+    textContent: visualReuseCopyContent(),
     ratio: nodes.sizePickerText?.textContent || selectText(nodes.sizeMode) || "Auto",
     generation: generationMode === "image" ? "Image to image" : "Text to image"
   };
@@ -4541,6 +4606,7 @@ function syncGenerationModeTabs() {
   if (nodes.dropZoneHint) {
     nodes.dropZoneHint.textContent = `或点击上传参考图，最多 ${MAX_UPLOAD_IMAGES} 张`;
   }
+  window.AssetFlowTemplateUI?.onModeChange();
 }
 
 function setGenerationMode(mode, options = {}) {
@@ -5446,7 +5512,7 @@ function renderLightboxDetails(item) {
   }
   if (!assets.length) {
     const empty = document.createElement("p");
-    empty.textContent = item.mode === "text" ? "来源：无参考图片" : "本次供应商请求未包含图片输入。";
+    empty.textContent = item.mode === "text" ? "无直接参考图" : "本次供应商请求未包含图片输入。";
     section.append(empty);
     return;
   }
@@ -5466,7 +5532,7 @@ function renderLightboxDetails(item) {
       populateSourceThumbnail(image, source);
       const body = document.createElement("span");
       const name = document.createElement("strong");
-      name.textContent = source.name || `图${source.order || ""}`;
+      name.textContent = `图${source.order || assets.indexOf(source) + 1} · ${source.name || "来源图"}`;
       const roles = document.createElement("small");
       roles.textContent = (source.roles || []).map((role) => visualReuseRoleMeta(role).label).join("＋")
         || (participation === "analysis" ? "用于分析" : "图像输入");
@@ -5481,6 +5547,13 @@ function renderLightboxDetails(item) {
 async function openLightbox(item, options = {}) {
   const readyItem = await ensureGalleryFullObjectUrl(item);
   if (!readyItem?.url && !readyItem?.localStoreId) return;
+  if (!options.forceLocal) {
+    try {
+      if (await openPageLightbox(readyItem)) return;
+    } catch {
+      // Restricted pages and unavailable tabs use the extension fallback.
+    }
+  }
   openLocalLightbox(readyItem);
 }
 
@@ -5509,8 +5582,15 @@ async function openPageLightbox(item) {
     return false;
   }
 
-  const rawItems = galleryItems
-    .filter((galleryItem) => !galleryItem.isGenerating && (galleryItem.url || galleryItem.localStoreId))
+  const availableItems = galleryItems
+    .filter((galleryItem) => !galleryItem.isGenerating && (galleryItem.url || galleryItem.localStoreId));
+  const selectedIndex = availableItems.findIndex((galleryItem) => isSameGalleryItem(galleryItem, item));
+  if (selectedIndex < 0) return false;
+  const startIndex = Math.max(0, Math.min(
+    selectedIndex - Math.floor(PAGE_VIEWER_ITEM_LIMIT / 2),
+    availableItems.length - PAGE_VIEWER_ITEM_LIMIT
+  ));
+  const rawItems = availableItems.slice(startIndex, startIndex + PAGE_VIEWER_ITEM_LIMIT)
     .map((galleryItem) => ({
       index: galleryItem.index,
       model: galleryItem.model,
@@ -5522,12 +5602,13 @@ async function openPageLightbox(item) {
       promptStructure: galleryItem.promptStructure || "",
       mode: normalizeGalleryMode(galleryItem.mode),
       source: normalizeGallerySource(galleryItem.source || galleryItem.generationSource, galleryItem.mode),
+      assetLineage: galleryItem.assetLineage || null,
       url: galleryItem.localStoreId ? "" : galleryItem.url,
       originalUrl: galleryItem.originalUrl || galleryItem.url,
       localStoreId: galleryItem.localStoreId || "",
       galleryId: galleryItem.galleryId || ""
     }));
-  const activeIndex = Math.max(0, rawItems.findIndex((galleryItem) => galleryItem.index === item.index));
+  const activeIndex = selectedIndex - startIndex;
 
   let items;
   try {
@@ -8817,6 +8898,7 @@ nodes.visualReusePlanBtn?.addEventListener("click", generateVisualReusePrompt);
   nodes.visualReuseStyle,
   nodes.visualReuseTextMode,
   nodes.visualReuseTextContent,
+  nodes.visualReuseTextSubtitle,
   nodes.visualReuseNotes
 ].forEach((node) => {
   if (!node) return;

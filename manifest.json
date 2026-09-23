@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "AssetFlow - 视觉资产复用工作台 V1.9.14",
+  "name": "AssetFlow - 视觉资产复用工作台 V1.9.15",
   "description": "把参考图整理成可追溯的复用方案，支持视觉分析、提示词编译、AI 生图、异步任务恢复、本地图库与 Eagle 收集。",
-  "version": "1.9.14",
+  "version": "1.9.15",
   "action": {
-    "default_title": "AssetFlow V1.9.14",
+    "default_title": "AssetFlow V1.9.15",
     "default_icon": {
       "16": "assets/icon-16.png",
       "32": "assets/icon-32.png",

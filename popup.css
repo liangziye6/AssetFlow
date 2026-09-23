@@ -229,19 +229,11 @@ html.standalone .workspace {
   place-items: center;
 }
 
-.icon-ghost-btn::before {
-  content: "";
+.icon-ghost-btn svg {
+  display: block;
   width: 18px;
   height: 18px;
-  background: currentColor;
-}
-
-.pin-icon::before {
-  mask: url("assets/pin.svg") center / contain no-repeat;
-}
-
-.settings-icon::before {
-  mask: url("assets/settings.svg") center / contain no-repeat;
+  flex: none;
 }
 
 .ghost-btn:hover {
@@ -1561,22 +1553,8 @@ textarea {
   transition: border-color 160ms ease, background 160ms ease, opacity 160ms ease;
 }
 
-.copy-prompt-btn span,
-.copy-prompt-btn::before {
+.copy-prompt-btn span {
   display: none;
-}
-
-.copy-prompt-btn::before {
-  content: "";
-  position: absolute;
-  display: block;
-  width: 17px;
-  height: 17px;
-  border: 0;
-  background: currentColor;
-  mask: url("assets/copy.svg") center / contain no-repeat;
-  opacity: 0.86;
-  transform: none;
 }
 
 .copy-prompt-btn span {
@@ -2665,6 +2643,7 @@ body.lightbox-open {
 }
 
 .lightbox-main {
+  min-width: 0;
   grid-area: main;
   display: grid;
   min-height: 0;
@@ -2676,6 +2655,9 @@ body.lightbox-open {
 }
 
 .lightbox-main img {
+  display: block;
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: calc(100vh - 100px);
   object-fit: contain;
@@ -3187,27 +3169,6 @@ body.lightbox-open {
     min-width: 0;
   }
 
-  .lightbox {
-    padding: 12px;
-  }
-
-  .lightbox-layout {
-    grid-template-areas:
-      "main"
-      "info"
-      "strip";
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-    height: auto;
-  }
-
-  .lightbox-main img {
-    max-height: 68vh;
-  }
-
-  .lightbox-prompt {
-    max-height: none;
-  }
 }
 
 @media (max-width: 480px) {
@@ -3538,6 +3499,11 @@ body.lightbox-open {
   display: none;
 }
 
+.visual-reuse-text-content label {
+  display: grid;
+  gap: 5px;
+}
+
 .visual-reuse-text-content input {
   height: 34px;
   padding: 0 10px;
@@ -3637,6 +3603,44 @@ body.lightbox-open {
   font-weight: 720;
   line-height: 1.4;
   text-overflow: ellipsis;
+}
+
+.visual-reuse-plan-conflict {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(232, 183, 98, 0.28);
+  border-radius: 8px;
+  background: rgba(112, 73, 25, 0.14);
+}
+
+.visual-reuse-plan-conflict strong {
+  color: rgba(255, 230, 189, 0.95);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.visual-reuse-plan-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.visual-reuse-plan-conflict-actions button {
+  padding: 5px 8px;
+  border: 1px solid rgba(231, 190, 123, 0.34);
+  border-radius: 6px;
+  color: #fff0d5;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.visual-reuse-plan-conflict-actions button:hover,
+.visual-reuse-plan-conflict-actions button:focus-visible {
+  background: rgba(231, 190, 123, 0.18);
 }
 
 .visual-reuse-lineage {
@@ -3983,8 +3987,10 @@ html.standalone .reference-upload-panel {
 }
 
 .prompt-tool-btn svg {
+  display: block;
   width: 16px;
   height: 16px;
+  flex: none;
 }
 
 .prompt-tool-btn:hover,
@@ -3998,10 +4004,6 @@ html.standalone .reference-upload-panel {
 
 .prompt-tool-btn.copy-prompt-btn {
   margin-left: 0;
-}
-
-.prompt-tool-btn.copy-prompt-btn::before {
-  display: none;
 }
 
 .model-picker {
@@ -5346,6 +5348,37 @@ html.standalone .app-shell.is-api-view {
 .lightbox-source-preview button { justify-self: start; }
 .lightbox-source-preview img { max-width: 100%; max-height: calc(100vh - 150px); object-fit: contain; }
 
+@media (max-width: 680px) {
+  .lightbox {
+    display: block;
+    padding: 12px;
+  }
+
+  .lightbox-actions {
+    margin-bottom: 14px;
+  }
+
+  .lightbox-layout {
+    grid-template-areas: "main" "info" "strip";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    height: auto;
+  }
+
+  .lightbox-main img {
+    max-height: 68vh;
+  }
+
+  .lightbox-info,
+  .lightbox-strip {
+    overflow: visible;
+  }
+
+  .lightbox-prompt {
+    max-height: none;
+  }
+}
+
 /* Keep the compiled prompt available without crowding the visual reuse plan. */
 .workspace[data-mode="reuse"] .prompt-composer > #promptInput,
 .workspace[data-mode="reuse"] .prompt-composer > #promptResizeHandle {
@@ -5384,3 +5417,61 @@ html.standalone .app-shell.is-api-view {
   font: inherit;
   line-height: 1.55;
 }
+
+/* v1.9.14 brand assets from the supplied AssetFlow logo. */
+.top-logo {
+  width: 50px;
+  height: 50px;
+  border-radius: 13px;
+}
+
+.hero h1.hero-title {
+  position: relative;
+  display: grid;
+  width: min(304px, calc(100vw - 84px));
+  min-height: 80px;
+  margin: 0;
+  padding: 0;
+  place-items: center;
+}
+
+.hero-title-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.hero-wordmark {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.hero h1.hero-title.is-api {
+  width: auto;
+  min-height: 42px;
+  padding-block: 1px;
+}
+
+.hero-title.is-api .hero-title-text {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+}
+
+.hero-title.is-api .hero-wordmark {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .top-logo { width: 50px; height: 50px; border-radius: 13px; }
+  .hero h1.hero-title { width: min(284px, calc(100vw - 64px)); min-height: 72px; }
+}
+
+.hero-title-text[hidden] { display: none !important; }

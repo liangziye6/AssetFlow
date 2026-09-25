@@ -84,6 +84,7 @@ const nodes = {
   lightboxClose: document.querySelector("#lightboxClose"),
   lightboxImage: document.querySelector("#lightboxImage"),
   lightboxMeta: document.querySelector("#lightboxMeta"),
+  lightboxAssetTitle: document.querySelector("#lightboxAssetTitle"),
   lightboxPrompt: document.querySelector("#lightboxPrompt"),
   lightboxLineage: document.querySelector("#lightboxLineage"),
   lightboxSourcePreview: document.querySelector("#lightboxSourcePreview"),
@@ -283,6 +284,7 @@ let galleryItems = [];
 let apiConfig = null;
 let customApiProviders = [];
 let activeLightboxItem = null;
+let localGalleryExpanded = false;
 let activePageLightboxTabId = 0;
 let generationMode = "text";
 let promptMethod = "none";
@@ -294,7 +296,6 @@ let galleryPage = 1;
 const GALLERY_PAGE_SIZE_SINGLE = 3;
 const GALLERY_PAGE_SIZE_DOUBLE = 4;
 const GALLERY_PAGE_SIZE_WIDE = 6;
-const PAGE_VIEWER_ITEM_LIMIT = 24;
 let galleryPageSize = GALLERY_PAGE_SIZE_SINGLE;
 
 function emptyPromptMeta(extra = {}) {
@@ -351,6 +352,7 @@ const PENDING_GENERATION_TASKS_KEY = "imageSparkPendingGenerationTasks";
 const PENDING_GENERATION_TASK_PREFIX = `${PENDING_GENERATION_TASKS_KEY}:`;
 const COMPLETED_GENERATION_RESULTS_KEY = "imageSparkCompletedGenerationResults";
 const PENDING_CONTEXT_IMAGE_KEY = "imageSparkPendingContextImage";
+const PENDING_CONTINUE_CREATION_KEY = "imageSparkPendingContinueCreation";
 const LOCAL_IMAGE_DB_NAME = "imageSparkLocalImages";
 const LOCAL_IMAGE_DB_VERSION = 2;
 const LOCAL_IMAGE_STORE = "images";
@@ -1015,6 +1017,7 @@ function normalizeGalleryItems(items) {
       promptStructure: item.promptStructure || "",
       reusePlan: item.reusePlan || null,
       assetLineage: item.assetLineage || null,
+      generationContext: item.generationContext || null,
       mode: normalizeGalleryMode(item.mode),
       url: item.url || item.src,
       originalUrl: item.originalUrl || "",
@@ -1604,6 +1607,7 @@ function defaultBaseUrl(provider) {
     aliyun: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     deepseek: "https://api.deepseek.com",
     apimart: "https://api.apimart.ai/v1",
+    grsai: "https://grsai.dakka.com.cn",
     runninghub: "https://www.runninghub.cn",
     siliconflow: "https://api.siliconflow.cn/v1",
     replicate: "https://api.replicate.com/v1",
@@ -1664,11 +1668,9 @@ function assertPromptProviderSupportsImageInput(prompt, featureLabel = "图片�
 }
 
 function openAiCompatibleChatPayload(prompt, messages, maxTokens) {
-  const payload = {
-    model: prompt.model,
-    messages,
-    max_tokens: maxTokens
-  };
+  const payload = { model: prompt.model, messages };
+  if (prompt.provider === "grsai") payload.stream = false;
+  else payload.max_tokens = maxTokens;
   if (prompt.provider === "deepseek") {
     const thinking = Boolean(prompt.deepSeekThinking);
     payload.thinking = { type: thinking ? "enabled" : "disabled" };
@@ -1714,6 +1716,17 @@ function selectedModelLabel() {
   return nodes.modelSelect.options[nodes.modelSelect.selectedIndex]?.text || "RunningHub 全能图片G-2.0 低价渠道版";
 }
 
+function syncGrsaiModelOptions() {
+  const provider = nodes.imageApiProvider.value;
+  [nodes.apiImageModelSelect, nodes.modelSelect].forEach((select) => {
+    const gptImage2 = [...select.options].find((option) => option.value === "gpt-image-2");
+    const gptImage25 = [...select.options].find((option) => option.value === "gpt-image-2.5");
+    if (gptImage2) gptImage2.hidden = !["apimart", "grsai"].includes(provider);
+    if (gptImage25) gptImage25.hidden = provider !== "grsai";
+  });
+  renderModelMenu();
+}
+
 function syncModelPicker() {
   if (!nodes.modelPickerText || !nodes.modelMenu) return;
   nodes.modelPickerText.textContent = selectedModelLabel();
@@ -1740,7 +1753,7 @@ function renderModelMenu() {
   if (!nodes.modelMenu) return;
   nodes.modelMenu.innerHTML = "";
   [...nodes.modelSelect.options]
-    .filter((option) => option.dataset.legacyOption !== "true" || option.selected)
+    .filter((option) => !option.hidden || option.selected)
     .forEach((option) => {
     const button = document.createElement("button");
     button.className = "model-option";
@@ -2811,7 +2824,7 @@ async function callPromptApi(imageItem = imageState) {
     headers.Authorization = `Bearer ${prompt.apiKey}`;
   }
 
-  const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/chat/completions"), {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, prompt.provider === "grsai" ? "/v1/chat/completions" : "/chat/completions"), {
     method: "POST",
     headers,
     body: JSON.stringify(openAiCompatibleChatPayload(prompt, [
@@ -2842,7 +2855,7 @@ async function callPromptApi(imageItem = imageState) {
   }
 
   if (!response.ok) {
-    throw new Error(friendlyApiErrorMessage(data?.error?.message || data?.message || `反推提示词请求失败：${response.status}`, prompt.providerLabel));
+    throw new Error(friendlyApiErrorMessage(apiResponseErrorText(data, `反推提示词请求失败：${response.status}`), prompt.providerLabel));
   }
 
   const content = data?.choices?.[0]?.message?.content || data?.output_text || data?.text;
@@ -2858,7 +2871,7 @@ async function callPromptApi(imageItem = imageState) {
 }
 
 async function compileReversePromptWithLanguageModel(prompt, visualAnalysis) {
-  const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/chat/completions"), {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, prompt.provider === "grsai" ? "/v1/chat/completions" : "/chat/completions"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -4126,7 +4139,7 @@ async function callVisualReusePromptApi(imageInput, instruction) {
     ]))
   ];
 
-  const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/chat/completions"), {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, prompt.provider === "grsai" ? "/v1/chat/completions" : "/chat/completions"), {
     method: "POST",
     headers,
     body: JSON.stringify(openAiCompatibleChatPayload(prompt, [
@@ -4140,7 +4153,7 @@ async function callVisualReusePromptApi(imageInput, instruction) {
   const raw = await response.text();
   const data = safeParseJsonResponse(raw);
   if (!response.ok) {
-    throw new Error(friendlyApiErrorMessage(data?.error?.message || data?.message || "视觉复用 API 请求失败：HTTP " + response.status, prompt.providerLabel));
+    throw new Error(friendlyApiErrorMessage(apiResponseErrorText(data, "视觉复用 API 请求失败：HTTP " + response.status), prompt.providerLabel));
   }
 
   const content = data?.choices?.[0]?.message?.content || data?.output_text || data?.text;
@@ -4300,7 +4313,7 @@ async function callTextTranslateApi(text, targetLanguage = "") {
     return translated;
   }
 
-  const response = await fetch(baseUrlWithPath(prompt.baseUrl, "/chat/completions"), {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, prompt.provider === "grsai" ? "/v1/chat/completions" : "/chat/completions"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -4312,7 +4325,7 @@ async function callTextTranslateApi(text, targetLanguage = "") {
   const raw = await response.text();
   const data = raw ? JSON.parse(raw) : {};
   if (!response.ok) {
-    throw new Error(data?.error?.message || data?.message || `翻译 API 请求失败：${response.status}`);
+    throw new Error(apiResponseErrorText(data, `翻译 API 请求失败：${response.status}`));
   }
 
   const translated = data?.choices?.[0]?.message?.content || data?.output_text || data?.text;
@@ -5002,6 +5015,41 @@ async function generationLineageFromRequest(payload, directIds = []) {
   };
 }
 
+function captureGenerationContext({ mode, prompt, model, width, height, count, referenceItems, selectedReferenceIds, reusePlan }) {
+  const sources = mode === "reuse" ? referenceItems : mode === "image" ? referenceItems.filter((item) => selectedReferenceIds.includes(item.id)) : [];
+  return {
+    mode, prompt, model, modelValue: nodes.modelSelect.value, size: width + "x" + height,
+    options: { sizeMode: nodes.sizeMode.value, resolution: activeResolution, width, height, count },
+    promptMeta: { ...promptMeta, reusePlan: reusePlan || null },
+    visualReuse: {
+      assetType: nodes.visualReuseAssetType?.value || "auto", strength: nodes.visualReuseStrength?.value || "balanced_reuse",
+      style: nodes.visualReuseStyle?.value || "original", textMode: nodes.visualReuseTextMode?.value || "auto",
+      textContent: nodes.visualReuseTextContent?.value || "", textSubtitle: nodes.visualReuseTextSubtitle?.value || "",
+      notes: nodes.visualReuseNotes?.value || ""
+    },
+    sourceImages: sources.map((item) => ({
+      assetId: item.id, name: item.name, width: item.width, height: item.height,
+      src: safeAssetSourceUrl(item.src), assetSource: normalizeAssetSource(item.assetSource, item.src),
+      dimensionsVerified: Boolean(item.dimensionsVerified), dimensionsVerifiedAt: item.dimensionsVerifiedAt || "",
+      visualReuseRoles: normalizeVisualReuseRoles(item.visualReuseRoles || item.visualReuseRole),
+      visualReuseRolesManual: Boolean(item.visualReuseRolesManual), visualReuseWeight: item.visualReuseWeight || "",
+      visualReuseWeightManual: Boolean(item.visualReuseWeightManual), visualReuseLocked: item.visualReuseLocked !== false,
+      visualReuseConflictAcknowledged: item.visualReuseConflictAcknowledged || "", previewStoreId: ""
+    })),
+    reusePlan: reusePlan || null
+  };
+}
+
+function generationContextWithLineage(context, lineage) {
+  if (!context) return null;
+  const sourceAssets = lineage?.sourceAssets || [];
+  const byId = new Map(context.sourceImages.map((image) => [image.assetId, image]));
+  return { ...context, sourceImages: sourceAssets.map((asset) => ({
+    ...(byId.get(asset.assetId) || { assetId: asset.assetId, name: asset.name }),
+    roles: asset.roles || [], previewStoreId: asset.previewStoreId || "",
+    src: byId.get(asset.assetId)?.src || asset.previewUrl || ""
+  })) };
+}
 async function imageFromIndexedDb(id) {
   if (!id) return null;
   return withLocalImageStore("readonly", (store) => requestToPromise(store.get(id)));
@@ -5026,6 +5074,7 @@ function galleryRecordFromItem(item) {
     promptStructure: item.promptStructure || "",
     reusePlan: item.reusePlan || null,
     assetLineage: item.assetLineage || null,
+    generationContext: item.generationContext || null,
     mode: normalizeGalleryMode(item.mode),
     source: normalizeGallerySource(item.source || item.generationSource, item.mode),
     createdAt: item.createdAt || Date.now()
@@ -5044,6 +5093,7 @@ function galleryItemFromRecord(record, index = 0) {
     promptStructure: record.promptStructure || "",
     reusePlan: record.reusePlan || null,
     assetLineage: record.assetLineage || null,
+    generationContext: record.generationContext || null,
     mode: normalizeGalleryMode(record.mode),
     source: normalizeGallerySource(record.source || record.generationSource, record.mode),
     url: record.url || "",
@@ -5451,27 +5501,76 @@ async function populateSourceThumbnail(img, source) {
   img.src = source.previewUrl || source.source?.uri || "";
 }
 
+function lightboxPromptSummaryFields(text) {
+  const categories = [
+    ["画面类型", /^(?:画面类型|Image Type)$/i],
+    ["主体", /^(?:主体|Subject)$/i],
+    ["动作", /^(?:动作姿态|动作|Pose and Action|Action)$/i],
+    ["构图", /^(?:构图|Composition)$/i],
+    ["风格", /^(?:风格|Style)$/i],
+    ["色彩光影", /^(?:色彩光照|色彩光影|Color and Lighting|Color and Light)$/i]
+  ];
+  const entries = String(text || "").split(/\n\s*\n/).map((block) => {
+    const match = block.trim().match(/^([^\n：:]{1,32})[：:]\s*([\s\S]*)$/);
+    return match ? { key: match[1].trim(), value: match[2].trim() } : null;
+  }).filter(Boolean);
+  const fields = categories.map(([label, key]) => ({
+    label, value: entries.find((entry) => key.test(entry.key))?.value || ""
+  })).filter((field) => field.value);
+  if (fields.length) return fields;
+  const plain = String(text || "").trim();
+  return [{
+    label: "画面描述",
+    value: plain.length > 240 ? plain.slice(0, 240).trimEnd() + "…" : plain || "暂无提示词。"
+  }];
+}
+
+function lightboxAssetName(item) {
+  for (const text of [item.promptCn, item.prompt, item.promptEn]) {
+    if (!text) continue;
+    const type = lightboxPromptSummaryFields(text).find((field) => field.label === "画面类型")?.value;
+    if (type) return type.replace(/\s+/g, " ").trim().slice(0, 80);
+  }
+  return "视觉资产 " + (item.index || "");
+}
+
 function renderLightboxDetails(item) {
   clearSourceThumbnailUrls();
   const prompt = nodes.lightboxPrompt;
   prompt.replaceChildren();
-  const heading = document.createElement("h3");
-  heading.textContent = "提示词与解析";
-  prompt.append(heading);
   const languages = [
     ["中文", item.promptCn || item.prompt || "无提示词"],
     ["English", item.promptEn]
   ].filter((entry) => entry[1]);
-  const copy = document.createElement("p");
-  copy.className = "lightbox-prompt-copy";
+  const buttons = document.createElement("div");
+  buttons.className = "lightbox-language-switch";
+  const summary = document.createElement("div");
+  summary.className = "lightbox-prompt-summary";
+  const full = document.createElement("details");
+  full.className = "lightbox-prompt-full";
+  const fullToggle = document.createElement("summary");
+  fullToggle.textContent = "查看完整提示词";
+  const fullText = document.createElement("pre");
+  full.append(fullToggle, fullText);
   const showLanguage = (index) => {
-    copy.textContent = languages[index]?.[1] || "无提示词";
+    const value = languages[index]?.[1] || "无提示词";
     buttons.querySelectorAll("button").forEach((button, buttonIndex) => {
       button.setAttribute("aria-pressed", buttonIndex === index ? "true" : "false");
     });
+    summary.replaceChildren();
+    lightboxPromptSummaryFields(value).forEach(({ label, value: description }) => {
+      const row = document.createElement("div");
+      row.className = "lightbox-prompt-row";
+      const name = document.createElement("strong");
+      name.textContent = label;
+      const text = document.createElement("p");
+      text.textContent = description;
+      row.append(name, text);
+      summary.append(row);
+    });
+    fullText.textContent = value;
+    full.open = false;
   };
-  const buttons = document.createElement("div");
-  buttons.className = "lightbox-language-switch";
   languages.forEach(([label], index) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -5479,69 +5578,292 @@ function renderLightboxDetails(item) {
     button.addEventListener("click", () => showLanguage(index));
     buttons.append(button);
   });
-  prompt.append(buttons, copy);
+  prompt.append(buttons, summary, full);
   showLanguage(0);
   if (item.promptStructure || item.reusePlan) {
     const details = document.createElement("details");
-    const summary = document.createElement("summary");
-    summary.textContent = "展开完整分析";
-    const full = document.createElement("pre");
-    full.textContent = item.promptStructure || JSON.stringify(item.reusePlan?.analysis || {}, null, 2);
-    details.append(summary, full);
+    const toggle = document.createElement("summary");
+    toggle.textContent = "查看完整解析";
+    const analysis = document.createElement("pre");
+    analysis.textContent = item.promptStructure || JSON.stringify(item.reusePlan?.analysis || {}, null, 2);
+    details.append(toggle, analysis);
     prompt.append(details);
   }
 
   const section = nodes.lightboxLineage;
   section.replaceChildren();
-  const title = document.createElement("h3");
-  title.textContent = "生成来源";
-  const mode = document.createElement("p");
-  mode.textContent = `生成模式：${gallerySourceLabel(item)}`;
-  section.append(title, mode);
+  section.open = false;
   const lineage = item.assetLineage;
   const assets = lineage?.sourceAssets;
   const traceable = Array.isArray(assets)
     && Array.isArray(lineage?.directReferenceIds)
     && Array.isArray(lineage?.analysisReferenceIds)
     && assets.every((asset) => asset.participation === "direct" || asset.participation === "analysis");
-  if (!traceable) {
-    const legacy = document.createElement("p");
-    legacy.textContent = "该资产生成于来源追踪功能上线前，无法确认实际输入图片。";
-    section.append(legacy);
-    return;
-  }
-  if (!assets.length) {
+  const sourceSummary = document.createElement("summary");
+  const title = document.createElement("strong");
+  title.textContent = "生成来源";
+  const overview = document.createElement("span");
+  overview.textContent = gallerySourceLabel(item) + " · " + (traceable ? assets.length + " 张参考" : "来源待确认");
+  sourceSummary.append(title, overview);
+  section.append(sourceSummary);
+  const sourceContent = document.createElement("div");
+  sourceContent.className = "lightbox-source-content";
+  const mode = document.createElement("p");
+  mode.textContent = "生成模式：" + gallerySourceLabel(item);
+  sourceContent.append(mode);
+  if (!traceable || !assets.length) {
     const empty = document.createElement("p");
-    empty.textContent = item.mode === "text" ? "无直接参考图" : "本次供应商请求未包含图片输入。";
-    section.append(empty);
-    return;
+    empty.textContent = !traceable
+      ? "该资产生成于来源追踪功能上线前，无法确认实际输入图片。"
+      : item.mode === "text" ? "无直接参考图" : "本次供应商请求未包含图片输入。";
+    sourceContent.append(empty);
+  } else {
+    for (const [participation, label] of [["direct", "直接参与生成"], ["analysis", "仅用于分析"]]) {
+      const group = assets.filter((asset) => asset.participation === participation);
+      if (!group.length) continue;
+      const groupTitle = document.createElement("h4");
+      groupTitle.textContent = label + " · " + group.length;
+      sourceContent.append(groupTitle);
+      group.forEach((source) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "lightbox-source-card";
+        const image = document.createElement("img");
+        image.alt = source.name || "来源图";
+        image.loading = "lazy";
+        populateSourceThumbnail(image, source);
+        const body = document.createElement("span");
+        const name = document.createElement("strong");
+        name.textContent = "图" + (source.order || assets.indexOf(source) + 1) + " · " + (source.name || "来源图");
+        const roles = document.createElement("small");
+        roles.textContent = (Array.isArray(source.roles) ? source.roles : [])
+          .map((role) => visualReuseRoleMeta(role).label).join("＋")
+          || (participation === "analysis" ? "用于分析" : "图像输入");
+        body.append(name, roles);
+        card.append(image, body);
+        card.addEventListener("click", () => openSourcePreview(source));
+        sourceContent.append(card);
+      });
+    }
   }
-  for (const [participation, label] of [["direct", "直接参与生成"], ["analysis", "分析参考"]]) {
-    const group = assets.filter((asset) => asset.participation === participation);
-    if (!group.length) continue;
-    const groupTitle = document.createElement("h4");
-    groupTitle.textContent = label;
-    section.append(groupTitle);
-    group.forEach((source) => {
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className = "lightbox-source-card";
-      const image = document.createElement("img");
-      image.alt = source.name || "来源图";
-      image.loading = "lazy";
-      populateSourceThumbnail(image, source);
-      const body = document.createElement("span");
-      const name = document.createElement("strong");
-      name.textContent = `图${source.order || assets.indexOf(source) + 1} · ${source.name || "来源图"}`;
-      const roles = document.createElement("small");
-      roles.textContent = (source.roles || []).map((role) => visualReuseRoleMeta(role).label).join("＋")
-        || (participation === "analysis" ? "用于分析" : "图像输入");
-      body.append(name, roles);
-      card.append(image, body);
-      card.addEventListener("click", () => openSourcePreview(source));
-      section.append(card);
+  const restore = document.createElement("button");
+  restore.className = "lightbox-source-restore";
+  restore.type = "button";
+  restore.textContent = "恢复创作链";
+  restore.addEventListener("click", () => requestLocalContinuation(
+    normalizeGallerySource(item.source, item.mode) === "reuse" ? "reuse" : item.mode === "image" ? "image" : "text"
+  ));
+  sourceContent.append(restore);
+  section.append(sourceContent);
+
+  nodes.lightboxAssetTitle.textContent = lightboxAssetName(item);
+  const meta = nodes.lightboxMeta;
+  meta.replaceChildren();
+  const date = Number(item.createdAt);
+  const generatedAt = Number.isFinite(date) && date > 0
+    ? new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit"
+    }).format(new Date(date)) : "未知";
+  for (const [label, value] of [
+    ["模型", String(item.model || "未知模型").replace(/^Grsai\s+/i, "")],
+    ["尺寸", item.width && item.height ? item.width + " × " + item.height : "未知"],
+    ["生成时间", generatedAt]
+  ]) {
+    const row = document.createElement("div");
+    const key = document.createElement("span");
+    key.textContent = label;
+    const detail = document.createElement("strong");
+    detail.textContent = value;
+    detail.title = value;
+    row.append(key, detail);
+    meta.append(row);
+  }
+}
+
+
+function continuationContextForItem(item) {
+  if (item.generationContext) return item.generationContext;
+  const lineage = item.assetLineage;
+  return {
+    mode: normalizeGallerySource(item.source, item.mode),
+    prompt: item.promptCn || item.prompt || "",
+    model: item.model,
+    modelValue: "",
+    options: { sizeMode: "custom", resolution: "custom", width: item.width, height: item.height, count: 1 },
+    promptMeta: emptyPromptMeta({
+      source: item.prompt || "",
+      chinese: item.promptCn || "",
+      english: item.promptEn || "",
+      structure: item.promptStructure || "",
+      reusePlan: item.reusePlan || null
+    }),
+    visualReuse: null,
+    sourceImages: (lineage?.sourceAssets || []).map((asset) => ({
+      assetId: asset.assetId,
+      name: asset.name,
+      roles: asset.roles || [],
+      visualReuseRoles: asset.roles || [],
+      visualReuseRolesManual: true,
+      previewStoreId: asset.previewStoreId || "",
+      src: asset.previewUrl || "",
+      assetSource: asset.source || null
+    })),
+    reusePlan: item.reusePlan || null
+  };
+}
+
+async function continuationImageSource(source) {
+  const stored = source.previewStoreId ? await imageFromIndexedDb(source.previewStoreId) : null;
+  const src = stored?.blob ? await fileToDataUrl(stored.blob) : safeAssetSourceUrl(source.src || source.assetSource?.uri);
+  if (!src) throw new Error("原参考图文件不可用，当前工作区未改变。");
+  return imageItemFromSource({
+    ...source,
+    id: source.assetId || source.id,
+    src,
+    visualReuseRoles: source.visualReuseRoles || source.roles || []
+  });
+}
+
+async function continuationGeneratedImage(item) {
+  const stored = item.localStoreId ? await imageFromIndexedDb(item.localStoreId) : null;
+  const src = stored?.blob ? await fileToDataUrl(stored.blob)
+    : safeAssetSourceUrl(item.originalUrl || item.url);
+  if (!src) throw new Error("生成图文件不可用，当前工作区未改变。");
+  return imageItemFromSource({
+    id: "continuation-" + (item.galleryId || item.localStoreId || Date.now()),
+    src, name: lightboxAssetName(item), width: item.width, height: item.height,
+    assetSource: createAssetSource("generated-gallery", { uri: item.originalUrl || "" }),
+    dimensionsVerified: Boolean(item.width && item.height)
+  });
+}
+
+function restoreContinuationOptions(context, item) {
+  const options = context.options || {};
+  const width = Number(options.width) || Number(item.width) || 1024;
+  const height = Number(options.height) || Number(item.height) || 1024;
+  nodes.sizeMode.value = [...nodes.sizeMode.options].some((option) => option.value === options.sizeMode)
+    ? options.sizeMode : "custom";
+  activeResolution = normalizeResolutionTier(options.resolution || "custom");
+  nodes.widthInput.value = width;
+  nodes.heightInput.value = height;
+  nodes.countInput.value = Math.max(1, Math.min(8, Number(options.count) || 1));
+  syncSizePicker();
+
+  const targetModel = [...nodes.modelSelect.options].find((option) =>
+    option.value === context.modelValue || option.text === context.model || option.text === item.model
+  );
+  if (targetModel) selectModel(targetModel.value);
+  return Boolean(targetModel);
+}
+
+function restoreContinuationReuseOptions(context) {
+  const values = context.visualReuse || {};
+  for (const [node, value] of [
+    [nodes.visualReuseAssetType, values.assetType],
+    [nodes.visualReuseStrength, values.strength],
+    [nodes.visualReuseStyle, values.style],
+    [nodes.visualReuseTextMode, values.textMode],
+    [nodes.visualReuseTextContent, values.textContent],
+    [nodes.visualReuseTextSubtitle, values.textSubtitle],
+    [nodes.visualReuseNotes, values.notes]
+  ]) {
+    if (node && value !== undefined) node.value = value;
+  }
+  syncVisualReuseTextStrategyUi();
+}
+
+async function restoreContinuation(item, action) {
+  if (!item || !["text", "image", "reuse"].includes(action)) return false;
+  const context = continuationContextForItem(item);
+  const sourceImages = context.sourceImages || [];
+  let restoredImages = [];
+  if (action === "image") {
+    restoredImages = [await continuationGeneratedImage(item)];
+  } else if (action === "reuse") {
+    if (!context.reusePlan || !sourceImages.length) {
+      throw new Error("该资产没有可恢复的视觉复用方案和原参考图，当前工作区未改变。");
+    }
+    restoredImages = await Promise.all(sourceImages.map(continuationImageSource));
+    if (restoredImages.some((image) => !image)) throw new Error("原参考图无法恢复，当前工作区未改变。");
+  }
+
+  isRestoringState = true;
+  try {
+    setGenerationMode(action === "text" ? "text" : "image", { silent: true });
+    revokeImageItemObjectUrls(imageItems);
+    imageItems = restoredImages;
+    activeImageId = restoredImages[0]?.id || "";
+    selectedImageIds = new Set(restoredImages.map((image) => image.id));
+    syncActiveImageState();
+    restoreContinuationReuseOptions(context);
+    const modelRestored = restoreContinuationOptions(context, item);
+    nodes.promptInput.value = context.prompt || item.promptCn || item.prompt || "";
+    promptMeta = emptyPromptMeta({
+      ...context.promptMeta,
+      source: context.prompt || item.prompt || "",
+      chinese: context.promptMeta?.chinese || item.promptCn || "",
+      english: context.promptMeta?.english || item.promptEn || "",
+      structure: context.promptMeta?.structure || item.promptStructure || "",
+      reusePlan: action === "reuse" ? context.reusePlan : null
     });
+    if (action === "reuse") {
+      promptMeta.visualReuseFingerprint = visualReuseReferenceFingerprint(restoredImages);
+      promptMeta.reusePlanFingerprint = context.reusePlan.inputFingerprint || "";
+      setPromptMethod("reuse");
+      setVisualReusePanelOpen(true);
+    } else {
+      setPromptMethod("none");
+      setVisualReusePanelOpen(false);
+    }
+    syncPromptCharCount();
+    syncGenerateAction();
+    renderModelMenu();
+    if (!nodes.lightbox.hidden) closeLightbox();
+    activePageLightboxTabId = 0;
+    setApiView(false);
+    nodes.generationWorkspace?.scrollIntoView({ behavior: "smooth", block: "start" });
+    isRestoringState = false;
+    const persistence = saveWorkspaceState();
+    const modeLabel = action === "text" ? "文生图" : action === "image" ? "图生图" : "视觉复用";
+    const caution = !modelRestored ? "；原模型当前不可选，请检查模型" :
+      persistence?.degraded ? "；本地参考图较大，重新打开后可能需要再次添加" : "";
+    setStatus("已恢复" + modeLabel + "创作状态" + caution + "。");
+    return true;
+  } finally {
+    isRestoringState = false;
   }
+}
+
+let continuationInProgress = false;
+async function consumePendingContinuation() {
+  if (continuationInProgress) return;
+  continuationInProgress = true;
+  try {
+    const pending = (await chromeStorageLocalGet(PENDING_CONTINUE_CREATION_KEY))[PENDING_CONTINUE_CREATION_KEY];
+    if (!pending) return;
+    const records = await loadGalleryRecordsFromIndexedDb();
+    const item = [...galleryItems, ...records].find((entry) =>
+      (pending.galleryId && (entry.galleryId === pending.galleryId || entry.localStoreId === pending.galleryId))
+      || (pending.originalUrl && entry.originalUrl === pending.originalUrl)
+    );
+    if (!item) throw new Error("未找到这张图库图片，请先恢复图库。");
+    await restoreContinuation(item, pending.action);
+    await chromeStorageLocalRemove(PENDING_CONTINUE_CREATION_KEY);
+  } catch (error) {
+    setStatus(error.message || "继续创作恢复失败。");
+    await chromeStorageLocalRemove(PENDING_CONTINUE_CREATION_KEY);
+  } finally {
+    continuationInProgress = false;
+  }
+}
+
+function requestLocalContinuation(action) {
+  if (!activeLightboxItem) return;
+  setLocalContinueMenuOpen(false);
+  restoreContinuation(activeLightboxItem, action).catch((error) => {
+    setStatus(error.message || "继续创作恢复失败。");
+  });
 }
 
 async function openLightbox(item, options = {}) {
@@ -5558,13 +5880,13 @@ async function openLightbox(item, options = {}) {
 }
 
 function openLocalLightbox(item) {
+  setLocalContinueMenuOpen(false);
   activePageLightboxTabId = 0;
   activeLightboxItem = item;
   nodes.eagleCollectBtn.classList.remove("is-collected");
   nodes.eagleCollectBtn.textContent = "收集到 Eagle";
   nodes.lightboxImage.src = item.url;
   nodes.lightboxImage.title = "点击右侧图片可切换预览";
-  nodes.lightboxMeta.textContent = `${item.model} · ${item.width} × ${item.height} · ${item.index}`;
   closeSourcePreview();
   renderLightboxDetails(item);
   renderLightboxStrip();
@@ -5586,11 +5908,7 @@ async function openPageLightbox(item) {
     .filter((galleryItem) => !galleryItem.isGenerating && (galleryItem.url || galleryItem.localStoreId));
   const selectedIndex = availableItems.findIndex((galleryItem) => isSameGalleryItem(galleryItem, item));
   if (selectedIndex < 0) return false;
-  const startIndex = Math.max(0, Math.min(
-    selectedIndex - Math.floor(PAGE_VIEWER_ITEM_LIMIT / 2),
-    availableItems.length - PAGE_VIEWER_ITEM_LIMIT
-  ));
-  const rawItems = availableItems.slice(startIndex, startIndex + PAGE_VIEWER_ITEM_LIMIT)
+  const rawItems = availableItems
     .map((galleryItem) => ({
       index: galleryItem.index,
       model: galleryItem.model,
@@ -5606,9 +5924,10 @@ async function openPageLightbox(item) {
       url: galleryItem.localStoreId ? "" : galleryItem.url,
       originalUrl: galleryItem.originalUrl || galleryItem.url,
       localStoreId: galleryItem.localStoreId || "",
-      galleryId: galleryItem.galleryId || ""
+      galleryId: galleryItem.galleryId || "",
+      createdAt: galleryItem.createdAt || 0
     }));
-  const activeIndex = selectedIndex - startIndex;
+  const activeIndex = selectedIndex;
 
   let items;
   try {
@@ -5693,7 +6012,9 @@ function sendRuntimeMessage(message) {
 }
 
 function closeLightbox() {
+  setLocalContinueMenuOpen(false);
   activeLightboxItem = null;
+  localGalleryExpanded = false;
   nodes.lightbox.hidden = true;
   nodes.lightboxImage.removeAttribute("src");
   nodes.lightboxMeta.textContent = "";
@@ -5718,14 +6039,36 @@ async function closePageLightbox() {
 }
 
 function renderLightboxStrip() {
-  nodes.lightboxStrip.innerHTML = "";
+  nodes.lightboxStrip.replaceChildren();
   const items = galleryItems.filter((item) => !item.isGenerating && (item.url || item.localStoreId));
-  items.forEach((item) => {
+  const activeIndex = Math.max(0, items.findIndex((item) => isSameGalleryItem(item, activeLightboxItem)));
+  const start = localGalleryExpanded ? 0 : Math.floor(activeIndex / 16) * 16;
+  const visible = localGalleryExpanded ? items : items.slice(start, start + 16);
+  const heading = document.createElement("div");
+  heading.className = "lightbox-strip-head";
+  const count = document.createElement("strong");
+  count.textContent = "已生成 " + items.length;
+  heading.append(count);
+  if (items.length > 16) {
+    const showAll = document.createElement("button");
+    showAll.type = "button";
+    showAll.textContent = localGalleryExpanded ? "收起图库" : "查看全部 →";
+    showAll.setAttribute("aria-expanded", localGalleryExpanded ? "true" : "false");
+    showAll.addEventListener("click", () => {
+      localGalleryExpanded = !localGalleryExpanded;
+      renderLightboxStrip();
+    });
+    heading.append(showAll);
+  }
+  nodes.lightboxStrip.append(heading);
+  visible.forEach((item) => {
     const button = document.createElement("button");
     button.className = "lightbox-thumb";
     button.type = "button";
-    button.setAttribute("aria-current", item === activeLightboxItem ? "true" : "false");
-    button.title = `${item.model} · ${item.index}`;
+    const current = isSameGalleryItem(item, activeLightboxItem);
+    button.setAttribute("aria-current", current ? "true" : "false");
+    button.setAttribute("aria-label", item.index + (current ? "，当前图片" : ""));
+    button.title = item.model + " · " + item.index;
     const img = document.createElement("img");
     const previewUrl = galleryItemPreviewUrl(item);
     if (previewUrl) {
@@ -6053,6 +6396,11 @@ function normalizedApiCode(code) {
   return String(code ?? "").trim();
 }
 
+function apiResponseErrorText(data, fallback) {
+  const error = typeof data?.error === "string" ? data.error : data?.error?.message;
+  return error || data?.errorMessage || data?.message || fallback;
+}
+
 async function fetchJson(url, options, contextLabel = "请求", requestOptions = {}) {
   let response;
   try {
@@ -6070,18 +6418,18 @@ async function fetchJson(url, options, contextLabel = "请求", requestOptions =
   }
 
   if (!response.ok) {
-    throw new Error(data?.error?.message || data?.errorMessage || data?.message || `${contextLabel}失败：${response.status}`);
+    throw new Error(apiResponseErrorText(data, `${contextLabel}失败：${response.status}`));
   }
 
   const allowedCodes = new Set((requestOptions.allowCodes || []).map(normalizedApiCode));
   const code = normalizedApiCode(data?.code);
   if (!isSuccessfulApiCode(data?.code) && !allowedCodes.has(code)) {
-    throw new Error(data?.error?.message || data?.errorMessage || data?.message || `${contextLabel}失败：${data.code}`);
+    throw new Error(apiResponseErrorText(data, `${contextLabel}失败：${data.code}`));
   }
 
   const errorCode = normalizedApiCode(data?.errorCode);
   if (data?.errorCode && !allowedCodes.has(errorCode)) {
-    throw new Error(data?.errorMessage || data?.message || `${contextLabel}失败：${data.errorCode}`);
+    throw new Error(apiResponseErrorText(data, `${contextLabel}失败：${data.errorCode}`));
   }
 
   return data;
@@ -6194,6 +6542,19 @@ async function qwenInlineImageDataUrl(imageItem = imageState) {
     throw new Error("参考图超过 7 MB，无法以内嵌方式发送给千问。请压缩图片后重新上传。");
   }
   return dataUrl;
+}
+
+function grsaiAspectRatio(width, height) {
+  const ratios = [
+    ["1:1", 1], ["16:9", 16 / 9], ["9:16", 9 / 16],
+    ["4:3", 4 / 3], ["3:4", 3 / 4], ["3:2", 3 / 2],
+    ["2:3", 2 / 3], ["5:4", 5 / 4], ["4:5", 4 / 5],
+    ["21:9", 21 / 9], ["9:21", 9 / 21], ["2:1", 2], ["1:2", 1 / 2]
+  ];
+  const target = Math.max(1, Number(width) || 1) / Math.max(1, Number(height) || 1);
+  return ratios.reduce((best, item) => (
+    Math.abs(Math.log(item[1] / target)) < Math.abs(Math.log(best[1] / target)) ? item : best
+  ), ratios[0])[0];
 }
 
 function sizeForApi() {
@@ -6945,6 +7306,99 @@ async function callApimartGptImage2({
   }));
 }
 
+function grsaiResultUrls(data) {
+  const results = Array.isArray(data?.results) ? data.results : [];
+  return results.flatMap((result) => Array.isArray(result?.url) ? result.url : [result?.url])
+    .filter((url) => typeof url === "string" && /^https?:\/\//i.test(url));
+}
+
+async function pollGrsaiTask({ baseUrl, apiKey, taskId, count, onProgress }) {
+  const resultUrl = new URL(baseUrlWithPath(baseUrl, "/v1/api/result"));
+  resultUrl.searchParams.set("id", taskId);
+  for (let attempt = 1; attempt <= 75; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, attempt === 1 ? 5000 : 4000));
+    const data = await fetchJson(resultUrl.toString(), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${apiKey}` }
+    }, "Grsai 任务查询");
+    const status = extractTaskStatus(data, "processing");
+    if (isFailedTaskStatus(status) || normalizeTaskStatus(status) === "violation") {
+      throw new Error(typeof data?.error === "string" ? data.error : extractTaskErrorMessage(data, "Grsai 任务生成失败或内容违规。"));
+    }
+    if (isCancelledTaskStatus(status)) throw new Error("Grsai 任务已取消。");
+    const urls = grsaiResultUrls(data);
+    if (isCompletedTaskStatus(status)) {
+      if (!urls.length) throw new Error("Grsai 任务已完成，但没有返回图片 URL。");
+      return urls.slice(0, count);
+    }
+    const progress = Number(data?.progress);
+    onProgress?.(Number.isFinite(progress) ? progress : null, "Grsai 正在生成");
+    setStatus(`Grsai 任务 ${taskId} 正在生成：${status}。`);
+  }
+  throw new PendingGenerationTaskError(`Grsai 任务 ${taskId} 仍在处理中。插件已保留任务，会继续查询结果。`);
+}
+
+async function callGrsaiGptImage({
+  prompt, displayPrompt, promptCn, promptEn, promptStructure,
+  count, width, height, model, imageModel, apiKey, baseUrl,
+  useImageReferences, mode, source, onProgress, onReferencesPrepared,
+  referenceItems, selectedReferenceIds = [], onTaskSubmitted
+}) {
+  if (!["gpt-image-2", "gpt-image-2.5"].includes(imageModel)) {
+    throw new Error("Grsai GPT Image API 请选用 GPT Image 2 或 GPT Image 2.5 模型。");
+  }
+  if (width > 1920 || height > 1920 || width * height > 1920 * 1024) {
+    throw new Error("Grsai GPT Image 2 / 2.5 仅支持 1K 尺寸，请在尺寸设置中选择 1K。");
+  }
+  const selectedItems = referenceItems.filter((item) => selectedReferenceIds.includes(item.id));
+  const directItems = selectedItems.length ? selectedItems : referenceItems;
+  const images = useImageReferences
+    ? await selectedImageDataUrlsForApi({ useAll: true, max: 16, onReferencesPrepared, items: directItems })
+    : [];
+  if (!useImageReferences) await onReferencesPrepared?.([]);
+  if (useImageReferences && !images.length) {
+    throw new Error("Grsai 图生图未能读取参考图，请重新上传后再试。");
+  }
+  onProgress?.(null, "正在提交任务");
+  const data = await fetchJson(baseUrlWithPath(baseUrl, "/v1/api/generate"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: imageModel,
+      prompt,
+      images,
+      aspectRatio: grsaiAspectRatio(width, height),
+      quality: "auto",
+      replyType: "async"
+    })
+  }, "Grsai 提交");
+  const status = extractTaskStatus(data, "processing");
+  if (isFailedTaskStatus(status) || normalizeTaskStatus(status) === "violation") {
+    throw new Error(typeof data?.error === "string" ? data.error : extractTaskErrorMessage(data, "Grsai 任务生成失败或内容违规。"));
+  }
+  if (isCancelledTaskStatus(status)) throw new Error("Grsai 任务已取消。");
+  let urls = grsaiResultUrls(data);
+  if (!urls.length && isCompletedTaskStatus(status)) {
+    throw new Error("Grsai 任务已完成，但没有返回图片 URL。");
+  }
+  if (!urls.length) {
+    const taskId = String(data?.id || data?.taskId || data?.task_id || "");
+    if (!taskId) throw new Error("Grsai 未返回图片，也没有返回可查询的任务 ID。");
+    onTaskSubmitted?.({ provider: "grsai", taskId, baseUrl });
+    onProgress?.(null, "Grsai 正在生成");
+    urls = await pollGrsaiTask({ baseUrl, apiKey, taskId, count, onProgress });
+  }
+  return urls.slice(0, count).map((url, index) => ({
+    index: `#${galleryItems.length + index + 1}`,
+    model, width, height, prompt: displayPrompt || prompt,
+    promptCn, promptEn, promptStructure, mode,
+    source: normalizeGallerySource(source, mode), url
+  }));
+}
+
 async function pollRunningHubTask({ baseUrl, apiKey, apiMode, taskId, count, onProgress }) {
   const maxAttempts = 180;
   const normalizedMode = normalizeRunningHubApiMode(apiMode);
@@ -7253,6 +7707,16 @@ async function callImageGenerationApi({
     throw new Error("Replicate 需要具体模型 version，当前请先用自定义 OpenAI-compatible 接口。");
   }
 
+  if (provider === "grsai") {
+    return callGrsaiGptImage({
+      prompt, displayPrompt, promptCn, promptEn, promptStructure,
+      count, width, height, model, imageModel, apiKey, baseUrl,
+      useImageReferences: useImageReferences && referenceItems.length > 0,
+      mode, source, onProgress, onReferencesPrepared, referenceItems, selectedReferenceIds,
+      onTaskSubmitted: (task) => onTaskSubmitted?.({ ...task, apiKey, baseUrl })
+    });
+  }
+
   if (provider === "apimart" && imageModel === "gpt-image-2") {
     return callApimartGptImage2({
       prompt,
@@ -7382,6 +7846,7 @@ function createGeneratingItems({
   promptStructure,
   reusePlan,
   assetLineage,
+  generationContext,
   mode,
   source
 }) {
@@ -7398,6 +7863,7 @@ function createGeneratingItems({
     promptStructure,
     reusePlan: reusePlan || null,
     assetLineage: assetLineage || null,
+    generationContext: generationContext || null,
     mode,
     source: normalizeGallerySource(source, mode),
     url: "",
@@ -7425,6 +7891,7 @@ function pendingTaskToGeneratingItem(task) {
     promptStructure: task.promptStructure || "",
     reusePlan: task.reusePlan || null,
     assetLineage: task.assetLineage || null,
+    generationContext: task.generationContext || null,
     mode: normalizeGalleryMode(task.mode),
     source: normalizeGallerySource(task.source || task.generationSource, task.mode),
     url: "",
@@ -7498,7 +7965,9 @@ async function runRealGeneration(payload, placeholders) {
         count: 1,
         onReferencesPrepared: async (directIds) => {
           payload.assetLineage = await generationLineageFromRequest(payload, directIds);
+          payload.generationContext = generationContextWithLineage(payload.generationContext, payload.assetLineage);
           placeholders[index].assetLineage = payload.assetLineage;
+          placeholders[index].generationContext = payload.generationContext;
         },
         onProgress: (progress, label) => updateGeneratingItemProgress(
           placeholders[index],
@@ -7520,6 +7989,7 @@ async function runRealGeneration(payload, placeholders) {
             promptStructure: payload.promptStructure,
             reusePlan: payload.reusePlan || null,
             assetLineage: payload.assetLineage || null,
+            generationContext: payload.generationContext || null,
             mode: payload.mode,
             source: payload.source,
             count: 1
@@ -7538,6 +8008,7 @@ async function runRealGeneration(payload, placeholders) {
         item.index = placeholders[index].index;
         item.reusePlan = payload.reusePlan || placeholders[index].reusePlan || null;
         item.assetLineage = payload.assetLineage || placeholders[index].assetLineage || null;
+        item.generationContext = payload.generationContext || placeholders[index].generationContext || null;
         const savedItem = await persistGalleryItemImage(item);
         removePendingGenerationTask({ id: placeholders[index].pendingTaskId, generationId: placeholders[index].generationId });
         items.push(savedItem);
@@ -7599,7 +8070,14 @@ async function resolvePendingGenerationTask(task) {
 
   try {
     updateGeneratingItemProgress(placeholder, null, "正在恢复任务");
-    const urls = task.provider === "apimart"
+    const urls = task.provider === "grsai"
+      ? await pollGrsaiTask({
+        baseUrl, apiKey, taskId: task.taskId, count: task.count || 1,
+        onProgress: (progress, label) => updateGeneratingItemProgress(
+          placeholder, progress, generationTaskLabel(placeholder, label)
+        )
+      })
+      : task.provider === "apimart"
       ? await pollApimartTask({
         baseUrl,
         apiKey,
@@ -7638,6 +8116,7 @@ async function resolvePendingGenerationTask(task) {
       promptStructure: task.promptStructure || placeholder.promptStructure,
       reusePlan: task.reusePlan || placeholder.reusePlan || null,
       assetLineage: task.assetLineage || placeholder.assetLineage || null,
+      generationContext: task.generationContext || placeholder.generationContext || null,
       mode: normalizeGalleryMode(task.mode),
       source: normalizeGallerySource(task.source || placeholder.source, task.mode || placeholder.mode),
       url
@@ -7737,6 +8216,7 @@ async function consumeCompletedGenerationResults() {
           promptStructure: task.promptStructure || placeholder?.promptStructure || "",
           reusePlan: task.reusePlan || placeholder?.reusePlan || null,
           assetLineage: task.assetLineage || placeholder?.assetLineage || null,
+          generationContext: task.generationContext || placeholder?.generationContext || null,
           mode: normalizeGalleryMode(task.mode),
           source: normalizeGallerySource(task.source || placeholder?.source, task.mode || placeholder?.mode),
           url
@@ -7812,6 +8292,10 @@ function generate() {
   const assetLineage = reusePlan ? reusePlanApi().lineageSnapshot(reusePlan) : null;
   const referenceItems = imageItems.map((item) => ({ ...item }));
   const selectedReferenceIds = [...selectedImageIds];
+  const generationContext = captureGenerationContext({
+    mode: generationSource, prompt: displayPrompt || sourcePrompt, model,
+    width, height, count, referenceItems, selectedReferenceIds, reusePlan
+  });
   if (generationMode === "image" && effectiveGenerationMode === "text") {
     setGenerationMode("text", { silent: true });
   }
@@ -7839,6 +8323,7 @@ function generate() {
     promptStructure: bundle.structure,
     reusePlan,
     assetLineage,
+    generationContext,
     mode: effectiveGenerationMode,
     source: generationSource
   });
@@ -7856,6 +8341,7 @@ function generate() {
       promptStructure: bundle.structure,
       reusePlan,
       assetLineage,
+      generationContext,
       referenceItems,
       selectedReferenceIds,
       useImageReferences: effectiveGenerationMode === "image",
@@ -7892,6 +8378,7 @@ function generate() {
           promptStructure: bundle.structure,
           reusePlan,
           assetLineage,
+          generationContext,
           mode: effectiveGenerationMode,
           source: generationSource,
           url: ""
@@ -8413,6 +8900,7 @@ function applyApiConfig(config) {
       ? savedImageModel
       : "custom";
   syncRunningHubModeForModel(savedImageModel);
+  syncGrsaiModelOptions();
   nodes.customModelName.value = savedImageCustomProvider?.model || config.image?.customModelName || "";
   if (nodes.eagleApiMode) nodes.eagleApiMode.value = config.eagle.mode;
   if (nodes.eagleApiBaseUrl) nodes.eagleApiBaseUrl.value = config.eagle.baseUrl;
@@ -8660,6 +9148,9 @@ nodes.promptApiProvider.addEventListener("change", () => {
     return;
   }
   nodes.promptApiBaseUrl.value = defaultBaseUrl(nodes.promptApiProvider.value);
+  if (nodes.promptApiProvider.value === "grsai") {
+    nodes.promptModelSelect.value = "gemini-3.1-pro";
+  }
   if (nodes.promptApiProvider.value === "gemini") {
     nodes.promptModelSelect.value = "gemini-2.5-flash";
   }
@@ -8689,6 +9180,12 @@ nodes.imageApiProvider.addEventListener("change", () => {
     return;
   }
   nodes.imageApiBaseUrl.value = defaultBaseUrl(nodes.imageApiProvider.value);
+  if (nodes.imageApiProvider.value === "grsai") {
+    nodes.apiImageModelSelect.value = "gpt-image-2";
+    nodes.modelSelect.value = "gpt-image-2";
+    syncModelPicker();
+    syncCustomModelField();
+  }
   if (nodes.imageApiProvider.value === "apimart") {
     nodes.apiImageModelSelect.value = "gpt-image-2";
     nodes.modelSelect.value = "gpt-image-2";
@@ -8707,6 +9204,7 @@ nodes.imageApiProvider.addEventListener("change", () => {
     syncModelPicker();
   }
   syncRunningHubApiModeField();
+  syncGrsaiModelOptions();
   updateCustomProviderManagedUi();
   updateApiHeroSummary();
   markApiConfigDirty();
@@ -8726,7 +9224,10 @@ nodes.apiImageModelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "jimeng";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("jimeng");
   }
-  if (nodes.apiImageModelSelect.value === "gpt-image-2") {
+  if (nodes.apiImageModelSelect.value === "gpt-image-2.5") {
+    nodes.imageApiProvider.value = "grsai";
+    nodes.imageApiBaseUrl.value = defaultBaseUrl("grsai");
+  } else if (nodes.apiImageModelSelect.value === "gpt-image-2" && nodes.imageApiProvider.value !== "grsai") {
     nodes.imageApiProvider.value = "apimart";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("apimart");
   }
@@ -8736,6 +9237,7 @@ nodes.apiImageModelSelect.addEventListener("change", () => {
     syncRunningHubModeForModel(nodes.apiImageModelSelect.value);
   }
   syncRunningHubApiModeField();
+  syncGrsaiModelOptions();
   updateCustomProviderManagedUi();
   updateApiHeroSummary();
   markApiConfigDirty();
@@ -8775,7 +9277,10 @@ nodes.modelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "jimeng";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("jimeng");
   }
-  if (nodes.modelSelect.value === "gpt-image-2") {
+  if (nodes.modelSelect.value === "gpt-image-2.5") {
+    nodes.imageApiProvider.value = "grsai";
+    nodes.imageApiBaseUrl.value = defaultBaseUrl("grsai");
+  } else if (nodes.modelSelect.value === "gpt-image-2" && nodes.imageApiProvider.value !== "grsai") {
     nodes.imageApiProvider.value = "apimart";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("apimart");
   }
@@ -8785,6 +9290,7 @@ nodes.modelSelect.addEventListener("change", () => {
     syncRunningHubModeForModel(nodes.modelSelect.value);
   }
   syncRunningHubApiModeField();
+  syncGrsaiModelOptions();
   saveWorkspaceState();
 });
 nodes.promptModelSelect?.addEventListener("change", () => {
@@ -8793,7 +9299,11 @@ nodes.promptModelSelect?.addEventListener("change", () => {
     applyCustomApiProvider(customProvider);
     return;
   }
-  if (nodes.promptModelSelect.value === "qwen-vl-plus") {
+  if (nodes.promptModelSelect.value === "gemini-3.1-pro") {
+    nodes.promptApiProvider.value = "grsai";
+    nodes.promptApiBaseUrl.value = defaultBaseUrl("grsai");
+    syncDeepSeekPromptUi({ fromModel: true });
+  } else if (nodes.promptModelSelect.value === "qwen-vl-plus") {
     nodes.promptApiProvider.value = "aliyun";
     nodes.promptApiBaseUrl.value = defaultBaseUrl("aliyun");
     syncDeepSeekPromptUi({ fromModel: true });
@@ -8945,7 +9455,23 @@ if (nodes.galleryGrid) {
   window.addEventListener("resize", syncGalleryPageSizeForViewport, { passive: true });
   syncGalleryPageSizeForViewport();
 }
+function setLocalContinueMenuOpen(open) {
+  const menu = document.querySelector("#lightboxContinueMenu");
+  const button = document.querySelector("#lightboxContinueBtn");
+  if (!menu || !button) return;
+  menu.hidden = !open;
+  button.setAttribute("aria-expanded", open ? "true" : "false");
+}
 nodes.lightboxClose.addEventListener("click", closeLightbox);
+document.querySelector("#lightboxContinueBtn")?.addEventListener("click", () => {
+  setLocalContinueMenuOpen(document.querySelector("#lightboxContinueMenu").hidden);
+});
+document.querySelectorAll("[data-local-continue]").forEach((button) => {
+  button.addEventListener("click", () => requestLocalContinuation(button.dataset.localContinue));
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest?.(".lightbox-continue")) setLocalContinueMenuOpen(false);
+});
 nodes.lightboxSourceBack?.addEventListener("click", closeSourcePreview);
 nodes.eagleCollectBtn?.addEventListener("click", collectToEagle);
 nodes.lightboxDownloadBtn.addEventListener("click", () => downloadImage(activeLightboxItem));
@@ -8974,6 +9500,9 @@ window.chrome?.storage?.onChanged?.addListener((changes, areaName) => {
   if (areaName === "local" && changes[PENDING_CONTEXT_IMAGE_KEY]?.newValue) {
     consumePendingContextImage();
   }
+  if (areaName === "local" && changes[PENDING_CONTINUE_CREATION_KEY]?.newValue) {
+    consumePendingContinuation();
+  }
   if (areaName === "local" && changes[COMPLETED_GENERATION_RESULTS_KEY]?.newValue) {
     consumeCompletedGenerationResults();
   }
@@ -8992,6 +9521,7 @@ syncImageUploadLimitUi();
 consumePendingContextImage();
 restoreGalleryItemsFromIndexedDb()
   .then(consumeCompletedGenerationResults)
+  .then(consumePendingContinuation)
   .then(() => {
     const restoredPendingTasks = loadPendingGenerationTasks();
     if (restoredPendingTasks.length) {

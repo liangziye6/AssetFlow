@@ -124,6 +124,7 @@
                   <option value="volcengine">火山引擎方舟</option>
                   <option value="aliyun">阿里云百炼</option>
                   <option value="deepseek">DeepSeek</option>
+                  <option value="grsai">Grsai Chat API</option>
                   <option value="siliconflow">SiliconFlow</option>
                   <option value="custom" hidden>临时自定义（旧配置兼容）</option>
                 </select>
@@ -190,6 +191,7 @@
                   <option value="deepseek-v4-flash">DeepSeek-V4-Flash</option>
                   <option value="deepseek-v4-pro">DeepSeek-V4-Pro</option>
                   <option value="qwen-vl-plus">Qwen VL Plus</option>
+                  <option value="gemini-3.1-pro">Grsai Gemini 3.1 Pro</option>
                   <option value="custom" hidden>自定义视觉模型（旧配置兼容）</option>
                 </select>
                 <small>选择 GLM-5.2 或 DeepSeek V4 Flash 时，先由该模型理解参考图，再交给语言模型编译。</small>
@@ -212,6 +214,7 @@
                 <select id="imageApiProvider">
                   <option value="openai">OpenAI</option>
                   <option value="apimart">APIMart</option>
+                  <option value="grsai">Grsai GPT Image API</option>
                   <option value="runninghub" selected>RunningHub</option>
                   <option value="jimeng">即梦</option>
                   <option value="siliconflow">SiliconFlow</option>
@@ -252,7 +255,8 @@
                 <span>生图模型</span>
                 <select id="apiImageModelSelect">
                   <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
-                  <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（旧配置）</option>
+                  <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（APIMart / Grsai）</option>
+                  <option value="gpt-image-2.5" data-grsai-option="true" hidden>Grsai GPT Image 2.5</option>
                   <option value="runninghub-rhart-image-g-2" selected>RunningHub 全能图片G-2.0 低价渠道版</option>
                   <option value="runninghub-rhart-image-g-2-official">RunningHub 全能图片G-2 官方稳定版</option>
                   <option value="flux-pro">Flux Pro</option>
@@ -496,7 +500,8 @@
                   <div id="modelMenu" class="model-menu" role="listbox" hidden></div>
                   <select id="modelSelect">
                     <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
-                    <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（旧配置）</option>
+                    <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（APIMart / Grsai）</option>
+                    <option value="gpt-image-2.5" data-grsai-option="true" hidden>Grsai GPT Image 2.5</option>
                     <option value="runninghub-rhart-image-g-2" selected>RunningHub 全能图片G-2.0 低价渠道版</option>
                     <option value="runninghub-rhart-image-g-2-official">RunningHub 全能图片G-2 官方稳定版</option>
                     <option value="flux-pro">Flux Pro</option>
@@ -623,6 +628,16 @@
         <div class="lightbox-actions">
           <button id="lightboxDownloadBtn" class="lightbox-action-btn" type="button">下载图片</button>
           <button id="eagleCollectBtn" class="lightbox-action-btn" type="button">收集到 Eagle</button>
+
+          <div class="lightbox-continue">
+            <button id="lightboxContinueBtn" class="lightbox-action-btn" type="button" aria-haspopup="menu" aria-expanded="false">✨继续创作</button>
+            <div id="lightboxContinueMenu" class="lightbox-continue-menu" role="menu" hidden>
+              <strong>继续创作</strong>
+              <button type="button" role="menuitem" data-local-continue="text">使用此提示词</button>
+              <button type="button" role="menuitem" data-local-continue="image">图生图编辑</button>
+              <button type="button" role="menuitem" data-local-continue="reuse">恢复视觉复用</button>
+            </div>
+          </div>
           <button id="lightboxClose" class="lightbox-action-btn" type="button">关闭</button>
         </div>
         <div class="lightbox-layout">
@@ -632,11 +647,14 @@
               <button id="lightboxSourceBack" type="button">返回生成图</button>
               <img id="lightboxSourceImage" alt="来源图预览">
             </div>
+            <div class="lightbox-stage-footer">
+              <h2 id="lightboxAssetTitle"></h2>
+              <div id="lightboxMeta" class="lightbox-meta"></div>
+            </div>
           </div>
           <div class="lightbox-info">
-            <div id="lightboxMeta" class="lightbox-meta"></div>
             <div id="lightboxPrompt" class="lightbox-prompt"></div>
-            <section id="lightboxLineage" class="lightbox-lineage"></section>
+            <details id="lightboxLineage" class="lightbox-lineage"></details>
           </div>
           <div id="lightboxStrip" class="lightbox-strip" aria-label="已生成图片"></div>
         </div>

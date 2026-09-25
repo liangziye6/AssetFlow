@@ -5,6 +5,7 @@
   const MAX_IMAGES = 80;
   const MAX_TEXT = 180;
   const VIEWER_THUMB_PAGE_SIZE = 20;
+  const VIEWER_THUMB_PREVIEW_SIZE = 16;
   const VIEWER_ID = "image-spark-page-viewer";
   const VIEWER_ROLE_LABELS = { subject: "主体与动作", composition: "构图与留白", layout: "排版与字体", typography: "排版与字体", style: "风格与材质", color_material: "色彩与光影", decoration: "装饰与细节", auxiliary: "装饰与细节", auto: "自动判断" };
   let sourcePreviewToken = 0;
@@ -590,27 +591,46 @@
     root.append(card);
   }
 
+  function promptSummaryFields(text) {
+    const categories = [
+      ["画面类型", /^(?:画面类型|Image Type)$/i],
+      ["主体", /^(?:主体|Subject)$/i],
+      ["动作", /^(?:动作姿态|动作|Pose and Action|Action)$/i],
+      ["构图", /^(?:构图|Composition)$/i],
+      ["风格", /^(?:风格|Style)$/i],
+      ["色彩光影", /^(?:色彩光照|色彩光影|Color and Lighting|Color and Light)$/i]
+    ];
+    const entries = String(text || "").split(/\n\s*\n/).map((block) => {
+      const match = block.trim().match(/^([^\n：:]{1,32})[：:]\s*([\s\S]*)$/);
+      return match ? { key: match[1].trim(), value: match[2].trim() } : null;
+    }).filter(Boolean);
+    const fields = categories.map(([label, key]) => ({
+      label,
+      value: entries.find((entry) => key.test(entry.key))?.value || ""
+    })).filter((field) => field.value);
+    if (fields.length) return fields;
+    const plain = String(text || "").trim();
+    return [{
+      label: "画面描述",
+      value: plain.length > 240 ? plain.slice(0, 240).trimEnd() + "…" : plain || "暂无提示词。"
+    }];
+  }
+
   function renderPromptPanels(item) {
     const host = document.getElementById(VIEWER_ID);
     if (!host?.shadowRoot) return;
-
     const root = host.shadowRoot.querySelector(".prompt-stack");
-    root.innerHTML = "";
+    root.replaceChildren();
     const prompt = item.prompt || "无提示词";
     const blocks = languageBlocks(prompt, item);
-    const panels = [
-      { title: "中文", text: blocks.chinese || item.promptCn || prompt || "暂无中文提示词。" }
-    ];
-    if (item.promptEn) {
-      panels.push({ title: "ENGLISH", text: item.promptEn });
-    }
+    const panels = [{ title: "中文", text: blocks.chinese || item.promptCn || prompt || "暂无中文提示词。" }];
+    if (item.promptEn) panels.push({ title: "ENGLISH", text: item.promptEn });
     if (item.promptStructure) {
       const structureText = promptSections(item.promptStructure)
-        .map((section) => `${section.title}：\n${section.text}`)
+        .map((section) => section.title + "：\n" + section.text)
         .join("\n\n") || item.promptStructure;
-      panels.push({ title: "提示词结构", text: structureText || "暂无提示词结构。" });
+      panels.push({ title: "解析", text: structureText || "暂无提示词解析。" });
     }
-
     const card = document.createElement("section");
     card.className = "prompt-switch-card";
     const head = document.createElement("div");
@@ -626,7 +646,7 @@
     copy.type = "button";
     copy.setAttribute("aria-label", "复制当前提示词");
     copy.title = "复制当前提示词";
-    const body = document.createElement("pre");
+    const body = document.createElement("div");
     body.className = "prompt-switch-body";
     let activeIndex = 0;
     const setActivePanel = (nextIndex) => {
@@ -635,7 +655,27 @@
       tabs.querySelectorAll(".prompt-switch-tab").forEach((button, buttonIndex) => {
         button.setAttribute("aria-selected", buttonIndex === activeIndex ? "true" : "false");
       });
-      body.textContent = panels[activeIndex].text;
+      body.replaceChildren();
+      const summary = document.createElement("div");
+      summary.className = "prompt-summary";
+      promptSummaryFields(panels[activeIndex].text).forEach(({ label, value }) => {
+        const row = document.createElement("div");
+        row.className = "prompt-summary-row";
+        const name = document.createElement("strong");
+        name.textContent = label;
+        const description = document.createElement("p");
+        description.textContent = value;
+        row.append(name, description);
+        summary.append(row);
+      });
+      const full = document.createElement("details");
+      full.className = "prompt-full";
+      const toggle = document.createElement("summary");
+      toggle.textContent = panels[activeIndex].title === "解析" ? "查看完整解析" : "查看完整提示词";
+      const fullText = document.createElement("pre");
+      fullText.textContent = panels[activeIndex].text;
+      full.append(toggle, fullText);
+      body.append(summary, full);
       body.scrollTop = 0;
     };
     panels.forEach((panel, panelIndex) => {
@@ -682,36 +722,79 @@
     });
   }
 
+
+  function setViewerContinueMenuOpen(open) {
+    const shadow = document.getElementById(VIEWER_ID)?.shadowRoot;
+    const menu = shadow?.querySelector(".continue-menu");
+    const button = shadow?.querySelector(".continue-trigger");
+    if (!menu || !button) return;
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  async function requestViewerContinuation(action) {
+    const item = viewerState.items[viewerState.activeIndex];
+    if (!item) return;
+    setViewerContinueMenuOpen(false);
+    const response = await sendRuntimeMessage({
+      type: "IMAGE_SPARK_CONTINUE_CREATION",
+      payload: {
+        galleryId: item.galleryId || item.localStoreId || "",
+        originalUrl: item.originalUrl || "",
+        action
+      }
+    });
+    if (!response?.ok) {
+      showViewerNotice("继续创作暂不可用，请从 Side Panel 图库重试。");
+      return;
+    }
+    closeViewer();
+  }
+
   function renderViewerSources(item) {
     const host = document.getElementById(VIEWER_ID);
     const panel = host?.shadowRoot?.querySelector(".source-panel");
     if (!panel) return;
     panel.replaceChildren();
-
-    const heading = document.createElement("h3");
-    heading.textContent = "生成来源";
-    const mode = document.createElement("p");
-    mode.className = "source-mode";
-    mode.textContent = "生成模式：" + viewerSourceLabel(item);
-    panel.append(heading, mode);
-
+    panel.open = false;
     const lineage = item.assetLineage;
     const assets = lineage?.sourceAssets;
     const traceable = Array.isArray(assets)
       && Array.isArray(lineage?.directReferenceIds)
       && Array.isArray(lineage?.analysisReferenceIds)
       && assets.every((source) => source.participation === "direct" || source.participation === "analysis");
+    const summary = document.createElement("summary");
+    const heading = document.createElement("strong");
+    heading.textContent = "生成来源";
+    const overview = document.createElement("span");
+    overview.textContent = viewerSourceLabel(item) + " · " + (traceable ? assets.length + " 张参考" : "来源待确认");
+    summary.append(heading, overview);
+    panel.append(summary);
+    const content = document.createElement("div");
+    content.className = "source-content";
+    const mode = document.createElement("p");
+    mode.className = "source-mode";
+    mode.textContent = "生成模式：" + viewerSourceLabel(item);
+    content.append(mode);
+    const restore = document.createElement("button");
+    restore.className = "source-restore";
+    restore.type = "button";
+    restore.textContent = "恢复创作链";
+    restore.addEventListener("click", () => requestViewerContinuation(
+      String(item.source || "") === "reuse" ? "reuse" : item.mode === "image" ? "image" : "text"
+    ));
     if (!traceable || !assets.length) {
+      content.append(restore);
       const empty = document.createElement("p");
       empty.className = "source-empty";
       empty.textContent = !traceable
         ? "该资产生成于来源追踪功能上线前，无法确认实际输入图片。"
         : item.mode === "text" ? "无直接参考图" : "本次供应商请求未包含图片输入。";
-      panel.append(empty);
+      content.append(empty);
+      panel.append(content);
       return;
     }
-
-    for (const [participation, title] of [["direct", "直接参与供应商生成"], ["analysis", "仅用于分析"]]) {
+    for (const [participation, title] of [["direct", "直接参与生成"], ["analysis", "仅用于分析"]]) {
       const group = assets.filter((source) => source.participation === participation);
       if (!group.length) continue;
       const section = document.createElement("section");
@@ -731,7 +814,7 @@
         const copy = document.createElement("span");
         copy.className = "source-card-copy";
         const name = document.createElement("strong");
-        name.textContent = `图${source.order || assets.indexOf(source) + 1} · ${source.name || "来源图"}`;
+        name.textContent = "图" + (source.order || assets.indexOf(source) + 1) + " · " + (source.name || "来源图");
         const roles = document.createElement("small");
         const roleLabels = [...new Set((Array.isArray(source.roles) ? source.roles : [])
           .map((role) => VIEWER_ROLE_LABELS[role] || String(role || "").trim())
@@ -742,10 +825,11 @@
         card.addEventListener("click", () => openViewerSourcePreview(source));
         section.append(card);
       }
-      panel.append(section);
+      content.append(section);
     }
+    content.append(restore);
+    panel.append(content);
   }
-
 
   async function openViewerSourcePreview(source) {
     closeViewerImageZoom();
@@ -783,39 +867,82 @@
     const shadow = host?.shadowRoot;
     const thumbs = shadow?.querySelector(".thumbs");
     if (!thumbs) return;
-
     const totalItems = viewerState.items.length;
+    const expanded = viewerState.galleryExpanded;
     const totalPages = Math.max(1, Math.ceil(totalItems / VIEWER_THUMB_PAGE_SIZE));
     viewerState.thumbPage = Math.max(1, Math.min(Number(viewerState.thumbPage) || 1, totalPages));
-
-    const pageStart = (viewerState.thumbPage - 1) * VIEWER_THUMB_PAGE_SIZE;
-    const pageItems = viewerState.items.slice(pageStart, pageStart + VIEWER_THUMB_PAGE_SIZE);
-    thumbs.innerHTML = "";
+    const pageStart = expanded
+      ? (viewerState.thumbPage - 1) * VIEWER_THUMB_PAGE_SIZE
+      : Math.floor(viewerState.activeIndex / VIEWER_THUMB_PREVIEW_SIZE) * VIEWER_THUMB_PREVIEW_SIZE;
+    const pageItems = viewerState.items.slice(pageStart, pageStart + (expanded ? VIEWER_THUMB_PAGE_SIZE : VIEWER_THUMB_PREVIEW_SIZE));
+    thumbs.replaceChildren();
     pageItems.forEach((item, offset) => {
       const index = pageStart + offset;
       const button = document.createElement("button");
       button.className = "thumb";
       button.type = "button";
-      button.title = `${item.model} - ${item.index}`;
-      button.dataset.label = viewerSourceLabel(item);
+      button.title = item.model + " - " + item.index;
       button.setAttribute("aria-current", index === viewerState.activeIndex ? "true" : "false");
+      button.setAttribute("aria-label", "查看第 " + (index + 1) + " 张生成图" + (index === viewerState.activeIndex ? "，当前图片" : ""));
       button.addEventListener("click", () => setActiveViewerItem(index));
       const img = document.createElement("img");
-      img.alt = item.index || `#${index + 1}`;
+      img.alt = item.index || "#" + (index + 1);
       button.append(img);
       applyViewerImage(img, item, "thumbnail");
       thumbs.append(button);
     });
-
-    const pager = shadow?.querySelector(".thumbs-pager");
+    const count = shadow.querySelector(".thumbs-count");
+    if (count) count.textContent = "已生成 " + totalItems;
+    shadow.querySelector(".thumbs-panel")?.classList.toggle("is-expanded", expanded);
+    const showAll = shadow.querySelector(".thumbs-show-all");
+    if (showAll) {
+      showAll.hidden = totalItems <= VIEWER_THUMB_PREVIEW_SIZE;
+      showAll.textContent = expanded ? "收起图库" : "查看全部 →";
+      showAll.setAttribute("aria-expanded", expanded ? "true" : "false");
+    }
+    const pager = shadow.querySelector(".thumbs-pager");
     if (!pager) return;
-    pager.hidden = totalPages <= 1;
+    pager.hidden = !expanded || totalPages <= 1;
     const info = pager.querySelector(".thumb-page-info");
     const prev = pager.querySelector(".thumb-page-prev");
     const next = pager.querySelector(".thumb-page-next");
-    if (info) info.textContent = `${viewerState.thumbPage} / ${totalPages}`;
+    if (info) info.textContent = viewerState.thumbPage + " / " + totalPages;
     if (prev) prev.disabled = viewerState.thumbPage <= 1;
     if (next) next.disabled = viewerState.thumbPage >= totalPages;
+  }
+
+  function viewerAssetName(item) {
+    for (const text of [item.promptCn, item.prompt, item.promptEn]) {
+      if (!text) continue;
+      const type = promptSummaryFields(text).find((field) => field.label === "画面类型")?.value;
+      if (type) return type.replace(/\s+/g, " ").trim().slice(0, 80);
+    }
+    return "视觉资产 " + (item.index || "");
+  }
+
+  function renderViewerAssetInfo(item) {
+    const host = document.getElementById(VIEWER_ID);
+    const shadow = host?.shadowRoot;
+    if (!shadow) return;
+    const date = Number(item.createdAt);
+    const generatedAt = Number.isFinite(date) && date > 0
+      ? new Intl.DateTimeFormat("zh-CN", {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit"
+      }).format(new Date(date))
+      : "时间未知";
+    const title = shadow.querySelector(".stage-title");
+    const model = shadow.querySelector(".stage-model");
+    const size = shadow.querySelector(".stage-size");
+    const time = shadow.querySelector(".stage-time");
+    if (title) title.textContent = viewerAssetName(item);
+    if (model) {
+      model.textContent = String(item.model || "未知模型").replace(/^Grsai\s+/i, "");
+      model.title = item.model || "";
+    }
+    if (size) size.textContent = item.width && item.height
+      ? item.width + " × " + item.height : "尺寸未知";
+    if (time) time.textContent = generatedAt;
   }
 
   function setActiveViewerItem(index) {
@@ -826,14 +953,15 @@
 
     closeViewerImageZoom();
     const item = viewerState.items[viewerState.activeIndex];
+    setViewerContinueMenuOpen(false);
     const mainImage = host.shadowRoot.querySelector(".main-image");
-    mainImage.alt = `${item.model} ${item.index}`;
+    mainImage.alt = viewerAssetName(item);
     applyViewerImage(mainImage, item, "full");
-    host.shadowRoot.querySelector(".stage-title").textContent = `${item.model} · ${item.width} × ${item.height} · ${item.index}`;
     resetViewerPan();
     setViewerZoom(1);
     renderPromptPanels(item);
     renderViewerSources(item);
+    renderViewerAssetInfo(item);
     const previous = host.shadowRoot.querySelector(".stage-prev");
     const next = host.shadowRoot.querySelector(".stage-next");
     if (previous) previous.disabled = viewerState.activeIndex === 0;
@@ -1015,7 +1143,7 @@
 
   function openViewer(payload) {
     const items = Array.isArray(payload?.items)
-      ? payload.items.filter(hasViewerImage).slice(0, 24)
+      ? payload.items.filter(hasViewerImage)
       : [];
     if (!items.length) return false;
 
@@ -1024,6 +1152,7 @@
       items,
       activeIndex: Math.max(0, Math.min(Number(payload?.activeIndex) || 0, items.length - 1)),
       thumbPage: 1,
+      galleryExpanded: false,
       zoom: 1,
       panX: 0,
       panY: 0,
@@ -1140,6 +1269,55 @@
         }
         .action-btn.eagle.is-collected::before {
           mask: url("${chrome.runtime.getURL("assets/check.svg")}") center / contain no-repeat;
+        }
+
+        .actions { flex-wrap: wrap; }
+        .continue-wrap { position: relative; }
+        .continue-trigger {
+          border-color: rgba(146, 119, 230, 0.38);
+          color: #ede5ff;
+          background: linear-gradient(135deg, rgba(94, 58, 161, 0.28), rgba(35, 67, 128, 0.18));
+        }
+        .continue-menu {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          z-index: 7;
+          display: grid;
+          gap: 4px;
+          width: 176px;
+          padding: 8px;
+          border: 1px solid rgba(167, 139, 250, 0.32);
+          border-radius: 12px;
+          background: #171622;
+          box-shadow: 0 18px 50px rgba(0, 0, 0, 0.48);
+        }
+        .continue-menu[hidden] { display: none; }
+        .continue-menu strong {
+          padding: 4px 8px 6px;
+          color: rgba(224, 215, 249, 0.72);
+          font-size: 11px;
+        }
+        .continue-menu button {
+          width: 100%;
+          height: 32px;
+          padding: 0 9px;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          text-align: left;
+          white-space: nowrap;
+        }
+        .continue-menu button:hover,
+        .continue-menu button:focus-visible { background: rgba(132, 104, 216, 0.2); }
+        .source-restore {
+          justify-self: start;
+          height: 29px;
+          padding: 0 12px;
+          border-color: rgba(167, 139, 250, 0.38);
+          color: #ddd2ff;
+          background: rgba(118, 82, 186, 0.13);
+          font-size: 11px;
         }
         .notice {
           justify-self: end;
@@ -1804,6 +1982,198 @@
           font-size: 11px;
           font-weight: 800;
         }
+        .prompt-switch-body {
+          padding: 0;
+          font-family: inherit;
+        }
+        .prompt-summary {
+          display: grid;
+          gap: 0;
+        }
+        .prompt-summary-row {
+          display: grid;
+          grid-template-columns: 70px minmax(0, 1fr);
+          gap: 8px;
+          padding: 10px 12px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .prompt-summary-row strong {
+          color: rgba(205, 195, 245, 0.76);
+          font-size: 11px;
+          font-weight: 750;
+        }
+        .prompt-summary-row p {
+          margin: 0;
+          color: #f7f7fb;
+          font-size: 12px;
+          line-height: 1.55;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+        }
+        .prompt-full {
+          padding: 10px 12px 12px;
+        }
+        .prompt-full summary {
+          width: max-content;
+          max-width: 100%;
+          color: #cfc5ff;
+          font-size: 11px;
+          font-weight: 750;
+          cursor: pointer;
+        }
+        .prompt-full pre {
+          margin: 10px 0 0;
+          padding: 10px;
+          overflow-wrap: anywhere;
+          white-space: pre-wrap;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 8px;
+          color: rgba(247, 247, 251, 0.82);
+          background: rgba(4, 5, 10, 0.28);
+          font: 11px/1.6 "Roboto Mono", "JetBrains Mono", ui-monospace, monospace;
+        }
+        .source-panel {
+          display: block;
+          flex: 0 0 auto;
+          max-height: min(34vh, 260px);
+          padding: 0;
+          overflow: auto;
+        }
+        .source-panel > summary {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          align-items: center;
+          gap: 6px;
+          padding: 12px 14px;
+          list-style: none;
+          cursor: pointer;
+        }
+        .source-panel > summary::-webkit-details-marker { display: none; }
+        .source-panel > summary strong { color: #fff; font-size: 12px; }
+        .source-panel > summary span {
+          color: rgba(210, 205, 232, 0.72);
+          font-size: 11px;
+        }
+        .source-panel > summary::after {
+          content: "›";
+          grid-column: 2;
+          grid-row: 1;
+          margin-left: 6px;
+          color: #cfc5ff;
+        }
+        .source-panel[open] > summary::after { transform: rotate(90deg); }
+        .source-panel > summary span { margin-right: 18px; }
+        .source-content {
+          display: grid;
+          gap: 10px;
+          padding: 0 12px 12px;
+          border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .source-mode { padding-top: 10px; }
+        .source-card {
+          grid-template-columns: 42px minmax(0, 1fr);
+          min-height: 52px;
+          padding: 4px;
+        }
+        .source-card img { width: 42px; height: 42px; }
+        .thumbs-panel {
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          flex: 0 0 230px;
+          height: 230px;
+          max-height: 230px;
+          overflow: hidden;
+        }
+        .thumbs-header {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .thumbs-header strong { color: rgba(230, 229, 245, 0.82); font-size: 12px; }
+        .thumbs-show-all {
+          height: 24px;
+          padding: 0 7px;
+          border: 0;
+          color: #cfc5ff;
+          background: transparent;
+          font-size: 11px;
+        }
+        .thumbs-show-all[hidden] { display: none; }
+        .thumbs {
+          overflow: hidden;
+          align-content: start;
+          grid-auto-rows: max-content;
+        }
+        .thumbs::before { content: none; }
+        .thumbs-panel.is-expanded .thumbs { overflow-y: auto; }
+        .thumb { aspect-ratio: 4 / 3; }
+        .thumb:hover { z-index: 1; transform: none; box-shadow: none; }
+        .thumb[aria-current="true"] {
+          border-color: rgba(167, 139, 250, 0.95);
+          box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.34), 0 0 12px rgba(59, 130, 246, 0.22);
+        }
+        .thumb[aria-current="true"]::after {
+          content: "当前";
+          display: block;
+          top: 4px;
+          left: 4px;
+          min-width: 0;
+          padding: 2px 4px;
+          font-size: 9px;
+        }
+        .stage {
+          padding-bottom: 112px;
+        }
+        .main-image {
+          max-height: calc(100vh - 220px);
+        }
+        .stage-footer {
+          position: absolute;
+          inset: auto 0 0;
+          z-index: 2;
+          display: grid;
+          gap: 8px;
+          min-width: 0;
+          padding: 22px 18px 16px;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          background: linear-gradient(0deg, rgba(8, 9, 19, 0.96), rgba(8, 9, 19, 0.74) 70%, transparent);
+          pointer-events: none;
+        }
+        .stage-title {
+          position: static;
+          inset: auto;
+          min-height: 0;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+          background: none;
+          font-size: 18px;
+          font-weight: 800;
+          line-height: 1.35;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .stage-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px 14px;
+          color: rgba(230, 229, 245, 0.7);
+          font-size: 11px;
+          line-height: 1.4;
+        }
+        .stage-meta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .thumbs-panel {
+          flex-basis: 355px;
+          height: 355px;
+          max-height: 355px;
+        }
+        .thumb { aspect-ratio: 3 / 2; }
+        .thumb[aria-current="true"] {
+          z-index: 2;
+          transform: scale(1.025);
+        }
         @media (max-width: 860px) {
           .viewer { padding: 12px; }
           .layout {
@@ -1841,16 +2211,32 @@
         <div class="actions">
           <button class="action-btn download" type="button">下载图片</button>
           ${ENABLE_EAGLE_INTEGRATION ? '<button class="action-btn eagle" type="button">收集到 Eagle</button>' : ''}
+          <div class="continue-wrap">
+            <button class="action-btn continue-trigger" type="button" aria-haspopup="menu" aria-expanded="false">✨继续创作</button>
+            <div class="continue-menu" role="menu" hidden>
+              <strong>继续创作</strong>
+              <button type="button" role="menuitem" data-continue="text">使用此提示词</button>
+              <button type="button" role="menuitem" data-continue="image">图生图编辑</button>
+              <button type="button" role="menuitem" data-continue="reuse">恢复视觉复用</button>
+            </div>
+          </div>
           <button class="action-btn close" type="button">关闭</button>
         </div>
         <div class="notice" hidden></div>
         <div class="layout">
           <div class="stage">
-            <div class="stage-title"></div>
             <img class="main-image" alt="放大预览">
             <button class="stage-nav stage-prev" type="button" aria-label="上一张">‹</button>
             <button class="stage-nav stage-next" type="button" aria-label="下一张">›</button>
             <div class="zoom-readout" aria-live="polite">100%</div>
+            <div class="stage-footer">
+              <h2 class="stage-title"></h2>
+              <div class="stage-meta">
+                <span class="stage-model"></span>
+                <span class="stage-size"></span>
+                <span class="stage-time"></span>
+              </div>
+            </div>
           </div>
           <div class="image-zoom" hidden tabindex="-1" role="dialog" aria-modal="true" aria-label="图片放大预览">
             <img alt="整屏图片预览">
@@ -1860,8 +2246,12 @@
           </div>
           <div class="side">
             <div class="prompt-stack"></div>
-            <section class="panel source-panel" aria-label="生成来源"></section>
+            <details class="panel source-panel" aria-label="生成来源"></details>
             <div class="panel thumbs-panel">
+              <div class="thumbs-header">
+                <strong class="thumbs-count"></strong>
+                <button class="thumbs-show-all" type="button" aria-expanded="false" hidden>查看全部 →</button>
+              </div>
               <div class="thumbs"></div>
               <div class="thumbs-pager" hidden>
                 <button class="thumb-page-btn thumb-page-prev" type="button" aria-label="Previous page">&lsaquo;</button>
@@ -1876,6 +2266,15 @@
     shadow.querySelector(".eagle")?.classList.remove("is-collected");
 
     shadow.querySelector(".close").addEventListener("click", closeViewer);
+    shadow.querySelector(".continue-trigger").addEventListener("click", () => {
+      setViewerContinueMenuOpen(shadow.querySelector(".continue-menu").hidden);
+    });
+    shadow.querySelectorAll("[data-continue]").forEach((button) => {
+      button.addEventListener("click", () => requestViewerContinuation(button.dataset.continue));
+    });
+    shadow.addEventListener("click", (event) => {
+      if (!event.target.closest(".continue-wrap")) setViewerContinueMenuOpen(false);
+    });
     shadow.querySelector(".download").addEventListener("click", downloadViewerImage);
     shadow.querySelector(".stage-prev").addEventListener("click", () => setActiveViewerItem(viewerState.activeIndex - 1));
     shadow.querySelector(".stage-next").addEventListener("click", () => setActiveViewerItem(viewerState.activeIndex + 1));
@@ -1999,6 +2398,11 @@
     shadow.querySelector(".viewer").addEventListener("click", (event) => {
       if (event.target.classList.contains("viewer")) closeViewer();
     });
+    shadow.querySelector(".thumbs-show-all")?.addEventListener("click", () => {
+      viewerState.galleryExpanded = !viewerState.galleryExpanded;
+      viewerState.thumbPage = Math.floor(viewerState.activeIndex / VIEWER_THUMB_PAGE_SIZE) + 1;
+      renderViewerThumbs();
+    });
     shadow.querySelector(".thumb-page-prev")?.addEventListener("click", () => {
       viewerState.thumbPage = Math.max(1, viewerState.thumbPage - 1);
       renderViewerThumbs();
@@ -2041,6 +2445,12 @@
 
     if (event.key === "Escape" && document.getElementById(VIEWER_ID)) {
       if (closeViewerImageZoom()) {
+        event.preventDefault();
+        return;
+      }
+      const menu = document.getElementById(VIEWER_ID)?.shadowRoot?.querySelector(".continue-menu");
+      if (menu && !menu.hidden) {
+        setViewerContinueMenuOpen(false);
         event.preventDefault();
         return;
       }

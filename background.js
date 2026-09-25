@@ -1,6 +1,7 @@
 const panelPath = "popup.html?standalone=1";
 const addImageMenuId = "lyz-add-image-to-prompt";
 const pendingContextImageKey = "imageSparkPendingContextImage";
+const pendingContinueCreationKey = "imageSparkPendingContinueCreation";
 const apiStorageKey = "imageSparkApiConfig";
 const pendingGenerationTasksKey = "imageSparkPendingGenerationTasks";
 const pendingGenerationTaskPrefix = `${pendingGenerationTasksKey}:`;
@@ -369,6 +370,7 @@ async function persistCompletedImage(task, url, index) {
     promptStructure: task.promptStructure || "",
     reusePlan: task.reusePlan || null,
     assetLineage: task.assetLineage || null,
+    generationContext: task.generationContext || null,
     mode: task.mode || "text",
     source: task.source || task.generationSource || task.mode || "text",
     createdAt
@@ -469,14 +471,15 @@ async function fetchJson(url, options, requestOptions = {}) {
     data = { raw: text };
   }
 
+  const providerError = typeof data?.error === "string" ? data.error : data?.error?.message;
   if (!response.ok) {
-    throw new Error(data?.error?.message || data?.errorMessage || data?.message || `HTTP ${response.status}`);
+    throw new Error(providerError || data?.errorMessage || data?.message || `HTTP ${response.status}`);
   }
 
   const allowedCodes = new Set((requestOptions.allowCodes || []).map(normalizedApiCode));
   const code = normalizedApiCode(data?.code);
   if (!isSuccessfulApiCode(data?.code) && !allowedCodes.has(code)) {
-    throw new Error(data?.error?.message || data?.errorMessage || data?.message || `API code ${data.code}`);
+    throw new Error(providerError || data?.errorMessage || data?.message || `API code ${data.code}`);
   }
 
   return data;
@@ -615,6 +618,32 @@ async function queryApimartPendingTask({ task, apiKey, baseUrl }) {
   return { status: "pending" };
 }
 
+async function queryGrsaiPendingTask({ task, apiKey, baseUrl }) {
+  const resultUrl = new URL(baseUrlWithPath(baseUrl, "/v1/api/result"));
+  resultUrl.searchParams.set("id", task.taskId);
+  const data = await fetchJson(resultUrl.toString(), {
+    method: "GET",
+    headers: { Authorization: `Bearer ${apiKey}` }
+  });
+  const status = extractTaskStatus(data, "processing");
+  if (isFailedTaskStatus(status) || normalizeTaskStatus(status) === "violation") {
+    return { status: "failed", error: typeof data?.error === "string"
+      ? data.error : extractTaskErrorMessage(data, "Grsai 任务生成失败或内容违规。") };
+  }
+  if (isCancelledTaskStatus(status)) {
+    return { status: "failed", error: "Grsai 任务已取消。" };
+  }
+  if (isCompletedTaskStatus(status)) {
+    const results = Array.isArray(data?.results) ? data.results : [];
+    const urls = results.flatMap((item) => Array.isArray(item?.url) ? item.url : [item?.url])
+      .filter((url) => typeof url === "string" && /^https?:\/\//i.test(url));
+    return urls.length
+      ? { status: "completed", urls: urls.slice(0, task.count || 1) }
+      : { status: "failed", error: "Grsai 任务已完成，但没有返回图片 URL。" };
+  }
+  return { status: "pending" };
+}
+
 async function queryRunningHubPendingTask({ task, apiKey, baseUrl, apiMode }) {
   const normalizedMode = normalizeRunningHubApiMode(apiMode);
   const isStandardApi = normalizedMode !== "consumer";
@@ -695,7 +724,9 @@ async function pollPendingGenerationTasks() {
       try {
         const result = task.provider === "apimart"
           ? await queryApimartPendingTask({ task, apiKey, baseUrl })
-          : await queryRunningHubPendingTask({
+          : task.provider === "grsai"
+            ? await queryGrsaiPendingTask({ task, apiKey, baseUrl })
+            : await queryRunningHubPendingTask({
             task,
             apiKey,
             baseUrl,
@@ -771,6 +802,28 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "IMAGE_SPARK_CONTINUE_CREATION") {
+    const payload = message.payload || {};
+    if (!sender.tab?.id || !["text", "image", "reuse"].includes(payload.action)
+      || !String(payload.galleryId || payload.originalUrl || "").trim()) {
+      sendResponse({ ok: false, error: "INVALID_CONTINUATION" });
+      return false;
+    }
+    chrome.storage.local.set({ [pendingContinueCreationKey]: {
+      galleryId: String(payload.galleryId || ""),
+      originalUrl: String(payload.originalUrl || ""),
+      action: payload.action,
+      createdAt: Date.now()
+    } }, () => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ ok: false, error: "CONTINUATION_STORAGE_FAILED" });
+        return;
+      }
+      sendResponse({ ok: true });
+    });
+    return true;
+  }
+
   if (message?.type === "IMAGE_SPARK_COLLECT_EAGLE") {
     collectToEagleApi(message.payload || {})
       .then(sendResponse)

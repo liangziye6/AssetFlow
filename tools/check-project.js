@@ -109,7 +109,7 @@ assert.match(popupJs, /quality:\s*isOfficial\s*\?\s*"low"\s*:\s*"medium"/, "Runn
 assert.match(backgroundJs, /runningHubApiModeOfficial[\s\S]*isStandardApi/, "后台任务恢复必须识别 RunningHub 官方稳定版");
 assert.match(popupHtml, /id="customProviderForm"[\s\S]*id="customProviderName"[\s\S]*id="customProviderBaseUrl"[\s\S]*id="customProviderModel"/, "必须提供可编辑的自定义 API 服务商表单");
 assert.match(popupHtml, /value="gpt-image-1" data-legacy-option="true" hidden[\s\S]*value="gpt-image-2" data-legacy-option="true" hidden/, "无实际默认作用的 GPT Image 选项必须从新选择列表隐藏");
-assert.match(popupJs, /option\.dataset\.legacyOption !== "true" \|\| option\.selected/, "快捷模型菜单必须隐藏旧模型，同时允许旧数据当前选中项继续显示");
+assert.match(popupJs, /\.filter\(\(option\) => !option\.hidden \|\| option\.selected\)/, "快捷模型菜单必须按当前服务商显示模型，同时允许当前选中项继续显示");
 assert.match(popupJs, /CUSTOM_API_PROVIDERS_STORAGE_KEY[\s\S]*saveCustomApiProviders[\s\S]*loadCustomApiProviders/, "自定义 API 服务商必须持久化");
 assert.match(popupJs, /providerId:\s*promptCustomProvider[\s\S]*providerId:\s*imageCustomProvider/, "自定义服务商必须进入真实 API 配置");
 assert.match(popupJs, /customProviderFromModelValue[\s\S]*applyCustomApiProvider/, "自定义生图服务商必须能从模型选择器直接应用");

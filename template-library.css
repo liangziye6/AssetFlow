@@ -317,3 +317,55 @@
   .template-card-body { padding: 7px; }
   .template-card-actions { flex-direction: column; align-items: stretch; }
 }
+
+
+/* v1.9.15 recipe catalog: two paths into the existing generation workflow. */
+.template-types {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  padding: 4px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(211, 199, 255, .16);
+  border-radius: 12px;
+  background: rgba(2, 3, 10, .5);
+}
+.template-types button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #aaa5ba;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.template-types button[aria-pressed="true"] {
+  color: #f9f7ff;
+  background: linear-gradient(120deg, rgba(139, 92, 246, .42), rgba(57, 86, 178, .3));
+}
+.template-types button:focus-visible,
+.template-categories button:focus-visible,
+.template-card:focus-visible { outline: 2px solid #a994ff; outline-offset: 2px; }
+.template-categories {
+  display: flex;
+  grid-template-columns: none;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.template-categories button { flex: 0 0 auto; padding: 0 10px; }
+.template-card-role, .template-card-strategy {
+  color: #bcb4d3;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.template-preview .template-card-strategy { margin: 4px 0; }
+
+.template-categories { flex: 0 0 auto; min-height: 42px; align-items: center; }
+@media (max-width: 600px) {
+  .template-list { grid-template-columns: minmax(0, 1fr); }
+  .template-card { display: grid; grid-template-columns: 122px minmax(0, 1fr); }
+  .template-card > img { height: 100%; min-height: 126px; aspect-ratio: auto; }
+  .template-card-body { padding: 11px; }
+}

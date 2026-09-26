@@ -32,7 +32,7 @@ const files = [
   "README.md",
 ];
 
-const directories = ["docs", "templates"];
+const directories = ["docs", "templates", "recipes"];
 const assetReferenceFiles = [
   "manifest.json",
   "content.js",

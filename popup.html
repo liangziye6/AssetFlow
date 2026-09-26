@@ -387,7 +387,7 @@
               <img src="assets/fries-mascot-cutout.png" alt="薯条吉祥物">
             </button>
             <div class="prompt-composer">
-              <div class="template-input-head template-input-head--standard"><strong id="templateInputTitle">提示词</strong><button class="template-open-btn" data-open-template type="button">模板库</button></div>
+              <div class="template-input-head template-input-head--standard"><strong id="templateInputTitle">提示词</strong><button class="template-open-btn" data-open-template type="button">✨ 灵感库</button></div>
               <div id="visualReusePanel" class="visual-reuse-panel" hidden>
                 <div class="visual-reuse-head">
                   <strong>视觉复用主流程</strong>
@@ -399,7 +399,7 @@
                   <li><span>3</span>生成视觉</li>
                 </ol>
                 <div class="visual-reuse-notes visual-reuse-core">
-                  <div class="visual-reuse-input-head"><label for="visualReuseNotes">你想生成什么？ <em>必填</em></label><button class="template-open-btn" data-open-template type="button">模板库</button></div>
+                  <div class="visual-reuse-input-head"><label for="visualReuseNotes">你想生成什么？ <em>必填</em></label><button class="template-open-btn" data-open-template type="button">✨ 灵感库</button></div>
                   <textarea id="visualReuseNotes" required aria-required="true" placeholder="例如：使用图1人物，参考图2的字体和排版，加入图3的装饰语言，生成一张3:4新品广告海报。"></textarea>
                 </div>
                 <div class="visual-reuse-grid visual-reuse-primary-options">
@@ -531,7 +531,7 @@
             </div>
           </section>
 
-            <section id="templateQuick" class="template-quick" aria-label="推荐模板"><div class="template-quick-head"><span>推荐模板</span><button class="template-quick-more" data-open-template type="button">更多</button></div><div id="templateQuickList" class="template-quick-list"></div></section>
+            <section id="templateQuick" class="template-quick" aria-label="灵感推荐"><div class="template-quick-head"><span>灵感推荐</span><button class="template-quick-more" data-open-template type="button">查看更多</button></div><div id="templateQuickList" class="template-quick-list"></div></section>
 
           <section class="settings-stack">
             <div class="size-row">
@@ -661,10 +661,11 @@
       </div>
 
       <div id="templateScrim" class="template-scrim" hidden></div>
-      <aside id="templateDrawer" class="template-drawer" role="dialog" aria-modal="true" aria-label="模板库" hidden>
-        <div class="template-drawer-head"><div><span class="template-eyebrow">ASSETFLOW · LIBRARY</span><h2>模板库</h2></div><button id="templateCloseBtn" class="template-close-btn" type="button" aria-label="关闭模板库">×</button></div>
-        <label class="template-search-label" for="templateSearch">搜索模板</label><input id="templateSearch" class="template-search" type="search" placeholder="搜索名称、标签或用途……" autocomplete="off">
-        <nav class="template-categories" aria-label="模板分类"><button type="button" data-template-category="scene" aria-pressed="true">场景</button><button type="button" data-template-category="play" aria-pressed="false">玩法</button><button type="button" data-template-category="structure" aria-pressed="false">结构</button></nav>
+      <aside id="templateDrawer" class="template-drawer" role="dialog" aria-modal="true" aria-label="灵感库" hidden>
+        <div class="template-drawer-head"><div><span class="template-eyebrow">ASSETFLOW · LIBRARY</span><h2>灵感库</h2></div><button id="templateCloseBtn" class="template-close-btn" type="button" aria-label="关闭灵感库">×</button></div>
+        <nav class="template-types" aria-label="方案类型"><button type="button" data-template-type="prompt_recipe" aria-pressed="true">灵感玩法</button><button type="button" data-template-type="visual_recipe" aria-pressed="false">视觉方案</button></nav>
+        <label class="template-search-label" for="templateSearch">搜索方案</label><input id="templateSearch" class="template-search" type="search" placeholder="搜索名称、标签或用途……" autocomplete="off">
+        <nav id="templateCategories" class="template-categories" aria-label="方案分类"></nav>
         <p id="templateModeLabel" class="template-mode-label"></p>
         <div id="templateList" class="template-list" aria-live="polite"></div>
         <div id="templatePreview" class="template-preview" hidden></div>

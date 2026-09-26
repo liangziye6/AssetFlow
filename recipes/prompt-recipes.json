@@ -1,0 +1,227 @@
+[
+  {
+    "id": "glass-material",
+    "type": "prompt_recipe",
+    "name": "玻璃液态视觉",
+    "mode": "text",
+    "category": "材质",
+    "thumbnail": "templates/thumbnails/glass-material.webp",
+    "description": "透明材质与细腻折射",
+    "prompt": "以{subject}为主体制作{ratio}商业视觉，使用流动的透明玻璃形态、真实折射、精确边缘高光与轻盈悬浮感；场景为{scene}，保留清晰主体和标题留白。",
+    "tags": [
+      "玻璃",
+      "材质",
+      "透明"
+    ]
+  },
+  {
+    "id": "cyber-purple",
+    "type": "prompt_recipe",
+    "name": "霓虹科技",
+    "mode": "text",
+    "category": "材质",
+    "thumbnail": "templates/thumbnails/cyber-purple.webp",
+    "description": "蓝紫光带与克制的科技细节",
+    "prompt": "为{subject}创建{ratio}视觉：深蓝与紫色为主色，使用克制的光带、微弱霓虹边缘和清晰层次，在{scene}中保持主体可读，整体有现代科技感。",
+    "tags": [
+      "蓝紫",
+      "科技",
+      "赛博"
+    ]
+  },
+  {
+    "id": "forced-perspective",
+    "type": "prompt_recipe",
+    "name": "大透视冲击",
+    "mode": "text",
+    "category": "构图",
+    "thumbnail": "templates/thumbnails/forced-perspective.webp",
+    "description": "保留主体身份，强化纵深",
+    "prompt": "以{subject}制作{ratio}画面，采用低机位大透视，让前景与主体形成明确纵深；背景为{scene}，保持人体或产品结构可信，避免形体失真。",
+    "tags": [
+      "透视",
+      "冲击",
+      "动感"
+    ]
+  },
+  {
+    "id": "floating-3d",
+    "type": "prompt_recipe",
+    "name": "悬浮构图",
+    "mode": "text",
+    "category": "构图",
+    "thumbnail": "templates/thumbnails/floating-3d.webp",
+    "description": "漂浮构图与立体材质",
+    "prompt": "为{subject}制作{ratio}的 3D 漂浮主视觉：主体悬浮于{scene}，透视自然，材质细节清楚，以柔和环境光和精确高光形成空间深度。",
+    "tags": [
+      "3D",
+      "漂浮",
+      "立体"
+    ]
+  },
+  {
+    "id": "minimal-space",
+    "type": "prompt_recipe",
+    "name": "极简留白",
+    "mode": "text",
+    "category": "构图",
+    "thumbnail": "templates/thumbnails/minimal-space.webp",
+    "description": "用空间和单一焦点强调主体",
+    "prompt": "以{subject}为唯一视觉焦点制作{ratio}画面；背景为{scene}，减少装饰，保留大面积留白，使用克制配色和{style}质感，确保主体与文字区域清晰。",
+    "tags": [
+      "极简",
+      "留白",
+      "版式"
+    ]
+  },
+  {
+    "id": "commercial-person",
+    "type": "prompt_recipe",
+    "name": "商业人物摄影",
+    "mode": "text",
+    "category": "风格",
+    "thumbnail": "templates/thumbnails/commercial-person.webp",
+    "description": "人物主视觉与商业标题留白",
+    "prompt": "为{subject}制作一张{ratio}商业人物海报：人物姿态鲜明，置于{scene}，主体突出，标题区域清晰，使用{style}视觉语言与有层次的光影，保留足够信息留白。",
+    "tags": [
+      "人物",
+      "商业",
+      "海报"
+    ]
+  },
+  {
+    "id": "product-kv",
+    "type": "prompt_recipe",
+    "name": "产品主视觉",
+    "mode": "text",
+    "category": "风格",
+    "thumbnail": "templates/thumbnails/product-kv.webp",
+    "description": "突出产品轮廓和材质的品牌视觉",
+    "prompt": "为{subject}制作一张{ratio}产品主视觉 KV：置于{scene}，以产品为唯一主角，强化材质、边缘光与空间层次，采用{style}设计，预留品牌标题和卖点区域。",
+    "tags": [
+      "产品",
+      "品牌",
+      "KV"
+    ]
+  },
+  {
+    "id": "magazine-cover",
+    "type": "prompt_recipe",
+    "name": "杂志编辑风",
+    "mode": "text",
+    "category": "风格",
+    "thumbnail": "templates/thumbnails/magazine-cover.webp",
+    "description": "编辑感版式与主体共存",
+    "prompt": "制作一张{ratio}杂志封面：以{subject}为封面主体，置于{scene}，使用有节奏的标题排版、边距与留白，采用{style}光影和精致材质。",
+    "tags": [
+      "杂志",
+      "封面",
+      "排版"
+    ]
+  },
+  {
+    "id": "cinematic-light",
+    "type": "prompt_recipe",
+    "name": "电影感光影",
+    "mode": "text",
+    "category": "风格",
+    "thumbnail": "templates/thumbnails/cinematic-light.webp",
+    "description": "通过主光与暗部塑造氛围",
+    "prompt": "为{subject}制作{ratio}电影感视觉：在{scene}中建立明确主光、深层暗部和少量轮廓光，控制饱和度与色彩对比，营造{style}叙事氛围。",
+    "tags": [
+      "电影感",
+      "光影",
+      "氛围"
+    ]
+  },
+  {
+    "id": "xhs-cover",
+    "type": "prompt_recipe",
+    "name": "小红书封面",
+    "mode": "text",
+    "category": "风格",
+    "thumbnail": "templates/thumbnails/xhs-cover.webp",
+    "description": "适合手机端阅读的醒目封面",
+    "prompt": "制作一张{ratio}小红书封面：主题为{title}，展示{subject}，构图聚焦且适合手机端阅读，标题简短醒目，色彩有记忆点，视觉风格为{style}。",
+    "tags": [
+      "小红书",
+      "封面",
+      "社媒"
+    ]
+  },
+  {
+    "id": "double-exposure",
+    "type": "prompt_recipe",
+    "name": "双重曝光",
+    "mode": "text",
+    "category": "AI实验",
+    "thumbnail": "templates/thumbnails/double-exposure.webp",
+    "description": "人物轮廓与场景交叠",
+    "prompt": "制作一张{ratio}双重曝光视觉：以{subject}的轮廓为主形，将{scene}自然融入轮廓内部，保持面部或主体结构清晰，以{style}色彩和柔和过渡营造情绪。",
+    "tags": [
+      "双重曝光",
+      "人物",
+      "摄影"
+    ]
+  },
+  {
+    "id": "collage-magazine",
+    "type": "prompt_recipe",
+    "name": "拼贴杂志",
+    "mode": "text",
+    "category": "AI实验",
+    "thumbnail": "templates/thumbnails/collage-magazine.webp",
+    "description": "保留主体，重组图形与纸张层次",
+    "prompt": "为{subject}制作{ratio}拼贴杂志视觉：叠加有节奏的裁切形状、纸张纹理与编辑式标题，在{scene}中保持主体清晰、层级可读。",
+    "tags": [
+      "拼贴",
+      "杂志",
+      "排版"
+    ]
+  },
+  {
+    "id": "crystal-refraction",
+    "type": "prompt_recipe",
+    "name": "水晶折射",
+    "mode": "text",
+    "category": "材质",
+    "thumbnail": "templates/thumbnails/glass-material.webp",
+    "description": "透明材质与细腻折射",
+    "prompt": "以{subject}为视觉中心制作{ratio}画面，使用通透水晶切面、细腻光谱折射和柔和投影；场景为{scene}，控制反光强度，保持细节真实。",
+    "tags": [
+      "玻璃",
+      "材质",
+      "透明"
+    ]
+  },
+  {
+    "id": "event-poster",
+    "type": "prompt_recipe",
+    "name": "活动海报",
+    "mode": "text",
+    "category": "风格",
+    "thumbnail": "templates/thumbnails/event-poster.webp",
+    "description": "明确活动信息与视觉层级",
+    "prompt": "制作一张{ratio}活动促销海报：核心主题为{title}，主体是{subject}；在{scene}中建立明确的信息层级、强识别标题区和行动引导，整体采用{style}风格。",
+    "tags": [
+      "活动",
+      "促销",
+      "海报"
+    ]
+  },
+  {
+    "id": "text-structure",
+    "type": "prompt_recipe",
+    "name": "结构化提示词",
+    "mode": "text",
+    "category": "构图",
+    "thumbnail": "templates/thumbnails/text-structure.webp",
+    "description": "按主体、场景、构图组织输入",
+    "prompt": "主体：{subject}。场景：{scene}。构图：突出主体并预留合理留白。光影：主次清楚。材质：细节可信。风格：{style}。画幅：{ratio}。",
+    "tags": [
+      "文生图",
+      "结构",
+      "提示词"
+    ]
+  }
+]

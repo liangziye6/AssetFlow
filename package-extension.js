@@ -32,7 +32,7 @@ const files = [
   "README.md",
 ];
 
-const directories = ["docs", "templates", "recipes"];
+const directories = ["docs", "recipes"];
 const assetReferenceFiles = [
   "manifest.json",
   "content.js",
@@ -44,6 +44,8 @@ const assetReferenceFiles = [
   "options.html",
   "options.css",
   "options.js",
+  "recipes/prompt-recipes.json",
+  "recipes/visual-recipes.json",
 ];
 
 async function exists(target) {

@@ -1,385 +1,521 @@
 [
   {
-    "id": "commercial-person-plan",
+    "id": "character-consistency",
     "type": "visual_recipe",
-    "name": "商业人物海报",
-    "mode": "reuse",
-    "category": "商业海报",
-    "thumbnail": "templates/thumbnails/commercial-person.webp",
-    "description": "人物主视觉与商业标题留白",
-    "goal": "制作商业人物海报",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "layout"
-      },
-      {
-        "slot": 3,
-        "role": "color_material"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "人物身份与动作"
-      ],
-      "change": [
-        "背景场景",
-        "标题排版"
-      ]
-    },
-    "promptTemplate": "为{subject}制作{ratio}新品发布人物海报：保留图1人物身份与动作，参考图2标题排版、图3色彩氛围；背景更新为{scene}，主体优先。",
+    "name": "角色一致性延展",
+    "summary": "让同一角色跨动作与场景保持身份、服装和 IP 识别。",
+    "category": "角色/IP",
     "tags": [
       "人物",
+      "IP",
+      "系列资产"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "人脸与发型",
+      "核心服装",
+      "角色识别特征"
+    ],
+    "change": [
+      "动作",
+      "视角",
+      "环境"
+    ],
+    "goalTemplate": "在{scene}中延展图1角色，锁定面部、发型、服装与关键配件；若有图2，仅借鉴动作和构图，不复制其人物身份。生成{ratio}可用于海报的角色画面，主体比例可信、边缘自然。",
+    "output": "角色延展海报",
+    "thumbnail": "assets/recipes/thumbnails/character-consistency.webp",
+    "preview": "assets/recipes/previews/character-consistency.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/gpt-img-2/gpt-image-2-character-sheet",
+      "author": "gpt-img-2",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "使用角色设定图作为主体参考生成换景画面；人工检查身份、服装与场景",
+      "previewOriginal": true,
+      "referenceInput": "assets/recipes/previews/character-sheet.webp",
+      "scope": "主体参考图换景；可选构图参考尚未单独测"
+    },
+    "score": {
+      "repeatability": 31,
+      "design": 27,
+      "roleClarity": 20,
+      "caseEvidence": 12
+    }
+  },
+  {
+    "id": "product-commercial-kv",
+    "type": "visual_recipe",
+    "name": "产品商业 KV",
+    "summary": "保留产品真实结构，分工继承构图与光影制作商业主视觉。",
+    "category": "产品视觉",
+    "tags": [
+      "产品",
       "商业",
       "海报"
-    ]
-  },
-  {
-    "id": "product-kv-plan",
-    "type": "visual_recipe",
-    "name": "产品主视觉 KV",
+    ],
     "mode": "reuse",
-    "category": "产品视觉",
-    "thumbnail": "templates/thumbnails/product-kv.webp",
-    "description": "突出产品轮廓和材质的品牌视觉",
-    "goal": "制作产品主视觉 KV",
-    "rolePreset": [
+    "references": [
       {
         "slot": 1,
-        "role": "subject"
+        "role": "subject",
+        "required": true
       },
       {
         "slot": 2,
-        "role": "composition"
+        "role": "composition",
+        "required": false
       },
       {
         "slot": 3,
-        "role": "style"
+        "role": "color_material",
+        "required": false
       }
     ],
-    "strategy": {
-      "keep": [
-        "产品轮廓与细节"
-      ],
-      "change": [
-        "背景",
-        "构图",
-        "视觉风格"
-      ]
+    "preserve": [
+      "产品形状",
+      "品牌识别",
+      "主体比例"
+    ],
+    "change": [
+      "环境",
+      "构图",
+      "光影"
+    ],
+    "goalTemplate": "图1是唯一产品主体，严守外形、颜色和结构；图2只参考构图留白，图3只参考光色。为{subject}制作{ratio}商业 KV，背景为{scene}，保留标题和卖点区，不改变品牌标识。",
+    "output": "产品广告 KV",
+    "thumbnail": "assets/recipes/thumbnails/product-commercial-kv.webp",
+    "preview": "assets/recipes/previews/product-commercial-kv.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-26"
     },
-    "promptTemplate": "以图1产品为唯一主体制作{ratio}产品 KV，保留轮廓、比例和关键细节，参考图2构图与留白、图3视觉风格，场景为{scene}。",
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "使用产品原图生成商业 KV；人工检查产品外形、网孔、铜色旋钮与橙色指示灯保持",
+      "previewOriginal": true,
+      "referenceInput": "assets/recipes/references/product-kv-input.webp",
+      "scope": "主体参考图与商业场景；可选构图及色彩参考尚未单独测"
+    },
+    "score": {
+      "repeatability": 32,
+      "design": 28,
+      "roleClarity": 20,
+      "caseEvidence": 12
+    }
+  },
+  {
+    "id": "poster-layout-reuse",
+    "type": "visual_recipe",
+    "name": "海报版式复用",
+    "summary": "保留内容主体，借鉴参考海报的网格、留白和标题层级。",
+    "category": "商业海报",
+    "tags": [
+      "海报",
+      "排版",
+      "商业"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "layout",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "主体身份",
+      "信息主次"
+    ],
+    "change": [
+      "标题文案",
+      "背景",
+      "细节"
+    ],
+    "goalTemplate": "以图1为内容主体，图2仅借鉴版式网格、标题区与留白，不复制其文字或品牌；主题为{title}，输出{ratio}原创海报，保证主体和文字区清楚分离。",
+    "output": "竖版商业海报",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "multi-reference-fusion",
+    "type": "visual_recipe",
+    "name": "多参考视觉融合",
+    "summary": "主体、场景结构与视觉风格分开输入并融合为单张画面。",
+    "category": "多图复用",
+    "tags": [
+      "多图",
+      "融合",
+      "视觉复用"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "style",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "主体身份",
+      "核心轮廓"
+    ],
+    "change": [
+      "场景",
+      "氛围",
+      "材质"
+    ],
+    "goalTemplate": "图1提供唯一主体；图2提供场景空间和视角；图3仅提供风格材质。把三者融合成{ratio}画面，统一透视、接触阴影与光线，不出现拼贴接缝。目标场景：{scene}。",
+    "output": "统一的新视觉",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
+      "author": "Apatero-Org",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "ip-series-extension",
+    "type": "visual_recipe",
+    "name": "IP 系列延展",
+    "summary": "锁定原创 IP 识别特征，扩展动作与材质系列。",
+    "category": "角色/IP",
+    "tags": [
+      "IP",
+      "角色",
+      "系列资产"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "style",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "IP 轮廓",
+      "核心配色",
+      "识别配件"
+    ],
+    "change": [
+      "动作",
+      "材质",
+      "环境"
+    ],
+    "goalTemplate": "图1是原始 IP，严格保留形体比例和配色锚点；图2仅参考动作，图3仅参考材质表现。围绕{scene}制作{ratio}系列中的一张，保证可与原角色并排识别。",
+    "output": "IP 系列资产",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
+      "author": "Apatero-Org",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "product-scene-relocation",
+    "type": "visual_recipe",
+    "name": "产品场景迁移",
+    "summary": "不改动产品本体，将产品合理迁入目标环境。",
+    "category": "产品视觉",
     "tags": [
       "产品",
-      "品牌",
-      "KV"
-    ]
-  },
-  {
-    "id": "xhs-cover-plan",
-    "type": "visual_recipe",
-    "name": "小红书封面",
-    "mode": "reuse",
-    "category": "社媒封面",
-    "thumbnail": "templates/thumbnails/xhs-cover.webp",
-    "description": "适合手机端阅读的醒目封面",
-    "goal": "制作小红书封面",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "layout"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "主体识别特征"
-      ],
-      "change": [
-        "标题信息",
-        "背景氛围"
-      ]
-    },
-    "promptTemplate": "制作{ratio}小红书封面：图1提供主体，图2参考标题排版与信息层级；主题为{title}，适合手机端阅读。",
-    "tags": [
-      "小红书",
-      "封面",
-      "社媒"
-    ]
-  },
-  {
-    "id": "cinematic-light-plan",
-    "type": "visual_recipe",
-    "name": "电影叙事海报",
-    "mode": "reuse",
-    "category": "商业海报",
-    "thumbnail": "templates/thumbnails/cinematic-light.webp",
-    "description": "通过主光与暗部塑造氛围",
-    "goal": "制作电影叙事海报",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "composition"
-      },
-      {
-        "slot": 3,
-        "role": "color_material"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "人物身份",
-        "叙事焦点"
-      ],
-      "change": [
-        "场景",
-        "光影"
-      ]
-    },
-    "promptTemplate": "制作{ratio}电影叙事海报：保留图1人物身份，借鉴图2构图和图3色彩光影；置于{scene}，建立前中后景与标题留白。",
-    "tags": [
-      "电影感",
-      "光影",
-      "氛围"
-    ]
-  },
-  {
-    "id": "comic-game-cover-plan",
-    "type": "visual_recipe",
-    "name": "IP 角色延展",
-    "mode": "reuse",
-    "category": "IP 延展",
-    "thumbnail": "templates/thumbnails/comic-game-cover.webp",
-    "description": "角色张力与叙事氛围兼备",
-    "goal": "制作IP 角色延展",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "style"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "角色识别特征",
-        "主要配色"
-      ],
-      "change": [
-        "动作",
-        "场景"
-      ]
-    },
-    "promptTemplate": "以图1角色为核心制作{ratio} IP 延展视觉，保留五官、服装特征和主要配色；参考图2风格，将动作与场景调整为{scene}。",
-    "tags": [
-      "漫画",
-      "游戏",
-      "封面"
-    ]
-  },
-  {
-    "id": "reuse-two-plan",
-    "type": "visual_recipe",
-    "name": "图1主体＋图2排版",
-    "mode": "reuse",
-    "category": "多图复用",
-    "thumbnail": "templates/thumbnails/reuse-two.webp",
-    "description": "主体和排版分工明确",
-    "goal": "制作图1主体＋图2排版",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "layout"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "主体身份",
-        "排版节奏"
-      ],
-      "change": [
-        "背景",
-        "文案"
-      ]
-    },
-    "promptTemplate": "使用图1的主体与动作，参考图2的排版与字体，为{subject}生成一张{ratio}视觉；主体保持清晰，文字区域与图像关系明确，整体场景为{scene}。",
-    "tags": [
-      "视觉复用",
-      "双图",
-      "排版"
-    ]
-  },
-  {
-    "id": "reuse-three-poster-plan",
-    "type": "visual_recipe",
-    "name": "三图商业海报",
-    "mode": "reuse",
-    "category": "多图复用",
-    "thumbnail": "templates/thumbnails/reuse-three-poster.webp",
-    "description": "三图商业海报复用",
-    "goal": "制作三图商业海报",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "layout"
-      },
-      {
-        "slot": 3,
-        "role": "decoration"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "主体身份",
-        "排版关系"
-      ],
-      "change": [
-        "装饰细节",
-        "主题"
-      ]
-    },
-    "promptTemplate": "使用图1的主体与动作，参考图2的排版与字体，加入图3的装饰与细节，生成一张{ratio}商业海报；主题为{title}，保持主体优先，装饰不抢视觉中心。",
-    "tags": [
-      "视觉复用",
-      "三图",
-      "海报"
-    ]
-  },
-  {
-    "id": "reuse-product-three-plan",
-    "type": "visual_recipe",
-    "name": "产品三图复用",
-    "mode": "reuse",
-    "category": "多图复用",
-    "thumbnail": "templates/thumbnails/reuse-product-three.webp",
-    "description": "产品、构图、色彩各司其职",
-    "goal": "制作产品三图复用",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "composition"
-      },
-      {
-        "slot": 3,
-        "role": "color_material"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "产品结构",
-        "构图关系"
-      ],
-      "change": [
-        "背景",
-        "色彩氛围"
-      ]
-    },
-    "promptTemplate": "使用图1的产品主体，参考图2的构图与留白，继承图3的色彩与光影，生成一张{ratio}产品视觉；置于{scene}，产品轮廓准确，色彩与构图保持清晰分工。",
-    "tags": [
-      "视觉复用",
-      "三图",
-      "产品"
-    ]
-  },
-  {
-    "id": "event-poster-plan",
-    "type": "visual_recipe",
-    "name": "活动主视觉海报",
-    "mode": "reuse",
-    "category": "商业海报",
-    "thumbnail": "templates/thumbnails/event-poster.webp",
-    "description": "明确活动信息与视觉层级",
-    "goal": "制作活动主视觉海报",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "layout"
-      },
-      {
-        "slot": 3,
-        "role": "color_material"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "主体",
-        "信息层级"
-      ],
-      "change": [
-        "活动主题",
-        "背景氛围"
-      ]
-    },
-    "promptTemplate": "以图1主体制作{ratio}活动海报，图2参考标题和信息层级，图3参考色彩氛围；主题为{title}，在{scene}中保持清晰阅读顺序。",
-    "tags": [
-      "活动",
-      "促销",
-      "海报"
-    ]
-  },
-  {
-    "id": "ecommerce-main-plan",
-    "type": "visual_recipe",
-    "name": "电商产品主图",
-    "mode": "reuse",
-    "category": "产品视觉",
-    "thumbnail": "templates/thumbnails/ecommerce-main.webp",
-    "description": "保留产品结构并提升主图质感",
-    "goal": "制作电商产品主图",
-    "rolePreset": [
-      {
-        "slot": 1,
-        "role": "subject"
-      },
-      {
-        "slot": 2,
-        "role": "color_material"
-      }
-    ],
-    "strategy": {
-      "keep": [
-        "产品形状",
-        "比例",
-        "关键细节"
-      ],
-      "change": [
-        "背景",
-        "布光"
-      ]
-    },
-    "promptTemplate": "保留图1产品的形状、比例和关键细节，参考图2布光与色彩，把背景调整为{scene}，制作{ratio}电商产品主图。",
-    "tags": [
       "电商",
-      "产品",
-      "主图"
-    ]
+      "场景"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "产品形状",
+      "颜色",
+      "标识"
+    ],
+    "change": [
+      "背景",
+      "接触阴影",
+      "光线"
+    ],
+    "goalTemplate": "保留图1产品的形状、颜色、比例和可见标识；图2只提供目标环境与机位。将产品真实摆放进{scene}，匹配接触阴影、反射与环境光，输出{ratio}产品图。",
+    "output": "场景化产品主图",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts",
+      "author": "JeremyGDM",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "style-composition-transfer",
+    "type": "visual_recipe",
+    "name": "风格与构图双迁移",
+    "summary": "构图和风格分别指定，重构主体而非简单套滤镜。",
+    "category": "多图复用",
+    "tags": [
+      "多图",
+      "构图",
+      "风格"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "style",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "内容主体",
+      "结构"
+    ],
+    "change": [
+      "构图",
+      "风格",
+      "材质"
+    ],
+    "goalTemplate": "图1决定内容主体与关键结构；图2决定构图、机位和留白；图3决定材料与笔触。为{subject}生成{ratio}新视觉，保持三个来源分工清晰，重建空间与光线，避免直接贴图。",
+    "output": "重构视觉",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
+      "author": "Apatero-Org",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "brand-series-consistency",
+    "type": "visual_recipe",
+    "name": "品牌系列统一",
+    "summary": "基于品牌锚点和历史 KV 生成一致的新一张系列资产。",
+    "category": "品牌视觉",
+    "tags": [
+      "品牌",
+      "系列资产",
+      "商业"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "style",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "layout",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "subject",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "主色",
+      "字体节奏",
+      "品牌识别"
+    ],
+    "change": [
+      "内容主体",
+      "活动主题"
+    ],
+    "goalTemplate": "图1提供品牌色彩、材质和识别规则；图2提供历史 KV 的网格节奏；图3若有则提供新主体。围绕{title}制作{ratio}系列画面，保持品牌系统但避免照搬旧版面。",
+    "output": "品牌系列 KV",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "commercial-person-scene",
+    "type": "visual_recipe",
+    "name": "人物商业换景",
+    "summary": "稳定保留人物身份，替换环境并匹配商业布光。",
+    "category": "商业人像",
+    "tags": [
+      "人物",
+      "海报",
+      "商业"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "color_material",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "人物身份",
+      "脸型",
+      "关键服饰"
+    ],
+    "change": [
+      "环境",
+      "机位",
+      "光影"
+    ],
+    "goalTemplate": "图1锁定人物身份、脸型和服饰；图2提供{scene}的空间线索；图3只提供光影和色彩。输出{ratio}商业人物视觉，匹配人物边缘、脚下阴影和环境反射，避免换脸或漂浮。",
+    "output": "商业人像海报",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
+      "author": "Apatero-Org",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "one-image-multi-assets",
+    "type": "visual_recipe",
+    "name": "一图多资产",
+    "summary": "从同一核心视觉派生多种版式而不丢失视觉锚点。",
+    "category": "系列资产",
+    "tags": [
+      "系列资产",
+      "社交",
+      "海报"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      }
+    ],
+    "preserve": [
+      "核心视觉主体",
+      "关键配色",
+      "主视觉识别"
+    ],
+    "change": [
+      "画布比例",
+      "留白",
+      "信息层级"
+    ],
+    "goalTemplate": "以图1为唯一视觉锚点，先制作{ratio}版本用于{scene}；保留主体、色彩与识别特征，按新画幅重构留白和文字区，不拉伸主体。后续可依次派生竖版海报、横版 KV、社交封面、详情页头图和视频封面。",
+    "output": "多尺寸资产组",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
   }
 ]

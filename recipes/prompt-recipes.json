@@ -1,227 +1,474 @@
 [
   {
-    "id": "glass-material",
+    "id": "era-film-portrait",
     "type": "prompt_recipe",
-    "name": "玻璃液态视觉",
-    "mode": "text",
-    "category": "材质",
-    "thumbnail": "templates/thumbnails/glass-material.webp",
-    "description": "透明材质与细腻折射",
-    "prompt": "以{subject}为主体制作{ratio}商业视觉，使用流动的透明玻璃形态、真实折射、精确边缘高光与轻盈悬浮感；场景为{scene}，保留清晰主体和标题留白。",
+    "name": "年代穿越胶片肖像",
+    "summary": "保留人物身份，重建指定年代的服饰、发型、场景与胶片质感。",
+    "category": "人像摄影",
     "tags": [
-      "玻璃",
-      "材质",
-      "透明"
-    ]
+      "人像",
+      "摄影",
+      "年代"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "以{subject}为唯一人物，保持可辨认的五官、肤色与年龄特征；将服饰改为{clothing}，放在{scene}。画面呈现{era}年代真实生活摄影的布光、颗粒、褪色与镜头缺陷，避免现代电子产品和夸张美颜。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "clothing",
+      "scene",
+      "era",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/era-film-portrait.webp",
+    "preview": "assets/recipes/previews/era-film-portrait.webp",
+    "status": "testing",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "opensource-works",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "年代质感已生成；尚未用输入人物验证身份保持",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 14,
+      "design": 23,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    }
   },
   {
-    "id": "cyber-purple",
+    "id": "character-sheet",
     "type": "prompt_recipe",
-    "name": "霓虹科技",
-    "mode": "text",
-    "category": "材质",
-    "thumbnail": "templates/thumbnails/cyber-purple.webp",
-    "description": "蓝紫光带与克制的科技细节",
-    "prompt": "为{subject}创建{ratio}视觉：深蓝与紫色为主色，使用克制的光带、微弱霓虹边缘和清晰层次，在{scene}中保持主体可读，整体有现代科技感。",
+    "name": "角色四视图 Character Sheet",
+    "summary": "同一原创角色的正面、侧面、背面和配件视图保持一致。",
+    "category": "角色/IP",
     "tags": [
-      "蓝紫",
-      "科技",
-      "赛博"
-    ]
+      "角色",
+      "IP",
+      "多视图"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{subject}绘制一张专业角色设定页：中央全身正面，左侧头部侧面，右侧全身背面，下方展示{accessory}。在所有视图中锁定发型轮廓、脸型、服装材质、配色和配件；使用{style}表现，浅色干净背景，清晰分栏，不添加无关人物。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "accessory",
+      "style",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/character-sheet.webp",
+    "preview": "assets/recipes/previews/character-sheet.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/gpt-img-2/gpt-image-2-character-sheet",
+      "author": "gpt-img-2",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "人工检查生成结果与玩法机制一致",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 16,
+      "design": 24,
+      "variable": 24,
+      "clarity": 15,
+      "crossModel": 11
+    }
   },
   {
-    "id": "forced-perspective",
+    "id": "y2k-ccd-travel",
     "type": "prompt_recipe",
-    "name": "大透视冲击",
-    "mode": "text",
-    "category": "构图",
-    "thumbnail": "templates/thumbnails/forced-perspective.webp",
-    "description": "保留主体身份，强化纵深",
-    "prompt": "以{subject}制作{ratio}画面，采用低机位大透视，让前景与主体形成明确纵深；背景为{scene}，保持人体或产品结构可信，避免形体失真。",
+    "name": "Y2K CCD 直闪旅拍",
+    "summary": "把旅行人物转换为千禧数码相机直闪抓拍。",
+    "category": "人像摄影",
     "tags": [
-      "透视",
-      "冲击",
-      "动感"
-    ]
+      "人像",
+      "旅行",
+      "Y2K"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "在{location}拍摄{subject}的随手旅拍，穿着{clothing}；使用早期 CCD 数码相机的直闪、轻微噪点、高光溢出和偶然偏斜构图，保留真实面部与环境线索，避免过度磨皮和精致棚拍感。画幅{ratio}。",
+    "variables": [
+      "location",
+      "subject",
+      "clothing",
+      "ratio"
+    ],
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "opensource-works",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
   },
   {
-    "id": "floating-3d",
+    "id": "landmark-miniature-card",
     "type": "prompt_recipe",
-    "name": "悬浮构图",
-    "mode": "text",
-    "category": "构图",
-    "thumbnail": "templates/thumbnails/floating-3d.webp",
-    "description": "漂浮构图与立体材质",
-    "prompt": "为{subject}制作{ratio}的 3D 漂浮主视觉：主体悬浮于{scene}，透视自然，材质细节清楚，以柔和环境光和精确高光形成空间深度。",
+    "name": "城市地标微缩收藏卡",
+    "summary": "把真实地标重构成可收藏的手工微缩模型摄影。",
+    "category": "旅行设计",
     "tags": [
-      "3D",
-      "漂浮",
-      "立体"
-    ]
+      "旅行",
+      "微缩",
+      "收藏"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "将{location}的{landmark}制作成摆放在桌面上的手工微缩收藏模型；保留地标的关键建筑轮廓，展示底座、比例尺感、细密材料与柔和展柜光；下方预留城市铭牌区域但不生成伪文字。画幅{ratio}。",
+    "variables": [
+      "location",
+      "landmark",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/landmark-miniature-card.webp",
+    "preview": "assets/recipes/previews/landmark-miniature-card.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "simeon-sanai (indexed by opensource-works)",
+      "views": 10700,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "单次生成输出体现玩法主要视觉机制；人工检查构图与独立预览",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 14,
+      "design": 23,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    }
   },
   {
-    "id": "minimal-space",
+    "id": "product-ad",
     "type": "prompt_recipe",
-    "name": "极简留白",
-    "mode": "text",
-    "category": "构图",
-    "thumbnail": "templates/thumbnails/minimal-space.webp",
-    "description": "用空间和单一焦点强调主体",
-    "prompt": "以{subject}为唯一视觉焦点制作{ratio}画面；背景为{scene}，减少装饰，保留大面积留白，使用克制配色和{style}质感，确保主体与文字区域清晰。",
-    "tags": [
-      "极简",
-      "留白",
-      "版式"
-    ]
-  },
-  {
-    "id": "commercial-person",
-    "type": "prompt_recipe",
-    "name": "商业人物摄影",
-    "mode": "text",
-    "category": "风格",
-    "thumbnail": "templates/thumbnails/commercial-person.webp",
-    "description": "人物主视觉与商业标题留白",
-    "prompt": "为{subject}制作一张{ratio}商业人物海报：人物姿态鲜明，置于{scene}，主体突出，标题区域清晰，使用{style}视觉语言与有层次的光影，保留足够信息留白。",
-    "tags": [
-      "人物",
-      "商业",
-      "海报"
-    ]
-  },
-  {
-    "id": "product-kv",
-    "type": "prompt_recipe",
-    "name": "产品主视觉",
-    "mode": "text",
-    "category": "风格",
-    "thumbnail": "templates/thumbnails/product-kv.webp",
-    "description": "突出产品轮廓和材质的品牌视觉",
-    "prompt": "为{subject}制作一张{ratio}产品主视觉 KV：置于{scene}，以产品为唯一主角，强化材质、边缘光与空间层次，采用{style}设计，预留品牌标题和卖点区域。",
+    "name": "参数型产品广告海报",
+    "summary": "单一产品、商业布景与可编辑卖点区域形成完整广告画面。",
+    "category": "商业产品",
     "tags": [
       "产品",
-      "品牌",
-      "KV"
-    ]
-  },
-  {
-    "id": "magazine-cover",
-    "type": "prompt_recipe",
-    "name": "杂志编辑风",
-    "mode": "text",
-    "category": "风格",
-    "thumbnail": "templates/thumbnails/magazine-cover.webp",
-    "description": "编辑感版式与主体共存",
-    "prompt": "制作一张{ratio}杂志封面：以{subject}为封面主体，置于{scene}，使用有节奏的标题排版、边距与留白，采用{style}光影和精致材质。",
-    "tags": [
-      "杂志",
-      "封面",
-      "排版"
-    ]
-  },
-  {
-    "id": "cinematic-light",
-    "type": "prompt_recipe",
-    "name": "电影感光影",
-    "mode": "text",
-    "category": "风格",
-    "thumbnail": "templates/thumbnails/cinematic-light.webp",
-    "description": "通过主光与暗部塑造氛围",
-    "prompt": "为{subject}制作{ratio}电影感视觉：在{scene}中建立明确主光、深层暗部和少量轮廓光，控制饱和度与色彩对比，营造{style}叙事氛围。",
-    "tags": [
-      "电影感",
-      "光影",
-      "氛围"
-    ]
-  },
-  {
-    "id": "xhs-cover",
-    "type": "prompt_recipe",
-    "name": "小红书封面",
-    "mode": "text",
-    "category": "风格",
-    "thumbnail": "templates/thumbnails/xhs-cover.webp",
-    "description": "适合手机端阅读的醒目封面",
-    "prompt": "制作一张{ratio}小红书封面：主题为{title}，展示{subject}，构图聚焦且适合手机端阅读，标题简短醒目，色彩有记忆点，视觉风格为{style}。",
-    "tags": [
-      "小红书",
-      "封面",
-      "社媒"
-    ]
-  },
-  {
-    "id": "double-exposure",
-    "type": "prompt_recipe",
-    "name": "双重曝光",
-    "mode": "text",
-    "category": "AI实验",
-    "thumbnail": "templates/thumbnails/double-exposure.webp",
-    "description": "人物轮廓与场景交叠",
-    "prompt": "制作一张{ratio}双重曝光视觉：以{subject}的轮廓为主形，将{scene}自然融入轮廓内部，保持面部或主体结构清晰，以{style}色彩和柔和过渡营造情绪。",
-    "tags": [
-      "双重曝光",
-      "人物",
-      "摄影"
-    ]
-  },
-  {
-    "id": "collage-magazine",
-    "type": "prompt_recipe",
-    "name": "拼贴杂志",
-    "mode": "text",
-    "category": "AI实验",
-    "thumbnail": "templates/thumbnails/collage-magazine.webp",
-    "description": "保留主体，重组图形与纸张层次",
-    "prompt": "为{subject}制作{ratio}拼贴杂志视觉：叠加有节奏的裁切形状、纸张纹理与编辑式标题，在{scene}中保持主体清晰、层级可读。",
-    "tags": [
-      "拼贴",
-      "杂志",
-      "排版"
-    ]
-  },
-  {
-    "id": "crystal-refraction",
-    "type": "prompt_recipe",
-    "name": "水晶折射",
-    "mode": "text",
-    "category": "材质",
-    "thumbnail": "templates/thumbnails/glass-material.webp",
-    "description": "透明材质与细腻折射",
-    "prompt": "以{subject}为视觉中心制作{ratio}画面，使用通透水晶切面、细腻光谱折射和柔和投影；场景为{scene}，控制反光强度，保持细节真实。",
-    "tags": [
-      "玻璃",
-      "材质",
-      "透明"
-    ]
-  },
-  {
-    "id": "event-poster",
-    "type": "prompt_recipe",
-    "name": "活动海报",
-    "mode": "text",
-    "category": "风格",
-    "thumbnail": "templates/thumbnails/event-poster.webp",
-    "description": "明确活动信息与视觉层级",
-    "prompt": "制作一张{ratio}活动促销海报：核心主题为{title}，主体是{subject}；在{scene}中建立明确的信息层级、强识别标题区和行动引导，整体采用{style}风格。",
-    "tags": [
-      "活动",
-      "促销",
+      "商业",
       "海报"
-    ]
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{product}制作{ratio}商业广告：产品作为唯一主体，置于{scene}，保持真实结构、材质与可读轮廓；使用{color}作为主色，设置准确边缘光与层次；左上保留品牌标题区，右下预留{feature}卖点参数区，不生成虚构品牌标识或小字。",
+    "variables": [
+      "product",
+      "ratio",
+      "scene",
+      "color",
+      "feature"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/product-ad.webp",
+    "preview": "assets/recipes/previews/product-ad.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "人工检查生成结果与玩法机制一致",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 12,
+      "design": 24,
+      "variable": 24,
+      "clarity": 15,
+      "crossModel": 11
+    }
   },
   {
-    "id": "text-structure",
+    "id": "map-pop-up-world",
     "type": "prompt_recipe",
-    "name": "结构化提示词",
-    "mode": "text",
-    "category": "构图",
-    "thumbnail": "templates/thumbnails/text-structure.webp",
-    "description": "按主体、场景、构图组织输入",
-    "prompt": "主体：{subject}。场景：{scene}。构图：突出主体并预留合理留白。光影：主次清楚。材质：细节可信。风格：{style}。画幅：{ratio}。",
+    "name": "地图展开微缩旅行世界",
+    "summary": "地图折页上长出城市地标与地形的微缩世界。",
+    "category": "旅行设计",
     "tags": [
-      "文生图",
-      "结构",
-      "提示词"
-    ]
+      "地图",
+      "旅行",
+      "微缩"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "一张展开的{location}地图占据画面下半部，纸面上升起{landmark}与周边地形的精致微缩模型；纸张折线、真实材料和定位标记相互呼应，背景简洁，保留标题留白。画幅{ratio}。",
+    "variables": [
+      "location",
+      "landmark",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/map-pop-up-world.webp",
+    "preview": "assets/recipes/previews/map-pop-up-world.webp",
+    "status": "verified",
+    "source": {
+      "platform": "internal",
+      "url": "",
+      "author": "AssetFlow",
+      "notes": "旅行目的地微缩叙事的产品内容需求，原创机制与预览",
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "单次生成输出体现玩法主要视觉机制；人工检查构图与独立预览",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 14,
+      "design": 23,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    }
+  },
+  {
+    "id": "phone-in-phone-portrait",
+    "type": "prompt_recipe",
+    "name": "手机框中框肖像",
+    "summary": "真人举手机遮脸，屏幕中的肖像与真实姿态连接。",
+    "category": "视觉实验",
+    "tags": [
+      "人像",
+      "手机",
+      "实验"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "拍摄{subject}站在{scene}，用一部手机遮住面部；手机屏幕清晰展示同一人物的正面肖像，屏幕边缘与真实手部透视严密对齐，保持衣着、光线与身份一致；自然摄影质感，画幅{ratio}。",
+    "variables": [
+      "subject",
+      "scene",
+      "ratio"
+    ],
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "opensource-works",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "lookbook-callouts",
+    "type": "prompt_recipe",
+    "name": "穿搭商品标注 Lookbook",
+    "summary": "人物穿搭主图与局部单品标注组合成杂志页。",
+    "category": "时尚编辑",
+    "tags": [
+      "穿搭",
+      "时尚",
+      "排版"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{subject}制作一张{ratio}穿搭 Lookbook：主图展示全身造型和{scene}；周边以小图拆解{items}，细线连接对应服装位置，留出简短商品标注区。保持人物身份和服装一致，版式清楚、可编辑，不生成虚假品牌。",
+    "variables": [
+      "subject",
+      "scene",
+      "items",
+      "ratio"
+    ],
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "opensource-works",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "badge-collection",
+    "type": "prompt_recipe",
+    "name": "个人徽章收藏套装",
+    "summary": "同一人物或 IP 变成主徽章和兴趣属性徽章套装。",
+    "category": "角色/IP",
+    "tags": [
+      "IP",
+      "徽章",
+      "收藏"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "将{subject}转化为一套原创收藏徽章：一个主徽章和围绕{interest}的三枚小徽章；保持角色识别特征，统一轮廓线、材质和配色，整齐陈列在{scene}，为名称与属性留出空白标签区。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "interest",
+      "scene",
+      "ratio"
+    ],
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "opensource-works",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "two-image-fusion",
+    "type": "prompt_recipe",
+    "name": "双图融合动态场景",
+    "summary": "把主体与新场景统一成具有可信透视和光照的动作瞬间。",
+    "category": "视觉实验",
+    "tags": [
+      "双图",
+      "动态",
+      "合成"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "将{subject}置于{scene}的动态瞬间，匹配脚下接触阴影、镜头透视、运动方向与环境光；确保主体结构和身份稳定，背景与前景形成真实空间连续性，不要拼贴边缘。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "scene",
+      "ratio"
+    ],
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "opensource-works",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "cinema-closeup",
+    "type": "prompt_recipe",
+    "name": "超近景电影人物肖像",
+    "summary": "用极近镜头、局部焦点和电影光比构成肖像。",
+    "category": "人像摄影",
+    "tags": [
+      "人像",
+      "电影",
+      "特写"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{subject}拍摄{ratio}电影特写，镜头距离极近，视觉焦点落在{focus}；保留真实皮肤纹理和自然不对称细节，用{light}形成主光与暗部层次，背景只提供轻微故事线索，避免塑料皮肤。",
+    "variables": [
+      "subject",
+      "ratio",
+      "focus",
+      "light"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/cinema-closeup.webp",
+    "preview": "assets/recipes/previews/cinema-closeup.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "Jahan Zaib (indexed by opensource-works)",
+      "views": 2900,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "单次生成输出体现玩法主要视觉机制；人工检查构图与独立预览",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 14,
+      "design": 23,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    }
+  },
+  {
+    "id": "character-film-bible",
+    "type": "prompt_recipe",
+    "name": "角色电影设定 Bible",
+    "summary": "将角色、表情、服装、道具和场景整合成设定页。",
+    "category": "角色/IP",
+    "tags": [
+      "角色",
+      "电影",
+      "设定"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "制作{subject}的电影角色设定页：主角色全身图、两种表情、{accessory}道具特写、{scene}环境小样分区展示；在各面板保持脸型和服装关键特征一致，设置清晰信息层级与注释留白，不写伪文字。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "accessory",
+      "scene",
+      "ratio"
+    ],
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/gpt-img-2/gpt-image-2-character-sheet",
+      "author": "gpt-img-2",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
   }
 ]

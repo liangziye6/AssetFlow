@@ -46,23 +46,62 @@ const previewServer = read("preview-server.js");
 assert.match(popupHtml, /soft-aurora\.js[\s\S]*reuse-plan\.js[\s\S]*template-library\.js[\s\S]*popup\.js[\s\S]*template-library-ui\.js/, "方案模块必须按依赖顺序加载");
 assert.match(popupHtml, /template-library\.css/, "灵感库样式必须加载");
 assert.match(popupHtml, /data-template-type="prompt_recipe"[\s\S]*data-template-type="visual_recipe"/, "灵感库必须分为两个方向");
-assert.match(popupHtml, /id="templateSearch"[\s\S]*id="templateCategories"/, "灵感库必须保留搜索和分类");
-assert.strictEqual(promptRecipes.length, 15, "首批灵感玩法应有 15 个");
-assert.strictEqual(visualRecipes.length, 10, "首批视觉方案应有 10 个");
-TemplateLibrary.validateRecipes(recipeData);
-for (const item of recipeData) {
-  assert.match(item.thumbnail, /\.webp$/, "方案缩略图应优先使用 WebP");
-  const image = fs.readFileSync(path.join(root, item.thumbnail));
-  assert.strictEqual(image.toString("ascii", 0, 4), "RIFF", "WebP 文件头无效：" + item.id);
-  assert.strictEqual(image.toString("ascii", 8, 12), "WEBP", "WebP 格式无效：" + item.id);
+assert.match(popupHtml, /id="templateSearch"[\s\S]*id="templateCategories"[\s\S]*id="templateTags"/, "灵感库必须保留搜索、分类和标签");
+assert.match(popupHtml, /id="templateResearchBtn"/, "未验证候选必须进入案例研究");
+assert.doesNotMatch(popupHtml, /id="templateCandidates"/, "默认列表不得保留候选混排开关");
+assert.match(popupHtml, /id="templateBrowse"[\s\S]*id="templatePreview"/, "列表与详情必须在同一抽屉内切换");
+const templateUi = read("template-library-ui.js");
+assert.match(templateUi, /function availableItems\(\)[\s\S]*research \? \["candidate", "testing"\][\s\S]*PUBLIC_STATUSES/, "正式库与案例研究必须分别过滤");
+assert.match(templateUi, /function showPreview\(item\)[\s\S]*browse\.hidden = true;[\s\S]*preview\.hidden = false;/, "详情必须替换列表");
+assert.doesNotMatch(templateUi, /head\.append\([\s\S]{0,180}button\("×"/, "详情不得有第二个关闭按钮");
+assert.match(templateUi, /const masonry = document\.createElement\("div"\);[\s\S]*masonry\.append\(card\);[\s\S]*list\.append\(masonry\);/, "滚动容器与瀑布流内容必须分离");
+assert.match(templateCss, /\.template-list\s*\{[^}]*overflow-x:\s*hidden;/, "图库列表不得横向滚动");
+assert.doesNotMatch(templateCss, /\.template-list\s*\{[^}]*column-count:/, "固定高度滚动容器不得直接承担多列布局");
+assert.match(templateCss, /\.template-masonry\s*\{[^}]*column-count:\s*2;[^}]*column-gap:\s*16px;/, "案例必须按双列瀑布流布局");
+assert.match(templateCss, /\.template-masonry\.is-sparse\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, "少量案例仍须左右并列");
+assert.match(templateCss, /\.template-card-media img\s*\{[\s\S]*height: auto;[\s\S]*object-fit: contain;/, "卡片图片必须保持原比例完整展示");
+assert.match(templateCss, /\.template-detail-image\s*\{[\s\S]*height: auto;[\s\S]*object-fit: contain;/, "详情图片必须保持原比例完整展示");
+assert.strictEqual(promptRecipes.length, 12, "V2 候选池应有 12 个 Prompt 玩法");
+assert.strictEqual(visualRecipes.length, 10, "V2 候选池应有 10 个视觉方案");
+const normalizedRecipes = TemplateLibrary.validateRecipes(recipeData);
+const publicRecipes = normalizedRecipes.filter((item) => TemplateLibrary.PUBLIC_STATUSES.has(item.status));
+assert.strictEqual(publicRecipes.length, 7, "正式库只展示已生成并验收的 7 个方案");
+assert.strictEqual(new Set(publicRecipes.map((item) => item.thumbnail)).size, publicRecipes.length, "正式卡片必须使用独立缩略图");
+assert.strictEqual(new Set(publicRecipes.map((item) => item.preview)).size, publicRecipes.length, "正式卡片必须使用独立预览");
+function webpDimensions(buffer) {
+  assert.strictEqual(buffer.toString("ascii", 12, 16), "VP8 ", "当前预览资源必须使用 VP8 WebP");
+  return {
+    width: buffer.readUInt16LE(26) & 0x3fff,
+    height: buffer.readUInt16LE(28) & 0x3fff
+  };
 }
-assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", query: "玻璃" }).length, 2);
-assert.ok(TemplateLibrary.categories(recipeData, "prompt_recipe").includes("AI实验"));
-assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "visual_recipe", category: "多图复用" }).length, 3);
-assert.match(TemplateLibrary.resolveText(promptRecipes[0], { ratio: "3:4" }), /3:4/);
-assert.strictEqual(TemplateLibrary.presetForExistingImages(visualRecipes.find((item) => item.id === "reuse-three-poster-plan"), 2).length, 2);
-assert.strictEqual(TemplateLibrary.requiredImageCount(visualRecipes[0]), 3);
-assert.match(packageExtension, /const directories = \["docs", "templates", "recipes"\]/, "安装包必须包含方案数据");
+for (const item of publicRecipes) {
+  for (const asset of [item.thumbnail, item.preview]) {
+    assert.match(asset, /^assets\/recipes\/(?:thumbnails|previews)\/[a-z0-9-]+\.webp$/);
+    const image = fs.readFileSync(path.join(root, asset));
+    assert.strictEqual(image.toString("ascii", 0, 4), "RIFF", "WebP 文件头无效：" + item.id);
+    assert.strictEqual(image.toString("ascii", 8, 12), "WEBP", "WebP 格式无效：" + item.id);
+  }
+  const thumb = webpDimensions(fs.readFileSync(path.join(root, item.thumbnail)));
+  const previewImage = webpDimensions(fs.readFileSync(path.join(root, item.preview)));
+  assert.ok(Math.abs(thumb.width / thumb.height - previewImage.width / previewImage.height) < 0.01,
+    "缩略图必须保留原始画幅：" + item.id);
+}
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe" }).length, 5);
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "visual_recipe" }).length, 2);
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", includeCandidates: true }).length, 12);
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", tag: "产品" }).length, 1);
+assert.ok(TemplateLibrary.categories(recipeData, "prompt_recipe").includes("商业产品"));
+assert.ok(TemplateLibrary.tags(recipeData, "prompt_recipe").includes("角色"));
+assert.match(TemplateLibrary.resolveText(promptRecipes.find((item) => item.id === "product-ad"), { product: "柠檬饮品" }), /柠檬饮品/);
+assert.strictEqual(TemplateLibrary.presetForExistingImages(visualRecipes[0], 2).length, 2);
+assert.strictEqual(TemplateLibrary.requiredImageCount(visualRecipes[0]), 1);
+assert.strictEqual(TemplateLibrary.presetForExistingImages(visualRecipes[0], 1)[0].roles[0], "subject");
+assert.throws(() => TemplateLibrary.validateRecipes([{ ...publicRecipes[0], preview: "" }]), /原创图片/);
+const legacyRecipe = { id: "old-sample", type: "prompt_recipe", name: "旧方案", category: "旧分类",
+  description: "旧描述", prompt: "主体：{subject}", mode: "text", tags: ["旧"] };
+assert.strictEqual(TemplateLibrary.validateRecipes([legacyRecipe])[0].status, "candidate");
+assert.match(packageExtension, /const directories = \["docs", "recipes"\]/, "安装包必须包含方案数据");
 assert.match(templateCss, /\.template-drawer/, "模板库抽屉样式必须存在");
 assert.match(popupHtml, /soft-aurora\.js[\s\S]*reuse-plan\.js[\s\S]*popup\.js/, "Soft Aurora 与 ReusePlan 必须在 popup.js 之前加载");
 assert.match(popupHtml, /reuse-plan\.js[\s\S]*popup\.js/, "ReusePlan 必须在 popup.js 之前加载");

@@ -19,7 +19,7 @@
   --mx: 50%;
   --my: 24%;
   --font-ui: "Manrope", "Inter", "Noto Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "Roboto Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-mono: var(--font-ui);
   font-family: var(--font-ui);
 }
 
@@ -5522,15 +5522,15 @@ html.standalone .app-shell.is-api-view {
 
 /* v1.9.14 brand assets from the supplied AssetFlow logo. */
 .top-logo {
-  width: 50px;
-  height: 50px;
+  width: 45px;
+  height: 45px;
   border-radius: 13px;
 }
 
 .hero h1.hero-title {
   position: relative;
   display: grid;
-  width: min(304px, calc(100vw - 84px));
+  width: min(258px, calc(100vw - 84px));
   min-height: 80px;
   margin: 0;
   padding: 0;
@@ -5572,8 +5572,8 @@ html.standalone .app-shell.is-api-view {
 }
 
 @media (max-width: 560px) {
-  .top-logo { width: 50px; height: 50px; border-radius: 13px; }
-  .hero h1.hero-title { width: min(284px, calc(100vw - 64px)); min-height: 72px; }
+  .top-logo { width: 45px; height: 45px; border-radius: 13px; }
+  .hero h1.hero-title { width: min(242px, calc(100vw - 64px)); min-height: 72px; }
 }
 
 .hero-title-text[hidden] { display: none !important; }

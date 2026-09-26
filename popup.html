@@ -663,11 +663,15 @@
       <div id="templateScrim" class="template-scrim" hidden></div>
       <aside id="templateDrawer" class="template-drawer" role="dialog" aria-modal="true" aria-label="灵感库" hidden>
         <div class="template-drawer-head"><div><span class="template-eyebrow">ASSETFLOW · LIBRARY</span><h2>灵感库</h2></div><button id="templateCloseBtn" class="template-close-btn" type="button" aria-label="关闭灵感库">×</button></div>
-        <nav class="template-types" aria-label="方案类型"><button type="button" data-template-type="prompt_recipe" aria-pressed="true">灵感玩法</button><button type="button" data-template-type="visual_recipe" aria-pressed="false">视觉方案</button></nav>
-        <label class="template-search-label" for="templateSearch">搜索方案</label><input id="templateSearch" class="template-search" type="search" placeholder="搜索名称、标签或用途……" autocomplete="off">
-        <nav id="templateCategories" class="template-categories" aria-label="方案分类"></nav>
-        <p id="templateModeLabel" class="template-mode-label"></p>
-        <div id="templateList" class="template-list" aria-live="polite"></div>
+        <div id="templateBrowse" class="template-browse">
+          <nav class="template-types" aria-label="方案类型"><button type="button" data-template-type="prompt_recipe" aria-pressed="true">Prompt玩法</button><button type="button" data-template-type="visual_recipe" aria-pressed="false">视觉方案</button></nav>
+          <label class="template-search-label" for="templateSearch">搜索方案</label><input id="templateSearch" class="template-search" type="search" placeholder="搜索名称、标签或用途……" autocomplete="off">
+          <div class="template-filter-bar"><nav id="templateCategories" class="template-categories" aria-label="方案分类"></nav><button id="templateFilterBtn" class="template-filter-btn" type="button" aria-expanded="false" aria-controls="templateTags">筛选 ▾</button></div>
+          <nav id="templateTags" class="template-tags" aria-label="标签筛选" hidden></nav>
+          <div class="template-list-meta"><p id="templateModeLabel" class="template-mode-label"></p><button id="templateResearchBtn" class="template-research-btn" type="button"></button></div>
+          <p class="template-feedback" id="templateFeedback" role="status" hidden></p>
+          <div id="templateList" class="template-list" aria-live="polite"></div>
+        </div>
         <div id="templatePreview" class="template-preview" hidden></div>
         <div id="templateConfirm" class="template-confirm" role="alertdialog" aria-modal="true" aria-labelledby="templateConfirmTitle" hidden><div class="template-confirm-panel"><h3 id="templateConfirmTitle"></h3><p id="templateConfirmText"></p><div id="templateConfirmActions" class="template-confirm-actions"></div></div></div>
       </aside>

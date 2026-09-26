@@ -1236,7 +1236,10 @@
           border-radius: 999px;
           color: #f7f7fb;
           background: rgba(255, 255, 255, 0.08);
-          font: 700 13px/1 inherit;
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 1;
           cursor: pointer;
           backdrop-filter: blur(14px);
         }
@@ -1605,7 +1608,7 @@
           font-size: 13px;
           line-height: 1.72;
           white-space: pre-wrap;
-          font-family: "Roboto Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          font-family: inherit;
         }
         .prompt-card,
         .prompt-template {
@@ -1651,7 +1654,7 @@
           font-size: 13px;
           line-height: 1.65;
           white-space: pre-wrap;
-          font-family: "Roboto Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          font-family: inherit;
           transition: max-height 220ms ease, opacity 160ms ease, padding 180ms ease;
         }
         .prompt-card:not(.is-language) pre {
@@ -2030,7 +2033,9 @@
           border-radius: 8px;
           color: rgba(247, 247, 251, 0.82);
           background: rgba(4, 5, 10, 0.28);
-          font: 11px/1.6 "Roboto Mono", "JetBrains Mono", ui-monospace, monospace;
+          font-family: inherit;
+          font-size: 11px;
+          line-height: 1.6;
         }
         .source-panel {
           display: block;

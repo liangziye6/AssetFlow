@@ -102,7 +102,7 @@
     scene: "场景", style: "风格", clothing: "服饰", era: "年代",
     location: "地点", landmark: "地标", title: "标题", product: "产品",
     color: "颜色", feature: "卖点", accessory: "配件", items: "物品",
-    interest: "兴趣"
+    interest: "兴趣", components: "部件", material: "材质", background: "背景"
   };
   function availableItems() {
     return items.filter((item) => item.type === type

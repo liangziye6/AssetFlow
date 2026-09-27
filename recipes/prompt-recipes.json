@@ -24,19 +24,32 @@
     ],
     "thumbnail": "assets/recipes/thumbnails/era-film-portrait.webp",
     "preview": "assets/recipes/previews/era-film-portrait.webp",
-    "status": "testing",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
-      "author": "opensource-works",
+      "author": "Mira",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "originalUrl": "https://x.com/miratechtool/status/2097712223044907454",
+      "licenseNote": "仅参考玩法机制并重写 Prompt；原创人物与生成预览，不复用来源图片或文案。"
     },
     "validation": {
       "generator": "Codex image_gen",
-      "testedAt": "2026-09-26",
-      "result": "年代质感已生成；尚未用输入人物验证身份保持",
-      "previewOriginal": true
+      "testedAt": "2026-09-27",
+      "previewOriginal": true,
+      "referenceInputs": [
+        "assets/recipes/sources/era-portrait-source.webp"
+      ],
+      "testImage": "assets/recipes/validation/era-film-portrait-reference-test.webp",
+      "testVariables": {
+        "subject": "同一原创成年年轻女性肖像",
+        "clothing": "靛蓝牛仔夹克与条纹上衣",
+        "scene": "1990 年代北京家庭客厅",
+        "era": "1990",
+        "ratio": "3:4"
+      },
+      "result": "同一原创成年年轻女性两轮图像编辑；1980 年代上海街景与 1990 年代北京室内的服饰、背景和胶片色调变化明显，五官、长直发和右眼下方痣点可辨。"
     },
     "score": {
       "spread": 14,
@@ -107,22 +120,45 @@
       "text",
       "image"
     ],
-    "prompt": "在{location}拍摄{subject}的随手旅拍，穿着{clothing}；使用早期 CCD 数码相机的直闪、轻微噪点、高光溢出和偶然偏斜构图，保留真实面部与环境线索，避免过度磨皮和精致棚拍感。画幅{ratio}。",
+    "prompt": "在{location}拍摄{subject}穿着{clothing}的旅行抓拍；以早期 CCD 数码相机直闪照亮人物，保留轻微噪点、高光溢出、偶然倾斜构图和真实环境线索，避免过度磨皮与精致棚拍感。画幅{ratio}。",
     "variables": [
       "location",
       "subject",
       "clothing",
       "ratio"
     ],
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/y2k-ccd-travel.webp",
+    "preview": "assets/recipes/previews/y2k-ccd-travel.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
-      "author": "opensource-works",
+      "originalUrl": "https://x.com/abxxai/status/2097698730564796683",
+      "author": "abxxai",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴视觉机制；Prompt 已重写，预览与测试图由本项目原创生成；不复用原帖图片。",
+      "notes": "原作者由公开汇编索引署名；原帖可能需要登录 X 查看。"
+    },
+    "score": {
+      "spread": 15,
+      "design": 21,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 11
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "testImage": "assets/recipes/validation/y2k-ccd-travel-variable-test.webp",
+      "testVariables": {
+        "location": "首尔江边夜景",
+        "subject": "携带地图的成年男性旅行者",
+        "clothing": "森林绿雨衣",
+        "ratio": "3:4"
+      },
+      "result": "第二组变量生成成功；直闪、轻微噪点、倾斜构图与旅行场景清楚可辨"
     }
   },
   {
@@ -277,21 +313,43 @@
       "text",
       "image"
     ],
-    "prompt": "拍摄{subject}站在{scene}，用一部手机遮住面部；手机屏幕清晰展示同一人物的正面肖像，屏幕边缘与真实手部透视严密对齐，保持衣着、光线与身份一致；自然摄影质感，画幅{ratio}。",
+    "prompt": "拍摄{subject}站在{scene}，举起手机遮挡面部；手机屏幕显示同一人物的正面肖像，保持发型、衣着、光线与身份一致，并让屏幕、手部与身体透视自然衔接。真实摄影质感，画幅{ratio}。",
     "variables": [
       "subject",
       "scene",
       "ratio"
     ],
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/phone-in-phone-portrait.webp",
+    "preview": "assets/recipes/previews/phone-in-phone-portrait.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
-      "author": "opensource-works",
+      "originalUrl": "https://x.com/AI__TSUBAKI/status/2097448516322988041",
+      "author": "AI__TSUBAKI",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴视觉机制；Prompt 已重写，预览与测试图由本项目原创生成；不复用原帖图片。",
+      "notes": "原作者由公开汇编索引署名；原帖可能需要登录 X 查看。"
+    },
+    "score": {
+      "spread": 14,
+      "design": 22,
+      "variable": 21,
+      "clarity": 15,
+      "crossModel": 10
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "testImage": "assets/recipes/validation/phone-in-phone-portrait-variable-test.webp",
+      "testVariables": {
+        "subject": "灰发成年男性植物学家",
+        "scene": "热带植物温室",
+        "ratio": "3:4"
+      },
+      "result": "第二组变量生成成功；手机内外人物发型、服装和场景一致"
     }
   },
   {
@@ -309,22 +367,45 @@
       "text",
       "image"
     ],
-    "prompt": "为{subject}制作一张{ratio}穿搭 Lookbook：主图展示全身造型和{scene}；周边以小图拆解{items}，细线连接对应服装位置，留出简短商品标注区。保持人物身份和服装一致，版式清楚、可编辑，不生成虚假品牌。",
+    "prompt": "为{subject}制作{ratio}穿搭 Lookbook：主图展示人物在{scene}的全身造型；旁侧用小图拆解{items}，以细线连接到服装对应部位。各图保持同一套服饰与材质，留白供后期添加真实商品文案，不生成品牌标识或伪文字。",
     "variables": [
       "subject",
       "scene",
       "items",
       "ratio"
     ],
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/lookbook-callouts.webp",
+    "preview": "assets/recipes/previews/lookbook-callouts.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
-      "author": "opensource-works",
+      "originalUrl": "https://x.com/LiEvanna85716/status/2097663816339427547",
+      "author": "LiEvanna85716",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴视觉机制；Prompt 已重写，预览与测试图由本项目原创生成；不复用原帖图片。",
+      "notes": "原作者由公开汇编索引署名；原帖可能需要登录 X 查看。"
+    },
+    "score": {
+      "spread": 13,
+      "design": 23,
+      "variable": 24,
+      "clarity": 14,
+      "crossModel": 11
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "testImage": "assets/recipes/validation/lookbook-callouts-variable-test.webp",
+      "testVariables": {
+        "subject": "穿铁锈橙衬衫的成年男性",
+        "scene": "海滨木栈道",
+        "items": "衬衫缝线与帆布鞋",
+        "ratio": "3:4"
+      },
+      "result": "第二组变量生成成功；主图、单品细节和连接线清晰，服饰一致"
     }
   },
   {
@@ -349,15 +430,37 @@
       "scene",
       "ratio"
     ],
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/badge-collection.webp",
+    "preview": "assets/recipes/previews/badge-collection.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
-      "author": "opensource-works",
+      "author": "Mira",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "originalUrl": "https://x.com/miratechtool/status/2097710852413497646",
+      "licenseNote": "仅借鉴主徽章加属性徽章的结构；数量、角色、图像和 Prompt 均由本项目重新创作。"
+    },
+    "score": {
+      "spread": 13,
+      "design": 23,
+      "variable": 22,
+      "clarity": 15,
+      "crossModel": 10
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-27",
+      "previewOriginal": true,
+      "testImage": "assets/recipes/validation/badge-collection-reference-test.webp",
+      "testVariables": {
+        "subject": "原创中年男性植物学家",
+        "interest": "蕨叶、野外笔记、放大镜",
+        "scene": "深蓝色毛毡展示台",
+        "ratio": "3:4"
+      },
+      "result": "两轮不同人物与兴趣主题均形成 1 枚主徽章加 3 枚小徽章，材质和配色统一，标签保留空白。"
     }
   },
   {
@@ -469,6 +572,63 @@
       "author": "gpt-img-2",
       "views": null,
       "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "product-exploded-view",
+    "type": "prompt_recipe",
+    "name": "产品结构拆解图",
+    "summary": "按可见部件顺序展示产品拆解层级，保留人工添加参数的留白。",
+    "category": "商业产品",
+    "tags": [
+      "产品",
+      "结构",
+      "电商"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{product}制作{ratio}结构拆解视觉示意，沿单一装配轴依次展开{components}；保持部件比例、连接逻辑和{material}材质一致，置于{background}。为人工校对后的说明预留空白，不生成未经核实的尺寸、型号、性能参数、伪文字或品牌标识。",
+    "variables": [
+      "product",
+      "components",
+      "material",
+      "background",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/product-exploded-view.webp",
+    "preview": "assets/recipes/previews/product-exploded-view.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/buluslan/gpt-image2-ecommerce",
+      "author": "buluslan",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅参考技术拆解图这一电商表现方式；Prompt 和图像原创，不复制仓库案例，示意图不作为工程规格。",
+      "originalUrl": "https://github.com/buluslan/gpt-image2-ecommerce"
+    },
+    "score": {
+      "spread": 12,
+      "design": 24,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-27",
+      "previewOriginal": true,
+      "testImage": "assets/recipes/validation/product-exploded-view-reference-test.webp",
+      "testVariables": {
+        "product": "便携式阅读灯",
+        "components": "灯罩、LED 面板、散热件、壳体、电池、转轴与夹座",
+        "material": "象牙白与拉丝黄铜",
+        "background": "暖灰无缝背景",
+        "ratio": "3:4"
+      },
+      "result": "无参数版桌面风扇预览与便携阅读灯第二轮生成均呈现独立可见部件及装配层级，无虚构规格文字；仅作为概念示意。"
     }
   }
 ]

@@ -161,15 +161,44 @@
     ],
     "goalTemplate": "以图1为内容主体，图2仅借鉴版式网格、标题区与留白，不复制其文字或品牌；主题为{title}，输出{ratio}原创海报，保证主体和文字区清楚分离。",
     "output": "竖版商业海报",
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/poster-layout-reuse.webp",
+    "preview": "assets/recipes/previews/poster-layout-reuse.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
       "author": "kwistzzqq-byte",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴工作流方法；概念预览由本项目原创生成，不使用来源仓库图片。",
+      "notes": "原创双参考图编辑；主体、版式与两组指定英文标题已在真实输出中验证。"
+    },
+    "score": {
+      "repeatability": 30,
+      "design": 27,
+      "roleClarity": 18,
+      "caseEvidence": 11
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/poster-subject.webp",
+        "assets/recipes/sources/poster-layout.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/poster-subject.webp",
+        "assets/recipes/sources/poster-layout.webp"
+      ],
+      "testImage": "assets/recipes/validation/poster-layout-reuse-reference-test.webp",
+      "result": "两轮原创双图编辑：陶艺人物保持，左右信息网格迁移；指定标题 CLAY IN MOTION 与 FORM & FIRE 分别准确呈现，无附加伪文字。",
+      "reusePlan": "subject/layout 角色映射，768×1024 草稿校验与中文编译通过",
+      "ui": "Chrome 无头预览上传 2 张原创参考图，使用方案应用 subject/layout 角色并填入需求成功",
+      "scope": "已验证两组英文短标题；其他语言和复杂长文案仍需用户在最终导出前校对。"
     }
   },
   {
@@ -311,15 +340,42 @@
     ],
     "goalTemplate": "保留图1产品的形状、颜色、比例和可见标识；图2只提供目标环境与机位。将产品真实摆放进{scene}，匹配接触阴影、反射与环境光，输出{ratio}产品图。",
     "output": "场景化产品主图",
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/product-scene-relocation.webp",
+    "preview": "assets/recipes/previews/product-scene-relocation.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts",
       "author": "JeremyGDM",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴工作流方法；概念预览由本项目原创生成，不使用来源仓库图片。",
+      "notes": "原创产品参考图编辑两轮，产品形状/颜色/瓶盖保持；插件内角色应用与 ReusePlan 校验通过。"
+    },
+    "score": {
+      "repeatability": 32,
+      "design": 28,
+      "roleClarity": 19,
+      "caseEvidence": 10
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp"
+      ],
+      "testImage": "assets/recipes/validation/product-scene-relocation-reference-test.webp",
+      "result": "单图编辑两轮：钴蓝色瓶身、圆肩和金属瓶盖保持；背景由灰色棚拍换为山间温泉，再换为日光厨房。",
+      "reusePlan": "subject 角色映射，768×1024 草稿校验与中文编译通过",
+      "ui": "Chrome 无头预览上传原创产品图，使用方案应用 subject 角色并填入需求成功",
+      "scope": "必需主体参考已验证；可选构图参考未单独测试"
     }
   },
   {
@@ -362,15 +418,45 @@
     ],
     "goalTemplate": "图1决定内容主体与关键结构；图2决定构图、机位和留白；图3决定材料与笔触。为{subject}生成{ratio}新视觉，保持三个来源分工清晰，重建空间与光线，避免直接贴图。",
     "output": "重构视觉",
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/style-composition-transfer.webp",
+    "preview": "assets/recipes/previews/style-composition-transfer.webp",
+    "status": "testing",
     "source": {
       "platform": "github",
-      "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
-      "author": "Apatero-Org",
+      "url": "https://github.com/Comfy-Org/workflow_templates/blob/main/site/knowledge/concepts/ip-adapter.md",
+      "author": "Comfy-Org",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴构图与风格参考分工；三张参考图及两轮编辑结果均为本项目原创。",
+      "notes": "生成层三图分工已验证；插件三张参考图角色应用待回归。"
+    },
+    "score": {
+      "repeatability": 29,
+      "design": 27,
+      "roleClarity": 20,
+      "caseEvidence": 11
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp",
+        "assets/recipes/sources/style-composition-layout.webp",
+        "assets/recipes/sources/style-composition-style.webp"
+      ],
+      "pending": "插件三图上传及 subject/composition/style 角色应用回归后再考虑正式库"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp",
+        "assets/recipes/sources/style-composition-layout.webp",
+        "assets/recipes/sources/style-composition-style.webp"
+      ],
+      "testImage": "assets/recipes/validation/style-composition-transfer-reference-test.webp",
+      "result": "两轮原创三图编辑：钴蓝瓶轮廓与银色瓶盖保持；左侧底座和拱门取自构图参考；水彩拼纸材质取自风格参考。",
+      "scope": "生成层通过；插件三图角色应用尚待回归。"
     }
   },
   {

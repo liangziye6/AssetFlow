@@ -61,11 +61,11 @@ assert.match(templateCss, /\.template-masonry\s*\{[^}]*column-count:\s*2;[^}]*co
 assert.match(templateCss, /\.template-masonry\.is-sparse\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, "少量案例仍须左右并列");
 assert.match(templateCss, /\.template-card-media img\s*\{[\s\S]*height: auto;[\s\S]*object-fit: contain;/, "卡片图片必须保持原比例完整展示");
 assert.match(templateCss, /\.template-detail-image\s*\{[\s\S]*height: auto;[\s\S]*object-fit: contain;/, "详情图片必须保持原比例完整展示");
-assert.strictEqual(promptRecipes.length, 12, "V2 候选池应有 12 个 Prompt 玩法");
+assert.strictEqual(promptRecipes.length, 13, "Prompt 候选池应有 13 个玩法");
 assert.strictEqual(visualRecipes.length, 10, "V2 候选池应有 10 个视觉方案");
 const normalizedRecipes = TemplateLibrary.validateRecipes(recipeData);
 const publicRecipes = normalizedRecipes.filter((item) => TemplateLibrary.PUBLIC_STATUSES.has(item.status));
-assert.strictEqual(publicRecipes.length, 7, "正式库只展示已生成并验收的 7 个方案");
+assert.strictEqual(publicRecipes.length, 15, "正式库应展示 11 个 Prompt 玩法与 4 个视觉方案");
 assert.strictEqual(new Set(publicRecipes.map((item) => item.thumbnail)).size, publicRecipes.length, "正式卡片必须使用独立缩略图");
 assert.strictEqual(new Set(publicRecipes.map((item) => item.preview)).size, publicRecipes.length, "正式卡片必须使用独立预览");
 function webpDimensions(buffer) {
@@ -87,10 +87,40 @@ for (const item of publicRecipes) {
   assert.ok(Math.abs(thumb.width / thumb.height - previewImage.width / previewImage.height) < 0.01,
     "缩略图必须保留原始画幅：" + item.id);
 }
-assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe" }).length, 5);
-assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "visual_recipe" }).length, 2);
-assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", includeCandidates: true }).length, 12);
-assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", tag: "产品" }).length, 1);
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe" }).length, 11);
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "visual_recipe" }).length, 4);
+for (const id of ["y2k-ccd-travel", "lookbook-callouts", "phone-in-phone-portrait",
+  "era-film-portrait", "badge-collection", "product-exploded-view"]) {
+  const recipe = promptRecipes.find((item) => item.id === id);
+  assert.strictEqual(recipe.status, "verified", "本批 Prompt 必须通过验证：" + id);
+  assert.ok(Object.values(recipe.score).reduce((total, point) => total + point, 0) >= 75,
+    "本批 Prompt 筛选分数不足：" + id);
+  assert.ok(recipe.source.licenseNote && recipe.source.originalUrl,
+    "本批案例必须记录授权边界和原始线索：" + id);
+  assert.deepStrictEqual(Object.keys(recipe.validation.testVariables).sort(), [...recipe.variables].sort(),
+    "测试变量必须覆盖正式 Prompt 的所有变量：" + id);
+  assert.ok(fs.existsSync(path.join(root, recipe.validation.testImage)),
+    "本批案例缺少第二次真实生成证据：" + id);
+}
+for (const id of ["poster-layout-reuse", "product-scene-relocation", "style-composition-transfer"]) {
+  const recipe = visualRecipes.find((item) => item.id === id);
+  assert.strictEqual(recipe.status, id === "style-composition-transfer" ? "testing" : "verified",
+    "视觉方案状态应反映各自的验证结果：" + id);
+  assert.strictEqual(recipe.development.previewKind, "reference-edit");
+  assert.ok(Object.values(recipe.score).reduce((total, point) => total + point, 0) >= 80,
+    "视觉方案评分不足：" + id);
+  assert.ok(recipe.development.referenceInputs.every((file) => fs.existsSync(path.join(root, file))));
+  assert.ok(fs.existsSync(path.join(root, recipe.validation.testImage)),
+    "视觉方案缺少第二轮参考图编辑结果：" + id);
+  assert.deepStrictEqual(
+    TemplateLibrary.presetForExistingImages(recipe, recipe.development.referenceInputs.length)
+      .map((entry) => entry.roles[0]),
+    recipe.references.slice(0, recipe.development.referenceInputs.length).map((entry) => entry.role),
+    "视觉参考图角色映射不匹配：" + id
+  );
+}
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", includeCandidates: true }).length, 13);
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", tag: "产品" }).length, 2);
 assert.ok(TemplateLibrary.categories(recipeData, "prompt_recipe").includes("商业产品"));
 assert.ok(TemplateLibrary.tags(recipeData, "prompt_recipe").includes("角色"));
 assert.match(TemplateLibrary.resolveText(promptRecipes.find((item) => item.id === "product-ad"), { product: "柠檬饮品" }), /柠檬饮品/);

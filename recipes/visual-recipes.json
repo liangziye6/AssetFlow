@@ -350,7 +350,7 @@
       "views": null,
       "checkedAt": "2026-09-27",
       "licenseNote": "仅借鉴工作流方法；概念预览由本项目原创生成，不使用来源仓库图片。",
-      "notes": "原创产品参考图编辑两轮，产品形状/颜色/瓶盖保持；插件内角色应用与 ReusePlan 校验通过。"
+      "notes": "原创产品双图迁移已通过真实 Grsai ReusePlan/生成、异步恢复、网页 Viewer 和恢复创作链。"
     },
     "score": {
       "repeatability": 32,
@@ -375,7 +375,28 @@
       "result": "单图编辑两轮：钴蓝色瓶身、圆肩和金属瓶盖保持；背景由灰色棚拍换为山间温泉，再换为日光厨房。",
       "reusePlan": "subject 角色映射，768×1024 草稿校验与中文编译通过",
       "ui": "Chrome 无头预览上传原创产品图，使用方案应用 subject 角色并填入需求成功",
-      "scope": "必需主体参考已验证；可选构图参考未单独测试"
+      "scope": "真实扩展双图链路通过：Grsai Chat API 建立 ReusePlan，Grsai GPT Image 2.5 实际接收 2 图并生成；assetLineage direct=2、analysis=0；异步任务关闭/重开扩展页后恢复，真实 Side Panel 图库打开网页 Viewer 并恢复原图角色/Prompt/ReusePlan/模型/尺寸。",
+      "providerE2E": {
+        "testedAt": "2026-09-28",
+        "promptProvider": "Grsai Chat API (gemini-2.5-flash)",
+        "imageProvider": "Grsai GPT Image 2.5",
+        "referenceRoles": [
+          "subject",
+          "composition"
+        ],
+        "providerImages": 2,
+        "direct": 2,
+        "analysis": 0,
+        "reusePlan": true,
+        "generation": true,
+        "assetLineage": true,
+        "webViewer": true,
+        "continuation": true,
+        "referenceInputs": [
+          "assets/recipes/sources/product-source.webp",
+          "assets/recipes/sources/style-composition-layout.webp"
+        ]
+      }
     }
   },
   {
@@ -399,12 +420,12 @@
       {
         "slot": 2,
         "role": "composition",
-        "required": false
+        "required": true
       },
       {
         "slot": 3,
         "role": "style",
-        "required": false
+        "required": true
       }
     ],
     "preserve": [
@@ -420,7 +441,7 @@
     "output": "重构视觉",
     "thumbnail": "assets/recipes/thumbnails/style-composition-transfer.webp",
     "preview": "assets/recipes/previews/style-composition-transfer.webp",
-    "status": "testing",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/Comfy-Org/workflow_templates/blob/main/site/knowledge/concepts/ip-adapter.md",
@@ -428,7 +449,7 @@
       "views": null,
       "checkedAt": "2026-09-27",
       "licenseNote": "仅借鉴构图与风格参考分工；三张参考图及两轮编辑结果均为本项目原创。",
-      "notes": "生成层三图分工已验证；插件三张参考图角色应用待回归。"
+      "notes": "三图分工与角色应用、真实 Grsai ReusePlan/生成、网页 Viewer 和恢复创作链已验证。"
     },
     "score": {
       "repeatability": 29,
@@ -442,8 +463,7 @@
         "assets/recipes/sources/product-source.webp",
         "assets/recipes/sources/style-composition-layout.webp",
         "assets/recipes/sources/style-composition-style.webp"
-      ],
-      "pending": "插件三图上传及 subject/composition/style 角色应用回归后再考虑正式库"
+      ]
     },
     "validation": {
       "generator": "Codex image_gen",
@@ -456,7 +476,30 @@
       ],
       "testImage": "assets/recipes/validation/style-composition-transfer-reference-test.webp",
       "result": "两轮原创三图编辑：钴蓝瓶轮廓与银色瓶盖保持；左侧底座和拱门取自构图参考；水彩拼纸材质取自风格参考。",
-      "scope": "生成层通过；插件三图角色应用尚待回归。"
+      "scope": "真实扩展三图链路通过：Grsai Chat API 建立 ReusePlan，Grsai GPT Image 2.5 实际接收 3 图并生成；assetLineage direct=3、analysis=0；网页 Viewer、参考图预览及原图角色/Prompt/ReusePlan/模型/尺寸恢复通过。",
+      "providerE2E": {
+        "testedAt": "2026-09-28",
+        "promptProvider": "Grsai Chat API (gemini-2.5-flash)",
+        "imageProvider": "Grsai GPT Image 2.5",
+        "referenceRoles": [
+          "subject",
+          "composition",
+          "style"
+        ],
+        "providerImages": 3,
+        "direct": 3,
+        "analysis": 0,
+        "reusePlan": true,
+        "generation": true,
+        "assetLineage": true,
+        "webViewer": true,
+        "continuation": true,
+        "referenceInputs": [
+          "assets/recipes/sources/product-source.webp",
+          "assets/recipes/sources/style-composition-layout.webp",
+          "assets/recipes/sources/style-composition-style.webp"
+        ]
+      }
     }
   },
   {
@@ -531,12 +574,12 @@
       {
         "slot": 2,
         "role": "composition",
-        "required": false
+        "required": true
       },
       {
         "slot": 3,
         "role": "color_material",
-        "required": false
+        "required": true
       }
     ],
     "preserve": [
@@ -551,15 +594,72 @@
     ],
     "goalTemplate": "图1锁定人物身份、脸型和服饰；图2提供{scene}的空间线索；图3只提供光影和色彩。输出{ratio}商业人物视觉，匹配人物边缘、脚下阴影和环境反射，避免换脸或漂浮。",
     "output": "商业人像海报",
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/commercial-person-scene.webp",
+    "preview": "assets/recipes/previews/commercial-person-scene.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
       "author": "Apatero-Org",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅参考人物场景商业合成的表达方式；人物、场景、光色参考和两轮输出均为本项目原创。",
+      "notes": "人物身份、空间构图、光色三图分工与真实 Grsai 生成、网页 Viewer 和恢复创作链已验证。"
+    },
+    "score": {
+      "repeatability": 27,
+      "design": 26,
+      "roleClarity": 21,
+      "caseEvidence": 10
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/era-portrait-source.webp",
+        "assets/recipes/sources/commercial-person-scene.webp",
+        "assets/recipes/sources/commercial-person-light.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/era-portrait-source.webp",
+        "assets/recipes/sources/commercial-person-scene.webp",
+        "assets/recipes/sources/commercial-person-light.webp"
+      ],
+      "testImage": "assets/recipes/validation/commercial-person-scene-reference-test.webp",
+      "testVariables": {
+        "scene": "日落时分的现代城市广场",
+        "ratio": "3:4",
+        "pose": "台阶旁侧身站姿"
+      },
+      "result": "两轮原创三图编辑分别呈现走动与侧身站姿；人物的长黑发、面部轮廓与深色服饰保持，广场透视和橙蓝光色来自对应参考。",
+      "scope": "真实扩展三图链路通过：Grsai Chat API 建立 ReusePlan，Grsai GPT Image 2.5 实际接收 3 图并生成；assetLineage direct=3、analysis=0；网页 Viewer、参考图预览及原图角色/Prompt/ReusePlan/模型/尺寸恢复通过。",
+      "providerE2E": {
+        "testedAt": "2026-09-28",
+        "promptProvider": "Grsai Chat API (gemini-2.5-flash)",
+        "imageProvider": "Grsai GPT Image 2.5",
+        "referenceRoles": [
+          "subject",
+          "composition",
+          "color_material"
+        ],
+        "providerImages": 3,
+        "direct": 3,
+        "analysis": 0,
+        "reusePlan": true,
+        "generation": true,
+        "assetLineage": true,
+        "webViewer": true,
+        "continuation": true,
+        "referenceInputs": [
+          "assets/recipes/sources/era-portrait-source.webp",
+          "assets/recipes/sources/commercial-person-scene.webp",
+          "assets/recipes/sources/commercial-person-light.webp"
+        ]
+      }
     }
   },
   {
@@ -593,15 +693,63 @@
     ],
     "goalTemplate": "以图1为唯一视觉锚点，先制作{ratio}版本用于{scene}；保留主体、色彩与识别特征，按新画幅重构留白和文字区，不拉伸主体。后续可依次派生竖版海报、横版 KV、社交封面、详情页头图和视频封面。",
     "output": "多尺寸资产组",
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/one-image-multi-assets.webp",
+    "preview": "assets/recipes/previews/one-image-multi-assets.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
       "author": "kwistzzqq-byte",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅参考单一素材多画幅派生思路；参考图和两轮编辑结果均为本项目原创。",
+      "notes": "单图锚点的真实 Grsai ReusePlan/生成、网页 Viewer 来源和恢复创作链已验证。"
+    },
+    "score": {
+      "repeatability": 28,
+      "design": 25,
+      "roleClarity": 20,
+      "caseEvidence": 10
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp"
+      ],
+      "testImage": "assets/recipes/validation/one-image-multi-assets-wide-test.webp",
+      "testVariables": {
+        "ratio": "16:9",
+        "scene": "网站首页横版 KV"
+      },
+      "result": "同一原创钴蓝色水瓶分别生成竖版海报和横版 KV；瓶身比例、颜色与银色瓶盖保持，横版为文案留出左侧空间。",
+      "scope": "真实扩展单图链路通过：Grsai Chat API 建立 ReusePlan，Grsai GPT Image 2.5 实际生成；assetLineage direct=1、analysis=0；网页 Viewer、参考图预览及原图角色/Prompt/ReusePlan/模型/尺寸恢复通过。",
+      "providerE2E": {
+        "testedAt": "2026-09-28",
+        "promptProvider": "Grsai Chat API (gemini-2.5-flash)",
+        "imageProvider": "Grsai GPT Image 2.5",
+        "referenceRoles": [
+          "subject"
+        ],
+        "providerImages": 1,
+        "direct": 1,
+        "analysis": 0,
+        "reusePlan": true,
+        "generation": true,
+        "assetLineage": true,
+        "webViewer": true,
+        "continuation": true,
+        "referenceInputs": [
+          "assets/recipes/sources/product-source.webp"
+        ]
+      }
     }
   }
 ]

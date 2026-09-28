@@ -326,18 +326,35 @@ async function localImageDataUrl({ id, variant }) {
   return blobToDataUrl(blob, mimeType || "image/png");
 }
 
-function localRecordId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+function generationResultId(generationId, resultIndex = 0) {
+  return generationId ? `generation-${generationId}-${resultIndex}` : "";
+}
+
+async function getLocalGalleryRecord(id) {
+  const db = await openLocalImageDb();
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = db.transaction("gallery", "readonly");
+      const request = transaction.objectStore("gallery").get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
 }
 
 async function persistCompletedImage(task, url, index) {
+  const galleryId = generationResultId(task.generationId, index);
+  if (!galleryId) throw new Error("生成任务缺少稳定 ID");
+  const existing = await getLocalGalleryRecord(galleryId);
+  if (existing) return existing;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`图片下载失败：HTTP ${response.status}`);
   }
   const blob = await response.blob();
-  const localStoreId = localRecordId("image");
-  const galleryId = localRecordId("gallery");
+  const localStoreId = `image-${galleryId}`;
   const createdAt = Date.now();
   const imageRecord = {
     id: localStoreId,
@@ -356,6 +373,10 @@ async function persistCompletedImage(task, url, index) {
   const galleryRecord = {
     id: galleryId,
     galleryId,
+    generationId: task.generationId,
+    resultIndex: index,
+    provider: task.provider || "",
+    taskId: task.taskId || "",
     localStoreId,
     localMimeType: imageRecord.mimeType,
     originalUrl: url,

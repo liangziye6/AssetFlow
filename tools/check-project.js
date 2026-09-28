@@ -65,7 +65,7 @@ assert.strictEqual(promptRecipes.length, 13, "Prompt 候选池应有 13 个玩�
 assert.strictEqual(visualRecipes.length, 10, "V2 候选池应有 10 个视觉方案");
 const normalizedRecipes = TemplateLibrary.validateRecipes(recipeData);
 const publicRecipes = normalizedRecipes.filter((item) => TemplateLibrary.PUBLIC_STATUSES.has(item.status));
-assert.strictEqual(publicRecipes.length, 15, "正式库应展示 11 个 Prompt 玩法与 4 个视觉方案");
+assert.strictEqual(publicRecipes.length, 19, "正式库应展示 12 个 Prompt 玩法与 7 个视觉方案");
 assert.strictEqual(new Set(publicRecipes.map((item) => item.thumbnail)).size, publicRecipes.length, "正式卡片必须使用独立缩略图");
 assert.strictEqual(new Set(publicRecipes.map((item) => item.preview)).size, publicRecipes.length, "正式卡片必须使用独立预览");
 function webpDimensions(buffer) {
@@ -87,10 +87,10 @@ for (const item of publicRecipes) {
   assert.ok(Math.abs(thumb.width / thumb.height - previewImage.width / previewImage.height) < 0.01,
     "缩略图必须保留原始画幅：" + item.id);
 }
-assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe" }).length, 11);
-assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "visual_recipe" }).length, 4);
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe" }).length, 12);
+assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "visual_recipe" }).length, 7);
 for (const id of ["y2k-ccd-travel", "lookbook-callouts", "phone-in-phone-portrait",
-  "era-film-portrait", "badge-collection", "product-exploded-view"]) {
+  "era-film-portrait", "badge-collection", "product-exploded-view", "character-film-bible"]) {
   const recipe = promptRecipes.find((item) => item.id === id);
   assert.strictEqual(recipe.status, "verified", "本批 Prompt 必须通过验证：" + id);
   assert.ok(Object.values(recipe.score).reduce((total, point) => total + point, 0) >= 75,
@@ -104,9 +104,12 @@ for (const id of ["y2k-ccd-travel", "lookbook-callouts", "phone-in-phone-portrai
 }
 for (const id of ["poster-layout-reuse", "product-scene-relocation", "style-composition-transfer"]) {
   const recipe = visualRecipes.find((item) => item.id === id);
-  assert.strictEqual(recipe.status, id === "style-composition-transfer" ? "testing" : "verified",
+  assert.strictEqual(recipe.status, "verified",
     "视觉方案状态应反映各自的验证结果：" + id);
   assert.strictEqual(recipe.development.previewKind, "reference-edit");
+  if (id === "style-composition-transfer") {
+    assert.strictEqual(TemplateLibrary.requiredImageCount(recipe), 3, "风格与构图双迁移需要三张参考图");
+  }
   assert.ok(Object.values(recipe.score).reduce((total, point) => total + point, 0) >= 80,
     "视觉方案评分不足：" + id);
   assert.ok(recipe.development.referenceInputs.every((file) => fs.existsSync(path.join(root, file))));
@@ -118,6 +121,24 @@ for (const id of ["poster-layout-reuse", "product-scene-relocation", "style-comp
     recipe.references.slice(0, recipe.development.referenceInputs.length).map((entry) => entry.role),
     "视觉参考图角色映射不匹配：" + id
   );
+}
+for (const [id, expectedRoles] of [
+  ["commercial-person-scene", ["subject", "composition", "color_material"]],
+  ["one-image-multi-assets", ["subject"]]
+]) {
+  const recipe = visualRecipes.find((item) => item.id === id);
+  assert.strictEqual(recipe.status, "verified", "真实 Provider 完整链路已验证：" + id);
+  assert.ok(recipe.development.referenceInputs.every((file) => fs.existsSync(path.join(root, file))),
+    "测试案例缺少原始参考图：" + id);
+  assert.ok(fs.existsSync(path.join(root, recipe.validation.testImage)),
+    "测试案例缺少第二轮变量图：" + id);
+  assert.deepStrictEqual(
+    TemplateLibrary.presetForExistingImages(recipe, recipe.development.referenceInputs.length)
+      .map((entry) => entry.roles[0]), expectedRoles,
+    "测试案例的角色分工不匹配：" + id
+  );
+  assert.strictEqual(TemplateLibrary.requiredImageCount(recipe), expectedRoles.length,
+    "测试案例的必需参考图数量不匹配：" + id);
 }
 assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", includeCandidates: true }).length, 13);
 assert.strictEqual(TemplateLibrary.filter(recipeData, { type: "prompt_recipe", tag: "产品" }).length, 2);

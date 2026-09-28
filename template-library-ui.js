@@ -33,6 +33,23 @@
   let lastFocus = null;
   let pending = null;
   let selectedId = "";
+  let activeRoleRecipe = null;
+
+  const isUsable = (item) => library.PUBLIC_STATUSES.has(item.status) || item.status === "testing";
+  function applyPendingRoles() {
+    if (!activeRoleRecipe || promptMethod !== "reuse") return false;
+    let changed = false;
+    for (const preset of library.presetForExistingImages(activeRoleRecipe, imageItems.length)) {
+      const image = imageItems[preset.slot - 1];
+      if (!image || image.visualReuseRolesManual) continue;
+      image.visualReuseRoles = normalizeVisualReuseRoles(preset.roles);
+      image.visualReuseRole = "";
+      image.visualReuseRolesManual = image.visualReuseRoles.length > 0;
+      image.visualReuseConflictAcknowledged = "";
+      changed = true;
+    }
+    return changed;
+  }
 
   const mode = () => promptMethod === "reuse" ? "reuse" : generationMode;
   function variables() {
@@ -80,9 +97,9 @@
     actions.className = "template-card-actions";
     if (item.type === "prompt_recipe") {
       actions.append(button("复制 Prompt", "template-copy-btn", () => copy(item)),
-        button(detail ? "应用到输入框" : "应用", "template-use-btn", () => requestUse(item)));
+        button(item.status === "testing" ? "测试应用" : detail ? "应用到输入框" : "应用", "template-use-btn", () => requestUse(item)));
     } else {
-      actions.append(button("使用方案", "template-use-btn", () => requestUse(item)));
+      actions.append(button(item.status === "testing" ? "测试使用方案" : "使用方案", "template-use-btn", () => requestUse(item)));
     }
     return actions;
   }
@@ -211,8 +228,9 @@
       if (research) {
         const state = document.createElement("small");
         state.className = "template-research-state";
-        state.textContent = item.status === "testing" ? "测试中 · 暂不可用" : "候选 · 待验证";
+        state.textContent = item.status === "testing" ? "测试中 · 可试用" : "候选 · 待验证";
         body.append(state);
+        if (isUsable(item)) body.append(actionsFor(item));
       } else body.append(actionsFor(item));
       card.append(cardImage(item), body);
       masonry.append(card);
@@ -355,14 +373,21 @@
       }
       preview.append(strategy);
     }
-    if (library.PUBLIC_STATUSES.has(item.status)) {
+    if (isUsable(item)) {
       const actions = actionsFor(item, true);
       actions.classList.add("template-detail-actions");
       preview.append(actions);
+      if (item.status === "testing") {
+        const status = section("验证进度", "template-detail-status");
+        const note = document.createElement("p");
+        note.textContent = "测试中 · 可试用，尚未通过完整生成验证";
+        status.append(note);
+        preview.append(status);
+      }
     } else {
       const status = section("验证进度", "template-detail-status");
       const note = document.createElement("p");
-      note.textContent = item.status === "testing" ? "测试中 · 暂不可用" : "候选 · 待验证";
+      note.textContent = item.status === "testing" ? "测试中 · 可试用" : "候选 · 待验证";
       status.append(note);
       if (item.validation?.result) {
         const result = document.createElement("p");
@@ -402,7 +427,7 @@
     return notes || prompt;
   }
   function requestUse(item) {
-    if (!library.PUBLIC_STATUSES.has(item.status)) return;
+    if (!isUsable(item)) return;
     pending = { item, roleChoice: "none", existing: existingText(item) };
     if (item.type === "visual_recipe" && imageItems.length) {
       const presets = library.presetForExistingImages(item, imageItems.length);
@@ -436,6 +461,7 @@
     if (item.type === "visual_recipe") {
       setPromptMethod("reuse");
       setVisualReusePanelOpen(true);
+      activeRoleRecipe = roleChoice === "apply" || !imageItems.length ? item : null;
       if (roleChoice === "apply") {
         for (const preset of library.presetForExistingImages(item, imageItems.length)) {
           const image = imageItems[preset.slot - 1];
@@ -447,6 +473,7 @@
         }
         renderImageStack();
       }
+      if (applyPendingRoles()) renderImageStack();
       nodes.visualReuseNotes.value = value;
       nodes.visualReuseNotes.dispatchEvent(new Event("input", { bubbles: true }));
       saveWorkspaceState();
@@ -458,6 +485,7 @@
         ? "已填入方案，请补充 " + missing + " 张参考图，再点击“查看方案”。"
         : "已填入方案与角色。确认后点击“查看方案”建立 ReusePlan。");
     } else {
+      activeRoleRecipe = null;
       if (promptMethod === "reuse") setGenerationMode("text", { silent: true });
       nodes.promptInput.value = value;
       nodes.promptInput.dispatchEvent(new Event("input", { bubbles: true }));
@@ -469,7 +497,7 @@
     }
   }
   async function copy(item) {
-    if (!library.PUBLIC_STATUSES.has(item.status)) return;
+    if (!isUsable(item)) return;
     const value = textFor(item);
     try {
       await navigator.clipboard.writeText(value);
@@ -526,6 +554,7 @@
     list.scrollTop = 0;
   });
   function onModeChange() {
+    if (mode() !== "reuse") activeRoleRecipe = null;
     document.querySelector("#templateInputTitle").textContent = mode() === "image" ? "编辑需求" : "提示词";
     renderQuick();
     if (!drawer.hidden) {
@@ -560,7 +589,7 @@
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
   });
-  window.AssetFlowTemplateUI = { onModeChange, open, close };
+  window.AssetFlowTemplateUI = { onModeChange, open, close, applyPendingRoles };
   onModeChange();
   library.load().then((data) => { items = data; renderQuick(); }).catch(() => {
     document.querySelector("#templateQuick").hidden = true;

@@ -321,6 +321,10 @@ function normalizeGalleryMode(value) {
   return value === "text" ? "text" : "image";
 }
 
+function generationResultId(generationId, resultIndex = 0) {
+  return generationId ? `generation-${generationId}-${resultIndex}` : "";
+}
+
 function normalizeGallerySource(value, mode) {
   const source = String(value || "").trim();
   if (source === "reuse" || source === "visual-reuse") return "reuse";
@@ -654,6 +658,8 @@ const REVERSE_PROMPT_TEMPLATE = [
   "请直接输出最终提示词，不要解释分析过程。"
 ].join("\n");
 let isRestoringState = false;
+let isWorkspaceHydrating = true;
+let workspaceImageRestoreFailed = false;
 let activeResolution = "auto";
 
 if (new URLSearchParams(window.location.search).has("standalone")) {
@@ -779,7 +785,7 @@ function playMascot() {
 
 function workspaceStateFromDom() {
   return {
-    image: imageState.dataUrl || imageState.src
+    image: (imageItems.find((item) => item.id === activeImageId)?.localStoreId ? null : imageState.dataUrl || imageState.src)
       ? {
         src: imageState.dataUrl || imageState.src,
         name: imageState.name,
@@ -789,7 +795,9 @@ function workspaceStateFromDom() {
       : null,
     images: imageItems.map((item) => ({
       id: item.id,
-      src: item.dataUrl || item.src,
+      src: item.localStoreId ? "" : item.dataUrl || item.src,
+      localStoreId: item.localStoreId || "",
+      generationContext: item.generationContext || null,
       name: item.name,
       width: item.width,
       height: item.height,
@@ -859,7 +867,7 @@ function isEmbeddedWorkspaceImage(image) {
 }
 
 function compactWorkspaceStateForStorage(state) {
-  const persistentImages = (state.images || []).filter((image) => !isEmbeddedWorkspaceImage(image));
+  const persistentImages = (state.images || []).filter((image) => image.localStoreId || !isEmbeddedWorkspaceImage(image));
   const persistentIds = new Set(persistentImages.map((image) => image.id).filter(Boolean));
   return {
     ...state,
@@ -896,7 +904,9 @@ function saveWorkspaceState() {
       localStorage.setItem(APP_STATE_KEY, JSON.stringify(compactWorkspaceStateForStorage(state)));
       workspacePersistenceDegraded = true;
       if (!alreadyDegraded) {
-        setStatus("参考图数据较大，本次会话可继续使用；为避免占满存储，重新打开后需要再次添加本地参考图。");
+        setStatus(state.images?.some((image) => isEmbeddedWorkspaceImage(image) && !image.localStoreId)
+          ? "部分参考图未能持久保存，重新打开后需要再次添加这些本地参考图。"
+          : "工作区已使用精简状态保存。");
       }
       return { degraded: true };
     } catch {
@@ -1025,6 +1035,9 @@ function normalizeGalleryItems(items) {
       localStoreId: item.localStoreId || "",
       localMimeType: item.localMimeType || "",
       galleryId: item.galleryId || item.localStoreId || "",
+      generationId: item.generationId || "",
+      resultIndex: Number(item.resultIndex) || 0,
+      createdAt: item.createdAt || 0,
       thumbnailObjectUrl: item.thumbnailObjectUrl || "",
       isGenerating: false
     }));
@@ -1064,6 +1077,8 @@ function imageItemFromSource(image, index = 0) {
     width: Number(image.width) || 0,
     height: Number(image.height) || 0,
     dataUrl: src.startsWith("data:image/") ? src : "",
+    localStoreId: image.localStoreId || "",
+    generationContext: image.generationContext || null,
     objectUrl: "",
     assetSource: normalizeAssetSource(image.assetSource, src),
     dimensionsVerified: Boolean(image.dimensionsVerified || (image.width && image.height)),
@@ -1494,7 +1509,27 @@ function applyRestoredImage(image, images = [], restoredActiveId = "") {
   syncActiveImageState();
 }
 
-function loadWorkspaceState() {
+async function hydrateWorkspaceImages(images) {
+  if (!Array.isArray(images)) return { images: [], failed: 0 };
+  const restored = [];
+  let failed = 0;
+  for (const image of images) {
+    if (!image?.localStoreId) {
+      if (image?.src) restored.push(image);
+      continue;
+    }
+    try {
+      const record = await imageFromIndexedDb(image.localStoreId);
+      if (!record?.blob) throw new Error("Stored image missing");
+      restored.push({ ...image, src: await fileToDataUrl(record.blob) });
+    } catch {
+      failed += 1;
+    }
+  }
+  return { images: restored, failed };
+}
+
+async function loadWorkspaceState() {
   const raw = localStorage.getItem(APP_STATE_KEY);
   if (!raw) {
     setPromptMethod("none");
@@ -1509,13 +1544,17 @@ function loadWorkspaceState() {
   try {
     isRestoringState = true;
     const state = JSON.parse(raw);
-    promptMethod = state.promptMethod === "reuse" || state.promptMethod === "reverse" ? state.promptMethod : "none";
+    const restoredPromptMethod = state.promptMethod === "reuse" || state.promptMethod === "reverse"
+      ? state.promptMethod : "none";
+    promptMethod = restoredPromptMethod;
     reversePromptDetailed = Boolean(state.reversePromptDetailed);
     if (nodes.reverseDetailToggle) {
       nodes.reverseDetailToggle.checked = reversePromptDetailed;
     }
     setVisualReusePanelOpen(promptMethod === "reuse");
-    applyRestoredImage(state.image, state.images, state.activeImageId);
+    const hydratedImages = await hydrateWorkspaceImages(state.images);
+    workspaceImageRestoreFailed = hydratedImages.failed > 0;
+    applyRestoredImage(state.image, hydratedImages.images, state.activeImageId);
     if (Array.isArray(state.selectedImageIds)) {
       selectedImageIds = new Set(state.selectedImageIds.filter((id) => imageItems.some((item) => item.id === id)));
       if (!selectedImageIds.size && activeImageId) {
@@ -1548,9 +1587,8 @@ function loadWorkspaceState() {
       if (nodes.visualReuseTextSubtitle) nodes.visualReuseTextSubtitle.value = state.visualReuse.textSubtitle || "";
       if (nodes.visualReuseNotes) nodes.visualReuseNotes.value = state.visualReuse.notes || "";
     }
-    const hasRestoredImage = Boolean(imageItems.length || state.image?.src || state.images?.length);
-    setGenerationMode(state.generationMode === "image" && hasRestoredImage ? "image" : "text", { silent: true });
-    setPromptMethod(promptMethod);
+    setGenerationMode(state.generationMode === "image" ? "image" : "text", { silent: true });
+    setPromptMethod(restoredPromptMethod);
     if (state.options) {
       const restoredMode = state.options.sizeMode || "auto";
       const legacyResolution = restoredMode === "2k" || restoredMode === "4k"
@@ -1574,6 +1612,9 @@ function loadWorkspaceState() {
     syncGenerateAction();
     galleryItems = loadStoredGalleryItems(state.gallery);
     renderGallery();
+    if (hydratedImages.failed) {
+      setStatus(`有 ${hydratedImages.failed} 张参考图恢复失败，请重新添加；图生图模式与提示词已保留。`);
+    }
   } catch {
     localStorage.removeItem(APP_STATE_KEY);
   } finally {
@@ -2270,6 +2311,19 @@ async function setImagesFromFiles(files, sourceContext = {}) {
     };
 
     try {
+      await assertGalleryStorageCapacity(file);
+      const localStoreId = `workspace-${item.id}`;
+      await withLocalImageStore("readwrite", (store) => store.put({
+        id: localStoreId, blob: file, thumbnailBlob: null,
+        mimeType: file.type, thumbnailMimeType: "", createdAt: Date.now(),
+        meta: { name: item.name, workspaceImage: true }
+      }));
+      item.localStoreId = localStoreId;
+    } catch {
+      // The current session can still use the image; workspace save reports any degraded persistence.
+    }
+
+    try {
       const size = await readImageDimensions(objectUrl);
       item.width = size.width;
       item.height = size.height;
@@ -2289,9 +2343,11 @@ async function setImagesFromFiles(files, sourceContext = {}) {
   } else {
     imageItems = [...imageItems, ...newItems].slice(0, limit);
   }
+  workspaceImageRestoreFailed = false;
   activeImageId = newItems[0]?.id || activeImageId || imageItems[0]?.id || "";
   selectedImageIds = new Set(newItems.length ? newItems.map((item) => item.id) : [activeImageId].filter(Boolean));
   clearGeneratedPromptForReferenceChange("参考图已变化，请重新生成提示词。");
+  window.AssetFlowTemplateUI?.applyPendingRoles?.();
   syncActiveImageState();
 
   if (nodes.sizeMode.value === "auto" && imageState.width && imageState.height) {
@@ -5056,10 +5112,15 @@ async function imageFromIndexedDb(id) {
 }
 
 function galleryRecordFromItem(item) {
-  const id = item.galleryId || item.localStoreId || `gallery-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const id = generationResultId(item.generationId, item.resultIndex)
+    || item.galleryId || item.localStoreId || `gallery-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   return {
     id,
     galleryId: id,
+    generationId: item.generationId || "",
+    resultIndex: Number(item.resultIndex) || 0,
+    provider: item.provider || "",
+    taskId: item.taskId || "",
     localStoreId: item.localStoreId || "",
     localMimeType: item.localMimeType || "",
     originalUrl: item.originalUrl || (!isBlobUrl(item.url) ? item.url : ""),
@@ -5101,6 +5162,10 @@ function galleryItemFromRecord(record, index = 0) {
     localStoreId: record.localStoreId || "",
     localMimeType: record.localMimeType || "",
     galleryId: record.galleryId || record.id || "",
+    generationId: record.generationId || "",
+    resultIndex: Number(record.resultIndex) || 0,
+    provider: record.provider || "",
+    taskId: record.taskId || "",
     createdAt: record.createdAt || Date.now(),
     thumbnailObjectUrl: "",
     localObjectUrl: "",
@@ -5121,12 +5186,38 @@ async function saveGalleryRecord(item) {
   };
 }
 
+function sameLegacyGalleryResult(a, b) {
+  if (a?.generationId || b?.generationId) return false;
+  if (!a?.originalUrl || a.originalUrl !== b?.originalUrl) return false;
+  if ((a.prompt || "") !== (b.prompt || "")) return false;
+  const first = Number(a.createdAt);
+  const second = Number(b.createdAt);
+  return first > 0 && second > 0 && Math.abs(first - second) <= 5000;
+}
+
 async function loadGalleryRecordsFromIndexedDb() {
   try {
     const records = await withLocalGalleryStore("readonly", (store) => requestToPromise(store.getAll()));
-    return (records || [])
-      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
-      .map(galleryItemFromRecord);
+    const ordered = (records || [])
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+    const kept = [];
+    const legacyDuplicates = [];
+    for (const record of ordered) {
+      if (kept.some((existing) => existing.id === record.id || sameLegacyGalleryResult(existing, record))) {
+        legacyDuplicates.push(record);
+      } else {
+        kept.push(record);
+      }
+    }
+    for (const duplicate of legacyDuplicates) {
+      if (kept.some((item) => item.id === duplicate.id)) continue;
+      try {
+        await removeGalleryRecordFromIndexedDb(galleryItemFromRecord(duplicate));
+      } catch {
+        // Keep the visible gallery usable if legacy cleanup cannot write to IndexedDB.
+      }
+    }
+    return kept.map(galleryItemFromRecord);
   } catch {
     return [];
   }
@@ -5301,6 +5392,17 @@ async function handleGalleryImageError(item) {
 }
 
 async function persistGalleryItemImage(item) {
+  const stableId = generationResultId(item?.generationId, item?.resultIndex);
+  if (stableId) {
+    try {
+      const existing = await withLocalGalleryStore("readonly", (store) => requestToPromise(store.get(stableId)));
+      if (existing) return galleryItemFromRecord(existing);
+    } catch {
+      // Let the existing save path report a storage failure without losing the generated URL.
+    }
+    item.galleryId = stableId;
+    item.localStoreId = `image-${stableId}`;
+  }
   if (!item?.url && !item?.localStoreId) {
     return item;
   }
@@ -5312,7 +5414,7 @@ async function persistGalleryItemImage(item) {
     return galleryItem;
   } catch (error) {
     setStatus(`图片已生成，但保存到本地图库失败：${error.message || "浏览器本地存储不可用"}。`);
-    return item;
+    return { ...item, localStoreId: "", url: item.url || item.originalUrl || "" };
   }
 }
 
@@ -5720,19 +5822,38 @@ async function continuationImageSource(source) {
   return imageItemFromSource({
     ...source,
     id: source.assetId || source.id,
+    localStoreId: stored?.blob ? source.previewStoreId : "",
     src,
     visualReuseRoles: source.visualReuseRoles || source.roles || []
   });
 }
 
 async function continuationGeneratedImage(item) {
-  const stored = item.localStoreId ? await imageFromIndexedDb(item.localStoreId) : null;
-  const src = stored?.blob ? await fileToDataUrl(stored.blob)
-    : safeAssetSourceUrl(item.originalUrl || item.url);
-  if (!src) throw new Error("生成图文件不可用，当前工作区未改变。");
+  const galleryImage = item.localStoreId ? await imageFromIndexedDb(item.localStoreId) : null;
+  const sourceUrl = safeAssetSourceUrl(item.originalUrl || item.url);
+  const imageBlob = galleryImage?.blob || (sourceUrl ? await blobFromImageUrl(sourceUrl) : null);
+  if (!imageBlob) throw new Error("生成图文件不可用，当前工作区未改变。");
+
+  const imageId = "continuation-" + (item.galleryId || item.localStoreId || Date.now());
+  let localStoreId = `workspace-${imageId}`;
+  try {
+    if (!(await imageFromIndexedDb(localStoreId))?.blob) {
+      await assertGalleryStorageCapacity(imageBlob);
+      await withLocalImageStore("readwrite", (store) => {
+        store.put({
+          id: localStoreId, blob: imageBlob, thumbnailBlob: null,
+          mimeType: imageBlob.type || "image/png", thumbnailMimeType: "",
+          createdAt: Date.now(), meta: { name: lightboxAssetName(item), workspaceImage: true }
+        });
+      });
+    }
+  } catch (error) {
+    if (!galleryImage?.blob || !item.localStoreId) throw error;
+    localStoreId = item.localStoreId;
+  }
   return imageItemFromSource({
-    id: "continuation-" + (item.galleryId || item.localStoreId || Date.now()),
-    src, name: lightboxAssetName(item), width: item.width, height: item.height,
+    id: imageId, localStoreId, src: await fileToDataUrl(imageBlob),
+    name: lightboxAssetName(item), width: item.width, height: item.height,
     assetSource: createAssetSource("generated-gallery", { uri: item.originalUrl || "" }),
     dimensionsVerified: Boolean(item.width && item.height)
   });
@@ -5780,6 +5901,7 @@ async function restoreContinuation(item, action) {
   let restoredImages = [];
   if (action === "image") {
     restoredImages = [await continuationGeneratedImage(item)];
+    restoredImages[0].generationContext = context;
   } else if (action === "reuse") {
     if (!context.reusePlan || !sourceImages.length) {
       throw new Error("该资产没有可恢复的视觉复用方案和原参考图，当前工作区未改变。");
@@ -5827,7 +5949,8 @@ async function restoreContinuation(item, action) {
     const persistence = saveWorkspaceState();
     const modeLabel = action === "text" ? "文生图" : action === "image" ? "图生图" : "视觉复用";
     const caution = !modelRestored ? "；原模型当前不可选，请检查模型" :
-      persistence?.degraded ? "；本地参考图较大，重新打开后可能需要再次添加" : "";
+      persistence?.failed ? "；工作区状态未能保存" :
+      persistence?.degraded ? "；部分参考图重新打开后需要再次添加" : "";
     setStatus("已恢复" + modeLabel + "创作状态" + caution + "。");
     return true;
   } finally {
@@ -7929,24 +8052,35 @@ function galleryItemIndexForTarget(target) {
   return galleryItems.findIndex((item) => item.generationId === target.generationId);
 }
 
-function replaceGeneratingItem(target, item) {
+function upsertGalleryResult(target, item) {
+  const stableId = item.galleryId || generationResultId(item.generationId, item.resultIndex);
+  const existingIndex = galleryItems.findIndex((entry) => !entry.isGenerating && stableId
+    && entry.galleryId === stableId);
   const targetIndex = galleryItemIndexForTarget(target);
-  if (targetIndex === -1) return false;
-  galleryItems[targetIndex] = {
-    ...target,
+  const merged = {
+    ...(targetIndex >= 0 ? galleryItems[targetIndex] : {}),
+    ...(existingIndex >= 0 ? galleryItems[existingIndex] : {}),
     ...item,
-    index: target.index,
-    generationId: "",
+    galleryId: stableId || item.galleryId || "",
     pendingTaskId: "",
-    taskId: "",
+    taskId: item.taskId || "",
     progress: 100,
     progressTarget: 100,
     hasRealProgress: true,
     isGenerating: false
   };
+  galleryItems = [merged, ...galleryItems.filter((entry, index) => (
+    index !== targetIndex && index !== existingIndex
+      && (!stableId || entry.galleryId !== stableId)
+  ))];
   galleryPage = 1;
   renderGallery();
   saveWorkspaceState();
+  return existingIndex < 0;
+}
+
+function replaceGeneratingItem(target, item) {
+  upsertGalleryResult(target, item);
   return true;
 }
 
@@ -8009,15 +8143,14 @@ async function runRealGeneration(payload, placeholders) {
         item.reusePlan = payload.reusePlan || placeholders[index].reusePlan || null;
         item.assetLineage = payload.assetLineage || placeholders[index].assetLineage || null;
         item.generationContext = payload.generationContext || placeholders[index].generationContext || null;
+        item.generationId = placeholders[index].generationId;
+        item.resultIndex = 0;
+        item.provider = placeholders[index].provider || "";
+        item.taskId = placeholders[index].taskId || "";
         const savedItem = await persistGalleryItemImage(item);
         removePendingGenerationTask({ id: placeholders[index].pendingTaskId, generationId: placeholders[index].generationId });
         items.push(savedItem);
-        if (!replaceGeneratingItem(placeholders[index], savedItem)) {
-          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((entry) => entry.generationId !== placeholders[index].generationId)];
-          galleryPage = 1;
-          renderGallery();
-          saveWorkspaceState();
-        }
+        upsertGalleryResult(placeholders[index], savedItem);
       }
     }
 
@@ -8107,6 +8240,10 @@ async function resolvePendingGenerationTask(task) {
     updateGeneratingItemProgress(placeholder, null, "正在载入图片");
     const savedItem = await persistGalleryItemImage({
       index: task.index || placeholder.index,
+      generationId: task.generationId,
+      resultIndex: 0,
+      provider: task.provider || "",
+      taskId: task.taskId || "",
       model: task.model || placeholder.model,
       width: task.width || placeholder.width,
       height: task.height || placeholder.height,
@@ -8122,12 +8259,7 @@ async function resolvePendingGenerationTask(task) {
       url
     });
     removePendingGenerationTask({ id: task.id, generationId: task.generationId });
-    if (!replaceGeneratingItem(placeholder, savedItem)) {
-      galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)];
-      galleryPage = 1;
-      renderGallery();
-      saveWorkspaceState();
-    }
+    upsertGalleryResult(placeholder, savedItem);
     setStatus("已恢复完成的生成任务，结果已加入已生成图库。");
   } catch (error) {
     const message = error.message || "任务恢复失败。";
@@ -8145,110 +8277,105 @@ async function resolvePendingGenerationTask(task) {
   }
 }
 
+let isConsumingCompletedGenerationResults = false;
 async function consumeCompletedGenerationResults() {
-  const result = await chromeStorageLocalGet(COMPLETED_GENERATION_RESULTS_KEY);
-  const records = Array.isArray(result?.[COMPLETED_GENERATION_RESULTS_KEY])
-    ? result[COMPLETED_GENERATION_RESULTS_KEY]
-    : [];
-  if (!records.length) return;
+  if (isConsumingCompletedGenerationResults) return;
+  isConsumingCompletedGenerationResults = true;
+  try {
+    const result = await chromeStorageLocalGet(COMPLETED_GENERATION_RESULTS_KEY);
+    const records = Array.isArray(result?.[COMPLETED_GENERATION_RESULTS_KEY])
+      ? result[COMPLETED_GENERATION_RESULTS_KEY] : [];
+    if (!records.length) return;
 
-  const remaining = [];
-  let importedCount = 0;
-  let failedCount = 0;
+    const consumedIds = new Set();
+    let importedCount = 0;
+    let failedCount = 0;
 
-  for (const record of records) {
-    const task = record?.task || record;
-    if (!task?.taskId && !task?.generationId) continue;
+    for (const record of records) {
+      const task = record?.task || record;
+      if (!task?.taskId && !task?.generationId) continue;
+      const recordId = record.id || task.id || task.generationId;
 
-    if (record.status === "failed") {
-      failedCount += 1;
-      removePendingGenerationTask({ id: task.id, generationId: task.generationId });
-      galleryItems = galleryItems.filter((item) => item.generationId !== task.generationId);
-      setStatus(`后台生成任务失败：${record.error || "远程 API 返回失败状态"}。`);
-      continue;
-    }
-
-    const localRecords = Array.isArray(record.items) ? record.items.filter((item) => item?.localStoreId) : [];
-    const urls = Array.isArray(record.urls) ? record.urls.filter(Boolean) : [];
-
-    try {
-      for (let itemIndex = 0; itemIndex < localRecords.length; itemIndex += 1) {
-        const storedRecord = localRecords[itemIndex];
-        const savedItem = galleryItemFromRecord(storedRecord, galleryItems.length);
-        const alreadyImported = galleryItems.some((item) => (
-          !item.isGenerating && (item.galleryId === savedItem.galleryId || item.localStoreId === savedItem.localStoreId)
-        ));
-        if (alreadyImported) continue;
-
-        const placeholder = itemIndex === 0
-          ? (galleryItems.find((item) => item.generationId === task.generationId) || pendingTaskToGeneratingItem(task))
-          : null;
-        if (placeholder && replaceGeneratingItem(placeholder, savedItem)) {
-          importedCount += 1;
-        } else {
-          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)];
-          galleryPage = 1;
-          renderGallery();
-          saveWorkspaceState();
-          importedCount += 1;
-        }
+      if (record.status === "failed") {
+        failedCount += 1;
+        consumedIds.add(recordId);
+        removePendingGenerationTask({ id: task.id, generationId: task.generationId });
+        galleryItems = galleryItems.filter((item) => item.generationId !== task.generationId || !item.isGenerating);
+        setStatus(`后台生成任务失败：${record.error || "远程 API 返回失败状态"}。`);
+        continue;
       }
 
-      for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
-        const url = urls[urlIndex];
-        const alreadyImported = galleryItems.some((item) => (
-          !item.isGenerating
-          && (item.originalUrl === url || item.url === url)
-        ));
-        if (alreadyImported) continue;
+      const localRecords = Array.isArray(record.items) ? record.items.filter((item) => item?.localStoreId) : [];
+      const urls = Array.isArray(record.urls) ? record.urls.filter(Boolean) : [];
 
-        const placeholder = urlIndex === 0
-          ? (galleryItems.find((item) => item.generationId === task.generationId) || pendingTaskToGeneratingItem(task))
-          : null;
-        const savedItem = await persistGalleryItemImage({
-          index: urlIndex === 0 ? (task.index || placeholder?.index || `#${galleryItems.length + 1}`) : `#${galleryItems.length + 1}`,
-          model: task.model || placeholder?.model || "Generated Image",
-          width: task.width || placeholder?.width || 1024,
-          height: task.height || placeholder?.height || 1024,
-          prompt: task.displayPrompt || task.prompt || placeholder?.prompt || "",
-          promptCn: task.promptCn || placeholder?.promptCn || "",
-          promptEn: task.promptEn || placeholder?.promptEn || "",
-          promptStructure: task.promptStructure || placeholder?.promptStructure || "",
-          reusePlan: task.reusePlan || placeholder?.reusePlan || null,
-          assetLineage: task.assetLineage || placeholder?.assetLineage || null,
-          generationContext: task.generationContext || placeholder?.generationContext || null,
-          mode: normalizeGalleryMode(task.mode),
-          source: normalizeGallerySource(task.source || placeholder?.source, task.mode || placeholder?.mode),
-          url
-        });
-        if (placeholder && replaceGeneratingItem(placeholder, savedItem)) {
-          importedCount += 1;
-        } else {
-          galleryItems = [{ ...savedItem, isGenerating: false }, ...galleryItems.filter((item) => item.generationId !== task.generationId)];
-          galleryPage = 1;
-          renderGallery();
-          saveWorkspaceState();
-          importedCount += 1;
+      try {
+        for (let itemIndex = 0; itemIndex < localRecords.length; itemIndex += 1) {
+          const savedItem = galleryItemFromRecord(localRecords[itemIndex], galleryItems.length);
+          const placeholder = itemIndex === 0
+            ? (galleryItems.find((item) => item.isGenerating && item.generationId === task.generationId)
+              || pendingTaskToGeneratingItem(task))
+            : null;
+          if (upsertGalleryResult(placeholder, savedItem)) importedCount += 1;
         }
+
+        for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
+          const resultIndex = localRecords.length + urlIndex;
+          const placeholder = resultIndex === 0
+            ? (galleryItems.find((item) => item.isGenerating && item.generationId === task.generationId)
+              || pendingTaskToGeneratingItem(task))
+            : null;
+          const savedItem = await persistGalleryItemImage({
+            generationId: task.generationId,
+            resultIndex,
+            provider: task.provider || "",
+            taskId: task.taskId || "",
+            index: resultIndex === 0 ? (task.index || placeholder?.index || `#${galleryItems.length + 1}`) : `#${galleryItems.length + 1}`,
+            model: task.model || placeholder?.model || "Generated Image",
+            width: task.width || placeholder?.width || 1024,
+            height: task.height || placeholder?.height || 1024,
+            prompt: task.displayPrompt || task.prompt || placeholder?.prompt || "",
+            promptCn: task.promptCn || placeholder?.promptCn || "",
+            promptEn: task.promptEn || placeholder?.promptEn || "",
+            promptStructure: task.promptStructure || placeholder?.promptStructure || "",
+            reusePlan: task.reusePlan || placeholder?.reusePlan || null,
+            assetLineage: task.assetLineage || placeholder?.assetLineage || null,
+            generationContext: task.generationContext || placeholder?.generationContext || null,
+            mode: normalizeGalleryMode(task.mode),
+            source: normalizeGallerySource(task.source || placeholder?.source, task.mode || placeholder?.mode),
+            url: urls[urlIndex]
+          });
+          const persisted = await withLocalGalleryStore("readonly", (store) =>
+            requestToPromise(store.get(savedItem.galleryId)));
+          if (!persisted) throw new Error("图库结果未能持久保存");
+          if (upsertGalleryResult(placeholder, savedItem)) importedCount += 1;
+        }
+        removePendingGenerationTask({ id: task.id, generationId: task.generationId });
+        consumedIds.add(recordId);
+      } catch {
+        // Keep the completion record so a later reopen can retry the import.
       }
-      removePendingGenerationTask({ id: task.id, generationId: task.generationId });
-    } catch {
-      remaining.push({ ...record, items: localRecords });
     }
-  }
 
-  if (remaining.length) {
-    await chromeStorageLocalSet({ [COMPLETED_GENERATION_RESULTS_KEY]: remaining });
-  } else {
-    await chromeStorageLocalRemove(COMPLETED_GENERATION_RESULTS_KEY);
-  }
+    const latest = await chromeStorageLocalGet(COMPLETED_GENERATION_RESULTS_KEY);
+    const latestRecords = Array.isArray(latest?.[COMPLETED_GENERATION_RESULTS_KEY])
+      ? latest[COMPLETED_GENERATION_RESULTS_KEY] : [];
+    const remaining = latestRecords.filter((record) =>
+      !consumedIds.has(record.id || record?.task?.id || record?.task?.generationId));
+    if (remaining.length) {
+      await chromeStorageLocalSet({ [COMPLETED_GENERATION_RESULTS_KEY]: remaining });
+    } else {
+      await chromeStorageLocalRemove(COMPLETED_GENERATION_RESULTS_KEY);
+    }
 
-  if (importedCount || failedCount) {
-    renderGallery();
-    saveWorkspaceState();
-  }
-  if (importedCount) {
-    setStatus(`已导入 ${importedCount} 张后台完成的生成图片。`);
+    if (importedCount || failedCount) {
+      renderGallery();
+      saveWorkspaceState();
+    }
+    if (importedCount) {
+      setStatus(`已导入 ${importedCount} 张后台完成的生成图片。`);
+    }
+  } finally {
+    isConsumingCompletedGenerationResults = false;
   }
 }
 
@@ -8272,6 +8399,14 @@ function shouldUseRealImageApi() {
 }
 
 function generate() {
+  if (isWorkspaceHydrating) {
+    setStatus("正在恢复参考图，请稍候再生成。");
+    return;
+  }
+  if (workspaceImageRestoreFailed && generationMode === "image" && !imageItems.length) {
+    setStatus("原参考图恢复失败，请重新添加图片后再生成。");
+    return;
+  }
   const bundle = promptMetaFromInput();
   promptMeta = bundle;
   const inputPrompt = nodes.promptInput.value.trim();
@@ -9497,13 +9632,13 @@ window.addEventListener("keydown", async (event) => {
   }
 });
 window.chrome?.storage?.onChanged?.addListener((changes, areaName) => {
-  if (areaName === "local" && changes[PENDING_CONTEXT_IMAGE_KEY]?.newValue) {
+  if (!isWorkspaceHydrating && areaName === "local" && changes[PENDING_CONTEXT_IMAGE_KEY]?.newValue) {
     consumePendingContextImage();
   }
-  if (areaName === "local" && changes[PENDING_CONTINUE_CREATION_KEY]?.newValue) {
+  if (!isWorkspaceHydrating && areaName === "local" && changes[PENDING_CONTINUE_CREATION_KEY]?.newValue) {
     consumePendingContinuation();
   }
-  if (areaName === "local" && changes[COMPLETED_GENERATION_RESULTS_KEY]?.newValue) {
+  if (!isWorkspaceHydrating && areaName === "local" && changes[COMPLETED_GENERATION_RESULTS_KEY]?.newValue) {
     consumeCompletedGenerationResults();
   }
 });
@@ -9516,10 +9651,12 @@ setupOptionalLocalIntegrations();
 syncSizeInputs(1024, 1024);
 syncCustomModelField();
 loadApiConfig();
-loadWorkspaceState();
-syncImageUploadLimitUi();
-consumePendingContextImage();
-restoreGalleryItemsFromIndexedDb()
+loadWorkspaceState().then(() => {
+  isWorkspaceHydrating = false;
+  syncImageUploadLimitUi();
+  consumePendingContextImage();
+  return restoreGalleryItemsFromIndexedDb();
+})
   .then(consumeCompletedGenerationResults)
   .then(consumePendingContinuation)
   .then(() => {

@@ -563,15 +563,37 @@
       "scene",
       "ratio"
     ],
-    "thumbnail": "",
-    "preview": "",
-    "status": "candidate",
+    "thumbnail": "assets/recipes/thumbnails/character-film-bible.webp",
+    "preview": "assets/recipes/previews/character-film-bible.webp",
+    "status": "verified",
     "source": {
       "platform": "github",
       "url": "https://github.com/gpt-img-2/gpt-image-2-character-sheet",
       "author": "gpt-img-2",
       "views": null,
-      "checkedAt": "2026-09-26"
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴电影角色设定页的表达方式；Prompt、人物与预览图均为本项目原创，不复用来源图像。",
+      "originalUrl": "https://github.com/gpt-img-2/gpt-image-2-character-sheet"
+    },
+    "score": {
+      "spread": 12,
+      "design": 23,
+      "variable": 24,
+      "clarity": 16,
+      "crossModel": 9
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-27",
+      "previewOriginal": true,
+      "testImage": "assets/recipes/validation/character-film-bible-variable-test.webp",
+      "testVariables": {
+        "subject": "26 岁成年黑人女性沙漠探险者，奶油色飞行服与赭色围巾",
+        "accessory": "黄铜星盘",
+        "scene": "砂岩天文台",
+        "ratio": "3:4"
+      },
+      "result": "两轮原创变量测试分别呈现都市科幻女主与沙漠探险者；全身造型、两种表情、道具与环境分区清晰，人物身份和服装在同页保持一致。区别于已有的正侧背四视图。"
     }
   },
   {

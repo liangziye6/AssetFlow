@@ -166,14 +166,20 @@ function eagleEndpoint(baseUrl) {
 }
 
 async function collectToEagleApi({ item }) {
-  if (!item?.url) {
+  if (!item?.url && !item?.localStoreId) {
     return { ok: false, error: "NO_IMAGE" };
   }
 
   const stored = await storageGet(apiStorageKey);
   const eagle = stored?.[apiStorageKey]?.eagle || {};
-  if (eagle.mode && eagle.mode !== "api") {
+  if (eagle.mode && eagle.mode !== "api" && !item.localStoreId) {
     return { ok: false, error: "EAGLE_PROTOCOL_MODE" };
+  }
+  const imageUrl = item.localStoreId
+    ? await localImageDataUrl({ id: item.localStoreId, variant: "full" })
+    : item.url;
+  if (!imageUrl) {
+    return { ok: false, error: "本地原图不可用，无法收集到 Eagle。" };
   }
   const endpoint = eagleEndpoint(eagle?.baseUrl);
   if (eagle?.token) {
@@ -185,7 +191,7 @@ async function collectToEagleApi({ item }) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      url: item.url,
+      url: imageUrl,
       name: `${item.model || "Image Spark"}-${item.index || "image"}`,
       annotation: item.prompt || "",
       website: item.website || ""

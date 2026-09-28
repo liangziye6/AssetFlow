@@ -6274,7 +6274,7 @@ function triggerDownload(url, filename) {
 }
 
 async function collectToEagle() {
-  if (!activeLightboxItem?.url) {
+  if (!activeLightboxItem?.url && !activeLightboxItem?.localStoreId) {
     setStatus("没有可收集的图片。");
     return;
   }
@@ -6283,13 +6283,14 @@ async function collectToEagle() {
   if (await collectToEagleApi(activeLightboxItem)) {
     return;
   }
+  if (activeLightboxItem.localStoreId) return;
 
   collectToEagleProtocol(activeLightboxItem, { fallbackFromApi: isApiMode });
 }
 
 async function collectToEagleApi(item) {
   const eagle = currentEagleConfig();
-  if (eagle.mode !== "api") {
+  if (eagle.mode !== "api" && !item.localStoreId) {
     return false;
   }
 
@@ -6299,6 +6300,7 @@ async function collectToEagleApi(item) {
       payload: {
         item: {
           url: item.originalUrl || item.url,
+          localStoreId: item.localStoreId || "",
           model: item.model,
           index: item.index,
           prompt: item.prompt || "",
@@ -6314,8 +6316,8 @@ async function collectToEagleApi(item) {
     nodes.eagleCollectBtn.classList.add("is-collected");
     nodes.eagleCollectBtn.textContent = "已收集";
     return true;
-  } catch {
-    setStatus("Eagle Local API 暂不可用，请确认 Eagle 已开启本地 API 服务。");
+  } catch (error) {
+    setStatus(`Eagle 收集失败：${error?.message || "请确认 Eagle 已启动并开启本地 API。"}`);
     return false;
   }
 }

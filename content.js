@@ -435,38 +435,6 @@
     };
   }
 
-  function promptSections(prompt) {
-    const text = String(prompt || "").trim();
-    if (!text) return [];
-
-    const matches = [...text.matchAll(/\*\*([^:*：]+)[:：]?\*\*\s*([\s\S]*?)(?=\n?\s*\*\*[^:*：]+[:：]?\*\*|$)/g)];
-    const rawSections = matches.length
-      ? matches.map((match) => ({ title: match[1].trim(), text: match[2].trim() }))
-      : text.split(/\n{2,}/).map((part, index) => ({
-        title: ["主体与画面", "风格与质感", "构图与细节", "补充要求"][index] || "其他",
-        text: part.trim()
-      }));
-
-    const groups = [
-      { title: "主体", keys: /主体|角色|人物|subject|character|main/i, items: [] },
-      { title: "构图", keys: /构图|镜头|视角|composition|camera|view|framing/i, items: [] },
-      { title: "风格", keys: /风格|艺术|参考|style|art|aesthetic/i, items: [] },
-      { title: "光影色彩", keys: /光|影|色|调|lighting|color|palette|tone/i, items: [] },
-      { title: "细节元素", keys: /细节|材质|服装|背景|detail|texture|background|props/i, items: [] },
-      { title: "文字信息", keys: /文字|标题|typography|text|banner|logo/i, items: [] },
-      { title: "其他", keys: /.^/, items: [] }
-    ];
-
-    rawSections.forEach((section) => {
-      const target = groups.find((group) => group.keys.test(`${section.title} ${section.text}`)) || groups[groups.length - 1];
-      target.items.push(section.text ? `${section.title}：${section.text}` : section.title);
-    });
-
-    return groups
-      .filter((group) => group.items.length)
-      .map((group) => ({ title: group.title, text: group.items.join("\n") }));
-  }
-
   function copyText(text) {
     const value = String(text || "");
     if (!value) return;
@@ -623,14 +591,11 @@
     root.replaceChildren();
     const prompt = item.prompt || "无提示词";
     const blocks = languageBlocks(prompt, item);
-    const panels = [{ title: "中文", text: blocks.chinese || item.promptCn || prompt || "暂无中文提示词。" }];
-    if (item.promptEn) panels.push({ title: "ENGLISH", text: item.promptEn });
-    if (item.promptStructure) {
-      const structureText = promptSections(item.promptStructure)
-        .map((section) => section.title + "：\n" + section.text)
-        .join("\n\n") || item.promptStructure;
-      panels.push({ title: "解析", text: structureText || "暂无提示词解析。" });
-    }
+    const englishPrompt = String(item.promptEn || "").trim();
+    const panels = [
+      { title: "中文", text: blocks.chinese || item.promptCn || prompt || "暂无中文提示词。", available: true },
+      { title: "ENGLISH", text: englishPrompt, available: Boolean(englishPrompt) }
+    ];
     const card = document.createElement("section");
     card.className = "prompt-switch-card";
     const head = document.createElement("div");
@@ -639,7 +604,7 @@
     tabs.className = "prompt-switch-tabs";
     tabs.setAttribute("role", "tablist");
     tabs.dataset.count = String(panels.length);
-    tabs.style.setProperty("--active-index", "0");
+    tabs.dataset.activeIndex = "0";
     tabs.style.setProperty("--panel-count", String(panels.length));
     const copy = document.createElement("button");
     copy.className = "copy-text";
@@ -650,8 +615,9 @@
     body.className = "prompt-switch-body";
     let activeIndex = 0;
     const setActivePanel = (nextIndex) => {
-      activeIndex = Math.max(0, Math.min(nextIndex, panels.length - 1));
-      tabs.style.setProperty("--active-index", String(activeIndex));
+      if (!panels[nextIndex]?.available) return;
+      activeIndex = nextIndex;
+      tabs.dataset.activeIndex = String(activeIndex);
       tabs.querySelectorAll(".prompt-switch-tab").forEach((button, buttonIndex) => {
         button.setAttribute("aria-selected", buttonIndex === activeIndex ? "true" : "false");
       });
@@ -671,7 +637,7 @@
       const full = document.createElement("details");
       full.className = "prompt-full";
       const toggle = document.createElement("summary");
-      toggle.textContent = panels[activeIndex].title === "解析" ? "查看完整解析" : "查看完整提示词";
+      toggle.textContent = "查看完整提示词";
       const fullText = document.createElement("pre");
       fullText.textContent = panels[activeIndex].text;
       full.append(toggle, fullText);
@@ -684,6 +650,7 @@
       tab.type = "button";
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-selected", panelIndex === 0 ? "true" : "false");
+      tab.disabled = !panel.available;
       tab.textContent = panel.title;
       tab.addEventListener("click", () => setActivePanel(panelIndex));
       tabs.append(tab);
@@ -768,7 +735,21 @@
     heading.textContent = "生成来源";
     const overview = document.createElement("span");
     overview.textContent = viewerSourceLabel(item) + " · " + (traceable ? assets.length + " 张参考" : "来源待确认");
-    summary.append(heading, overview);
+    const title = document.createElement("span");
+    title.className = "source-title";
+    title.append(heading, overview);
+    const restore = document.createElement("button");
+    restore.className = "source-restore";
+    restore.type = "button";
+    restore.textContent = "恢复创作链";
+    restore.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      requestViewerContinuation(
+        String(item.source || "") === "reuse" ? "reuse" : item.mode === "image" ? "image" : "text"
+      );
+    });
+    summary.append(title, restore);
     panel.append(summary);
     const content = document.createElement("div");
     content.className = "source-content";
@@ -776,15 +757,7 @@
     mode.className = "source-mode";
     mode.textContent = "生成模式：" + viewerSourceLabel(item);
     content.append(mode);
-    const restore = document.createElement("button");
-    restore.className = "source-restore";
-    restore.type = "button";
-    restore.textContent = "恢复创作链";
-    restore.addEventListener("click", () => requestViewerContinuation(
-      String(item.source || "") === "reuse" ? "reuse" : item.mode === "image" ? "image" : "text"
-    ));
     if (!traceable || !assets.length) {
-      content.append(restore);
       const empty = document.createElement("p");
       empty.className = "source-empty";
       empty.textContent = !traceable
@@ -827,7 +800,6 @@
       }
       content.append(section);
     }
-    content.append(restore);
     panel.append(content);
   }
 
@@ -1068,11 +1040,10 @@
   async function collectViewerImageToEagle() {
     const item = viewerState.items[viewerState.activeIndex];
     if (!hasViewerImage(item)) return;
-    await resolveViewerImageUrl(item, "full");
-
     if (await collectViewerImageToEagleApi(item)) {
       return;
     }
+    if (item.localStoreId) return;
 
     if (viewerState.eagle?.mode === "api") {
       showViewerNotice("Eagle Local API 暂不可用，已改用 eagle:// 协议尝试收集。");
@@ -1083,7 +1054,7 @@
 
   async function collectViewerImageToEagleApi(item) {
     const eagle = viewerState.eagle || {};
-    if (eagle.mode !== "api") {
+    if (eagle.mode !== "api" && !item.localStoreId) {
       return false;
     }
 
@@ -1093,6 +1064,7 @@
         payload: {
           item: {
             url: item.originalUrl || item.url,
+            localStoreId: item.localStoreId || "",
             model: item.model,
             index: item.index,
             prompt: item.prompt || "",
@@ -1112,7 +1084,10 @@
       }
       showViewerNotice("已通过 Eagle Local API 收集图片。");
       return true;
-    } catch {
+    } catch (error) {
+      if (item.localStoreId) {
+        showViewerNotice(`Eagle 收集失败：${error?.message || "请确认 Eagle 已启动并开启本地 API。"}`);
+      }
       return false;
     }
   }
@@ -1314,13 +1289,24 @@
         .continue-menu button:hover,
         .continue-menu button:focus-visible { background: rgba(132, 104, 216, 0.2); }
         .source-restore {
-          justify-self: start;
-          height: 29px;
-          padding: 0 12px;
-          border-color: rgba(167, 139, 250, 0.38);
-          color: #ddd2ff;
-          background: rgba(118, 82, 186, 0.13);
+          flex: 0 0 auto;
+          height: 30px;
+          padding: 0 10px;
+          border: 1px solid rgba(179, 158, 255, 0.38);
+          border-radius: 9px;
+          color: #ddd3ff;
+          background: rgba(111, 77, 188, 0.18);
+          font: inherit;
           font-size: 11px;
+          font-weight: 700;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+        .source-restore:hover,
+        .source-restore:focus-visible {
+          border-color: #a994ff;
+          background: rgba(111, 77, 188, 0.35);
+          outline: none;
         }
         .notice {
           justify-self: end;
@@ -1416,15 +1402,26 @@
           position: absolute;
           top: 50%;
           z-index: 3;
+          display: grid;
+          place-items: center;
           width: 38px;
           height: 44px;
           padding: 0;
           border-radius: 10px;
           background: rgba(5, 7, 16, 0.64);
-          font-size: 28px;
-          line-height: 1;
           transform: translateY(-50%);
         }
+        .stage-nav svg {
+          display: block;
+          width: 20px;
+          height: 20px;
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 2.6;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        .stage-prev svg { transform: scaleX(-1); }
         .stage-prev { left: 18px; }
         .stage-next { right: 18px; }
         .stage-nav:disabled { opacity: 0.32; cursor: default; }
@@ -1531,72 +1528,80 @@
         }
         .prompt-switch-head {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-columns: minmax(0, 1fr) 28px;
           gap: 8px;
           align-items: center;
-          min-height: 42px;
-          padding: 7px 8px 7px 10px;
+          min-height: 58px;
+          padding: 7px 8px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           background: rgba(255, 255, 255, 0.04);
         }
         .prompt-switch-tabs {
-          --active-index: 0;
           --panel-count: 1;
           position: relative;
           display: grid;
-          justify-self: start;
-          grid-template-columns: repeat(var(--panel-count), max-content);
-          width: max-content;
-          max-width: 100%;
+          grid-template-columns: repeat(var(--panel-count), minmax(0, 1fr));
+          gap: 4px;
+          width: 100%;
           min-width: 0;
-          height: 30px;
-          padding: 3px;
+          height: 48px;
+          padding: 5px;
           overflow: hidden;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 999px;
-          background: rgba(4, 5, 10, 0.52);
+          border: 1px solid #2a2438;
+          border-radius: 14px;
+          background: #0b0910;
         }
         .prompt-switch-tabs::before {
           content: "";
           position: absolute;
-          inset: 3px auto 3px 3px;
-          width: calc((100% - 6px) / var(--panel-count));
-          border-radius: 999px;
-          background: linear-gradient(110deg, rgba(168, 85, 247, 0.68), rgba(59, 130, 246, 0.58));
-          box-shadow: 0 8px 26px rgba(59, 130, 246, 0.18);
-          transform: translateX(calc(var(--active-index) * 100%));
-          transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+          inset: 5px auto 5px 5px;
+          width: calc((100% - 10px - (var(--panel-count) - 1) * 4px) / var(--panel-count));
+          border: 1px solid rgba(139, 92, 246, 0.45);
+          border-radius: 9px;
+          background: linear-gradient(180deg, rgba(139, 92, 246, 0.32), rgba(139, 92, 246, 0.14));
+          box-shadow: 0 0 18px rgba(139, 92, 246, 0.25);
+          pointer-events: none;
+          transform: translateX(0);
+          transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .prompt-switch-tab {
+        .prompt-switch-tabs[data-active-index="1"]::before { transform: translateX(calc(100% + 4px)); }
+        .prompt-switch-tab,
+        .prompt-switch-tab:hover,
+        .prompt-switch-tab:focus-visible {
           position: relative;
           z-index: 1;
           min-width: 0;
           height: 100%;
-          padding: 0 18px;
+          padding: 0 6px;
           border: 0;
-          border-radius: 999px;
-          color: rgba(235, 236, 248, 0.62);
+          border-radius: 8px;
           background: transparent;
-          font-size: 11px;
-          font-weight: 800;
+          box-shadow: none;
+          backdrop-filter: none;
+          font-size: 12px;
+          font-weight: 650;
           white-space: nowrap;
-          cursor: pointer;
+          transform: none;
         }
-        .prompt-switch-tab[aria-selected="true"] {
-          color: #ffffff;
+        .prompt-switch-tab {
+          color: #9b96ac;
+          transition: color 180ms ease;
         }
-        .prompt-switch-tabs[data-count="1"] .prompt-switch-tab {
-          min-width: 92px;
+        .prompt-switch-tab:hover { color: #cbc6d8; }
+        .prompt-switch-tab:disabled,
+        .prompt-switch-tab:disabled:hover {
+          color: #686474;
+          cursor: not-allowed;
         }
-        .prompt-switch-tabs[data-count="2"] .prompt-switch-tab {
-          min-width: 92px;
+        .prompt-switch-tab[aria-selected="true"],
+        .prompt-switch-tab[aria-selected="true"]:hover { color: #f1eef7; }
+        .prompt-switch-tab:focus-visible {
+          outline: 1px solid rgba(167, 139, 250, 0.72);
+          outline-offset: -3px;
         }
-        .prompt-switch-tabs[data-count="3"] {
-          width: min(100%, 300px);
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-        .prompt-switch-tabs[data-count="3"] .prompt-switch-tab {
-          padding: 0 10px;
+        @media (prefers-reduced-motion: reduce) {
+          .prompt-switch-tabs::before,
+          .prompt-switch-tab { transition: none; }
         }
         .prompt-switch-body {
           margin: 0;
@@ -2045,29 +2050,42 @@
           overflow: auto;
         }
         .source-panel > summary {
-          display: grid;
-          grid-template-columns: 1fr auto;
+          display: flex;
           align-items: center;
-          gap: 6px;
-          padding: 12px 14px;
+          gap: 10px;
+          min-height: 54px;
+          padding: 10px 14px;
           list-style: none;
           cursor: pointer;
         }
         .source-panel > summary::-webkit-details-marker { display: none; }
-        .source-panel > summary strong { color: #fff; font-size: 12px; }
-        .source-panel > summary span {
+        .source-title {
+          display: flex;
+          flex: 1 1 auto;
+          align-items: center;
+          gap: 9px;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .source-title strong {
+          flex: 0 0 auto;
+          color: #fff;
+          font-size: 12px;
+        }
+        .source-title > span {
+          min-width: 0;
+          overflow: hidden;
           color: rgba(210, 205, 232, 0.72);
           font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
         .source-panel > summary::after {
           content: "›";
-          grid-column: 2;
-          grid-row: 1;
-          margin-left: 6px;
+          flex: 0 0 auto;
           color: #cfc5ff;
         }
         .source-panel[open] > summary::after { transform: rotate(90deg); }
-        .source-panel > summary span { margin-right: 18px; }
         .source-content {
           display: grid;
           gap: 10px;
@@ -2231,8 +2249,8 @@
         <div class="layout">
           <div class="stage">
             <img class="main-image" alt="放大预览">
-            <button class="stage-nav stage-prev" type="button" aria-label="上一张">‹</button>
-            <button class="stage-nav stage-next" type="button" aria-label="下一张">›</button>
+            <button class="stage-nav stage-prev" type="button" aria-label="上一张"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.5 5 7 7-7 7"/></svg></button>
+            <button class="stage-nav stage-next" type="button" aria-label="下一张"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.5 5 7 7-7 7"/></svg></button>
             <div class="zoom-readout" aria-live="polite">100%</div>
             <div class="stage-footer">
               <h2 class="stage-title"></h2>

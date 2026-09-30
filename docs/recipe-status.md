@@ -10,7 +10,7 @@
 
 已完成保存为方案、我的方案筛选与管理、独立预览图、重新上传参考图并复用方案，以及 IndexedDB v3 增量升级。个人方案为 personal 状态，数量随当前浏览器 Profile 变化，不计入官方 verified 数量。
 
-静态检查、真实扩展浏览器交互、原生 Side Panel 关闭重开、测试 Profile 完整重启、存储失败回滚与删除隔离均已通过。复用生成链路采用 Provider 边界 mock，本轮未调用真实 Provider。已生成 v1.9.17 本地安装包；远端发布留待后续流程。详见 [实现与验收报告](user-recipes-v1.9.17.md)。
+静态检查、真实扩展浏览器交互、原生 Side Panel 关闭重开、测试 Profile 完整重启、存储失败回滚与删除隔离均已通过。复用生成链路采用 Provider 边界 mock，本轮未调用真实 Provider。已生成 v1.9.17 本地安装包；GitHub 上传与 CI 状态见 [PR #1](https://github.com/liangziye6/LYZ-Image-to-Prompt-for-Chrome/pull/1)。详见 [实现与验收报告](user-recipes-v1.9.17.md)。
 
 ## 当前数量
 

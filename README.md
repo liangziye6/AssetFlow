@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <strong>当前版本：v1.9.16</strong>
+  <strong>当前版本：v1.9.17</strong>
 </p>
 
-AssetFlow 可以把网页图片或本地图片整理成带角色、真实尺寸与来源关系的结构化 `ReusePlan`，将视觉分析和提示词编译分离，再通过现有生图 API 生成可追溯的新视觉资产。它同时保留文生图、图生图、反推提示词、异步任务恢复、本地图库与 Eagle 收集能力。
+AssetFlow 可以把网页图片或本地图片整理成带角色、真实尺寸与来源关系的结构化 `ReusePlan`，将视觉分析和提示词编译分离，再通过现有生图 API 生成可追溯的新视觉资产。它同时保留文生图、图生图、反推提示词、异步任务恢复、本地图库、Eagle 收集与个人视觉方案管理能力。
 
 典型流程：添加 1-4 张参考图 → 定义参考角色与核心需求 → 查看结构化复用方案 → 生成新视觉。
 
@@ -46,13 +46,21 @@ AssetFlow 可以把网页图片或本地图片整理成带角色、真实尺寸�
 - Base URL 默认使用国内节点 `https://grsai.dakka.com.cn`，也可改为全球节点 `https://grsaiapi.com`；已有带 `/v1` 的地址继续兼容。
 - 生图通过 `/v1/api/generate` 异步提交，后台通过 `/v1/api/result?id=...` 恢复结果；图生图直接传递参与生成的参考图。上述两个基础模型只支持 1K；插件会把现有尺寸预设映射为 Grsai 支持的比例值，选择更大尺寸时会给出提示。
 
+## v1.9.17 保存为方案与个人视觉资产库
+
+- 图生图和视觉复用的生成结果可在网页 Viewer 或插件内 Viewer 中保存为个人视觉方案；文生图结果不显示该入口，缺少完整生成上下文的旧资产会给出禁用原因。
+- 保存弹窗可填写名称、描述、分类和标签，自动保留原生成的核心需求、参考图角色结构、保持 / 变化策略、文字策略、模型与尺寸。个人 Preview 独立保存在本地；不会复制原参考图，下次使用方案时需重新上传。
+- 「视觉方案」中可按「全部 / 内置方案 / 我的方案」筛选，个人方案支持搜索、重命名、编辑和删除。删除原 Gallery 不影响已保存方案；删除方案也不会删除原 Gallery。
+- 「使用方案」沿用现有 ReusePlan 与生成入口，恢复参考角色、核心需求、文字和生成参数；参考图数量不足时会阻止生成并提示补齐。
+- 个人方案存于当前浏览器 Profile 的 IndexedDB，不计入官方 verified 案例数。本版不提供账号同步、分享或导入导出。实现与浏览器验收见 [v1.9.17 报告](docs/user-recipes-v1.9.17.md)。
+
 ## v1.9.16 灵感库 V2
 
 - 输入区域旁的「✨ 灵感库」打开右侧抽屉，分为「Prompt玩法」和「视觉方案」两个 Tab，不增加一级导航。
 - 当前案例池包含 13 个 Prompt 玩法和 10 个视觉方案；正式库展示 12 个 Prompt 玩法与 7 个视觉方案。当前剩余 1 个 Prompt candidate 与 3 个 Visual candidate 统一放在「案例研究」，可查看但不能直接应用。数据位于 `recipes/`，支持分类、折叠标签筛选、搜索和详情预览。
 - 灵感玩法可以复制 Prompt，或应用到当前文生图 / 图生图输入框。已有内容时必须选择替换、追加或取消。
 - 视觉方案包含目标、参考图角色和保持 / 改变策略。「使用方案」会切换到视觉复用并填入核心需求；已有参考图时可选择应用角色、仅填需求或取消。之后沿用现有「查看方案」建立 ReusePlan，再由用户确认并生成。
-- 灵感库沿用现有 ReusePlan、assetLineage、Viewer、供应商接口和 Prompt Compiler；Viewer 中的「保存为方案」留待后续版本。
+- 灵感库沿用现有 ReusePlan、assetLineage、Viewer、供应商接口和 Prompt Compiler。
 - 正式卡片使用项目生成的等比例 WebP 缩略图，双列瀑布流完整展示画幅；详情页在同一抽屉中完整展示 Preview、Prompt 或参考结构、变量、来源与相似玩法。候选案例保留真实测试状态，待完成专属预览和真实生成测试后再发布。内容审核流程见 `docs/recipe-curation-v2.md`；最新数量、真实 Provider 验证和已知边界统一以 `docs/recipe-status.md` 为准。
 - v1.9.16 已完成 1/2/3 图视觉复用真实 Provider 链路验证；「风格与构图双迁移」「人物商业换景」「一图多资产」已升级为 verified。图生图 Side Panel 持久恢复与图库重复写入问题已修复并通过连续 reopen / 幂等 smoke。具体当前状态见 `docs/recipe-status.md`。
 
@@ -89,6 +97,7 @@ http://127.0.0.1:4173/popup.html
 ```text
 docs/conversation-notes.md
 docs/reuse-plan-v1.0.md
+docs/user-recipes-v1.9.17.md
 ```
 
 ## 一键打包
@@ -106,7 +115,7 @@ node package-extension.js
 脚本会生成：
 
 - `dist/assetflow`：用于“加载已解压的扩展”的目录。
-- `dist/assetflow-v1.9.16.zip`：用于归档或后续发布的压缩包。
+- `dist/assetflow-v1.9.17.zip`：用于归档或后续发布的压缩包。
 - `dist/lyz-assetflow`：旧版解压安装的兼容目录，打包时会同步为最新版，Chrome 可以继续沿用原路径和扩展 ID。
 - `dist/image-prompt-builder`：更早版本的兼容目录，也会同步为最新版。
 

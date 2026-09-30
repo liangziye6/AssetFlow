@@ -2,7 +2,7 @@
 
 日期：2026-09-30
 执行依据：LYZ-AssetFlow-v1.9.17-保存为方案与个人视觉资产库开发方案-V1.md
-结果：本地实现、检查、浏览器 smoke 和打包完成。GitHub / CI / PR 与 GitHub-facing README 交接按方案第 58 节另行处理。
+结果：本地实现、检查、浏览器 smoke 和打包完成。GitHub-facing README 与 PR 状态由本次上传任务同步；本报告记录本地验收。
 
 ## 数据层
 
@@ -84,7 +84,7 @@
 - 交付包：`dist/assetflow-v1.9.17.zip`。
 - 解压安装目录：`dist/assetflow`。
 - 兼容目录：`dist/lyz-assetflow`、`dist/image-prompt-builder`，打包同步。
-- 未新增第三方依赖，未创建 Git commit、PR 或远端发布。
+- 未新增第三方依赖；`dist/` 不纳入 Git 源码提交。
 
 ### 可复现测试
 
@@ -140,4 +140,4 @@ node tools/local-user-recipe-smoke.mjs --verify-reopen
 - 用户方案是 personal，不代表官方 verified/published。
 - 文生图个人 Prompt玩法、同步、分享、导入导出、最近使用、收藏及版本历史不在本次范围。
 - 自动化验证使用 Edge 的真实扩展、IndexedDB、网页 Viewer 与原生 Side Panel API，浏览器运行于 headless 模式；不代表完成手工安装到用户日常浏览器 Profile 的验证。
-- GitHub-facing README 与远端版本收口依照开发方案第 58 节交给后续审计流程；当前本地状态以本报告和 recipe-status.md 为准。
+- GitHub 代码与 README 版本收口见 [PR #1](https://github.com/liangziye6/LYZ-Image-to-Prompt-for-Chrome/pull/1)；CI 状态以该 PR 为准，本地验收以本报告和 recipe-status.md 为准。

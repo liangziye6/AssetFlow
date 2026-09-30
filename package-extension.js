@@ -4,9 +4,14 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const root = __dirname;
+const packageMeta = require("./package.json");
 const distDir = path.join(root, "dist");
-const buildDir = path.join(distDir, "image-prompt-builder");
-const zipPath = path.join(distDir, "image-prompt-builder.zip");
+const buildDir = path.join(distDir, "assetflow");
+const legacyBuildDirs = [
+  path.join(distDir, "lyz-assetflow"),
+  path.join(distDir, "image-prompt-builder"),
+];
+const zipPath = path.join(distDir, `assetflow-v${packageMeta.version}.zip`);
 
 const files = [
   "manifest.json",
@@ -15,23 +20,34 @@ const files = [
   "index.html",
   "popup.html",
   "popup.css",
+  "soft-aurora.js",
+  "reuse-plan.js",
+  "template-library.js",
+  "user-recipes.js",
+  "recipe-editor.js",
   "popup.js",
+  "template-library-ui.js",
+  "template-library.css",
   "options.html",
   "options.css",
   "options.js",
   "README.md",
 ];
 
-const directories = ["docs"];
+const directories = ["docs", "recipes"];
 const assetReferenceFiles = [
   "manifest.json",
   "content.js",
   "popup.html",
   "popup.css",
+  "soft-aurora.js",
+  "reuse-plan.js",
   "popup.js",
   "options.html",
   "options.css",
   "options.js",
+  "recipes/prompt-recipes.json",
+  "recipes/visual-recipes.json",
 ];
 
 async function exists(target) {
@@ -133,7 +149,10 @@ function createZip() {
 }
 
 async function main() {
-  const assets = await referencedAssets();
+  const bundledSvgIcons = (await fsp.readdir(path.join(root, "assets")))
+    .filter((name) => name.endsWith(".svg"))
+    .map((name) => path.posix.join("assets", name));
+  const assets = [...new Set([...(await referencedAssets()), ...bundledSvgIcons])].sort();
   await assertFilesPresent([...files, ...assets]);
 
   await fsp.mkdir(distDir, { recursive: true });
@@ -154,16 +173,29 @@ async function main() {
 
   await assertFilesPresent([...files, ...assets], buildDir);
 
+  for (const legacyBuildDir of legacyBuildDirs) {
+    await fsp.rm(legacyBuildDir, { recursive: true, force: true });
+    await fsp.cp(buildDir, legacyBuildDir, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   if (!createZip()) {
     throw new Error("Failed to create extension zip. Please make sure ditto, zip, or PowerShell is available.");
   }
 
   console.log("");
-  console.log("Image Prompt Builder extension package is ready:");
+  console.log(`AssetFlow ${packageMeta.version} extension package is ready:`);
   console.log(zipPath);
   console.log("");
   console.log("For local testing, open chrome://extensions or edge://extensions, enable Developer mode, then load unpacked:");
   console.log(buildDir);
+  console.log("");
+  console.log("Existing unpacked installs can keep reloading either compatibility directory:");
+  for (const legacyBuildDir of legacyBuildDirs) {
+    console.log(legacyBuildDir);
+  }
 }
 
 main().catch((error) => {

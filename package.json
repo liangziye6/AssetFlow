@@ -1,9 +1,10 @@
 {
-  "name": "image-prompt-builder",
-  "version": "1.7.3",
+  "name": "assetflow",
+  "version": "1.9.17",
   "private": true,
   "scripts": {
     "preview": "node preview-server.js",
+    "check": "node tools/check-project.js",
     "package": "node package-extension.js",
     "package:windows": "powershell -ExecutionPolicy Bypass -File ./deploy-extension.ps1"
   }

@@ -1,0 +1,755 @@
+[
+  {
+    "id": "character-consistency",
+    "type": "visual_recipe",
+    "name": "角色一致性延展",
+    "summary": "让同一角色跨动作与场景保持身份、服装和 IP 识别。",
+    "category": "角色/IP",
+    "tags": [
+      "人物",
+      "IP",
+      "系列资产"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "人脸与发型",
+      "核心服装",
+      "角色识别特征"
+    ],
+    "change": [
+      "动作",
+      "视角",
+      "环境"
+    ],
+    "goalTemplate": "在{scene}中延展图1角色，锁定面部、发型、服装与关键配件；若有图2，仅借鉴动作和构图，不复制其人物身份。生成{ratio}可用于海报的角色画面，主体比例可信、边缘自然。",
+    "output": "角色延展海报",
+    "thumbnail": "assets/recipes/thumbnails/character-consistency.webp",
+    "preview": "assets/recipes/previews/character-consistency.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/gpt-img-2/gpt-image-2-character-sheet",
+      "author": "gpt-img-2",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "使用角色设定图作为主体参考生成换景画面；人工检查身份、服装与场景",
+      "previewOriginal": true,
+      "referenceInput": "assets/recipes/previews/character-sheet.webp",
+      "scope": "主体参考图换景；可选构图参考尚未单独测"
+    },
+    "score": {
+      "repeatability": 31,
+      "design": 27,
+      "roleClarity": 20,
+      "caseEvidence": 12
+    }
+  },
+  {
+    "id": "product-commercial-kv",
+    "type": "visual_recipe",
+    "name": "产品商业 KV",
+    "summary": "保留产品真实结构，分工继承构图与光影制作商业主视觉。",
+    "category": "产品视觉",
+    "tags": [
+      "产品",
+      "商业",
+      "海报"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "color_material",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "产品形状",
+      "品牌识别",
+      "主体比例"
+    ],
+    "change": [
+      "环境",
+      "构图",
+      "光影"
+    ],
+    "goalTemplate": "图1是唯一产品主体，严守外形、颜色和结构；图2只参考构图留白，图3只参考光色。为{subject}制作{ratio}商业 KV，背景为{scene}，保留标题和卖点区，不改变品牌标识。",
+    "output": "产品广告 KV",
+    "thumbnail": "assets/recipes/thumbnails/product-commercial-kv.webp",
+    "preview": "assets/recipes/previews/product-commercial-kv.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "使用产品原图生成商业 KV；人工检查产品外形、网孔、铜色旋钮与橙色指示灯保持",
+      "previewOriginal": true,
+      "referenceInput": "assets/recipes/references/product-kv-input.webp",
+      "scope": "主体参考图与商业场景；可选构图及色彩参考尚未单独测"
+    },
+    "score": {
+      "repeatability": 32,
+      "design": 28,
+      "roleClarity": 20,
+      "caseEvidence": 12
+    }
+  },
+  {
+    "id": "poster-layout-reuse",
+    "type": "visual_recipe",
+    "name": "海报版式复用",
+    "summary": "保留内容主体，借鉴参考海报的网格、留白和标题层级。",
+    "category": "商业海报",
+    "tags": [
+      "海报",
+      "排版",
+      "商业"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "layout",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "主体身份",
+      "信息主次"
+    ],
+    "change": [
+      "标题文案",
+      "背景",
+      "细节"
+    ],
+    "goalTemplate": "以图1为内容主体，图2仅借鉴版式网格、标题区与留白，不复制其文字或品牌；主题为{title}，输出{ratio}原创海报，保证主体和文字区清楚分离。",
+    "output": "竖版商业海报",
+    "thumbnail": "assets/recipes/thumbnails/poster-layout-reuse.webp",
+    "preview": "assets/recipes/previews/poster-layout-reuse.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴工作流方法；概念预览由本项目原创生成，不使用来源仓库图片。",
+      "notes": "原创双参考图编辑；主体、版式与两组指定英文标题已在真实输出中验证。"
+    },
+    "score": {
+      "repeatability": 30,
+      "design": 27,
+      "roleClarity": 18,
+      "caseEvidence": 11
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/poster-subject.webp",
+        "assets/recipes/sources/poster-layout.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/poster-subject.webp",
+        "assets/recipes/sources/poster-layout.webp"
+      ],
+      "testImage": "assets/recipes/validation/poster-layout-reuse-reference-test.webp",
+      "result": "两轮原创双图编辑：陶艺人物保持，左右信息网格迁移；指定标题 CLAY IN MOTION 与 FORM & FIRE 分别准确呈现，无附加伪文字。",
+      "reusePlan": "subject/layout 角色映射，768×1024 草稿校验与中文编译通过",
+      "ui": "Chrome 无头预览上传 2 张原创参考图，使用方案应用 subject/layout 角色并填入需求成功",
+      "scope": "已验证两组英文短标题；其他语言和复杂长文案仍需用户在最终导出前校对。"
+    }
+  },
+  {
+    "id": "multi-reference-fusion",
+    "type": "visual_recipe",
+    "name": "多参考视觉融合",
+    "summary": "主体、场景结构与视觉风格分开输入并融合为单张画面。",
+    "category": "多图复用",
+    "tags": [
+      "多图",
+      "融合",
+      "视觉复用"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "style",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "主体身份",
+      "核心轮廓"
+    ],
+    "change": [
+      "场景",
+      "氛围",
+      "材质"
+    ],
+    "goalTemplate": "图1提供唯一主体；图2提供场景空间和视角；图3仅提供风格材质。把三者融合成{ratio}画面，统一透视、接触阴影与光线，不出现拼贴接缝。目标场景：{scene}。",
+    "output": "统一的新视觉",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
+      "author": "Apatero-Org",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "ip-series-extension",
+    "type": "visual_recipe",
+    "name": "IP 系列延展",
+    "summary": "锁定原创 IP 识别特征，扩展动作与材质系列。",
+    "category": "角色/IP",
+    "tags": [
+      "IP",
+      "角色",
+      "系列资产"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "style",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "IP 轮廓",
+      "核心配色",
+      "识别配件"
+    ],
+    "change": [
+      "动作",
+      "材质",
+      "环境"
+    ],
+    "goalTemplate": "图1是原始 IP，严格保留形体比例和配色锚点；图2仅参考动作，图3仅参考材质表现。围绕{scene}制作{ratio}系列中的一张，保证可与原角色并排识别。",
+    "output": "IP 系列资产",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
+      "author": "Apatero-Org",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "product-scene-relocation",
+    "type": "visual_recipe",
+    "name": "产品场景迁移",
+    "summary": "不改动产品本体，将产品合理迁入目标环境。",
+    "category": "产品视觉",
+    "tags": [
+      "产品",
+      "电商",
+      "场景"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "产品形状",
+      "颜色",
+      "标识"
+    ],
+    "change": [
+      "背景",
+      "接触阴影",
+      "光线"
+    ],
+    "goalTemplate": "保留图1产品的形状、颜色、比例和可见标识；图2只提供目标环境与机位。将产品真实摆放进{scene}，匹配接触阴影、反射与环境光，输出{ratio}产品图。",
+    "output": "场景化产品主图",
+    "thumbnail": "assets/recipes/thumbnails/product-scene-relocation.webp",
+    "preview": "assets/recipes/previews/product-scene-relocation.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts",
+      "author": "JeremyGDM",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴工作流方法；概念预览由本项目原创生成，不使用来源仓库图片。",
+      "notes": "原创产品双图迁移已通过真实 Grsai ReusePlan/生成、异步恢复、网页 Viewer 和恢复创作链。"
+    },
+    "score": {
+      "repeatability": 32,
+      "design": 28,
+      "roleClarity": 19,
+      "caseEvidence": 10
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp"
+      ],
+      "testImage": "assets/recipes/validation/product-scene-relocation-reference-test.webp",
+      "result": "单图编辑两轮：钴蓝色瓶身、圆肩和金属瓶盖保持；背景由灰色棚拍换为山间温泉，再换为日光厨房。",
+      "reusePlan": "subject 角色映射，768×1024 草稿校验与中文编译通过",
+      "ui": "Chrome 无头预览上传原创产品图，使用方案应用 subject 角色并填入需求成功",
+      "scope": "真实扩展双图链路通过：Grsai Chat API 建立 ReusePlan，Grsai GPT Image 2.5 实际接收 2 图并生成；assetLineage direct=2、analysis=0；异步任务关闭/重开扩展页后恢复，真实 Side Panel 图库打开网页 Viewer 并恢复原图角色/Prompt/ReusePlan/模型/尺寸。",
+      "providerE2E": {
+        "testedAt": "2026-09-28",
+        "promptProvider": "Grsai Chat API (gemini-2.5-flash)",
+        "imageProvider": "Grsai GPT Image 2.5",
+        "referenceRoles": [
+          "subject",
+          "composition"
+        ],
+        "providerImages": 2,
+        "direct": 2,
+        "analysis": 0,
+        "reusePlan": true,
+        "generation": true,
+        "assetLineage": true,
+        "webViewer": true,
+        "continuation": true,
+        "referenceInputs": [
+          "assets/recipes/sources/product-source.webp",
+          "assets/recipes/sources/style-composition-layout.webp"
+        ]
+      }
+    }
+  },
+  {
+    "id": "style-composition-transfer",
+    "type": "visual_recipe",
+    "name": "风格与构图双迁移",
+    "summary": "构图和风格分别指定，重构主体而非简单套滤镜。",
+    "category": "多图复用",
+    "tags": [
+      "多图",
+      "构图",
+      "风格"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": true
+      },
+      {
+        "slot": 3,
+        "role": "style",
+        "required": true
+      }
+    ],
+    "preserve": [
+      "内容主体",
+      "结构"
+    ],
+    "change": [
+      "构图",
+      "风格",
+      "材质"
+    ],
+    "goalTemplate": "图1决定内容主体与关键结构；图2决定构图、机位和留白；图3决定材料与笔触。为{subject}生成{ratio}新视觉，保持三个来源分工清晰，重建空间与光线，避免直接贴图。",
+    "output": "重构视觉",
+    "thumbnail": "assets/recipes/thumbnails/style-composition-transfer.webp",
+    "preview": "assets/recipes/previews/style-composition-transfer.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/Comfy-Org/workflow_templates/blob/main/site/knowledge/concepts/ip-adapter.md",
+      "author": "Comfy-Org",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴构图与风格参考分工；三张参考图及两轮编辑结果均为本项目原创。",
+      "notes": "三图分工与角色应用、真实 Grsai ReusePlan/生成、网页 Viewer 和恢复创作链已验证。"
+    },
+    "score": {
+      "repeatability": 29,
+      "design": 27,
+      "roleClarity": 20,
+      "caseEvidence": 11
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp",
+        "assets/recipes/sources/style-composition-layout.webp",
+        "assets/recipes/sources/style-composition-style.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp",
+        "assets/recipes/sources/style-composition-layout.webp",
+        "assets/recipes/sources/style-composition-style.webp"
+      ],
+      "testImage": "assets/recipes/validation/style-composition-transfer-reference-test.webp",
+      "result": "两轮原创三图编辑：钴蓝瓶轮廓与银色瓶盖保持；左侧底座和拱门取自构图参考；水彩拼纸材质取自风格参考。",
+      "scope": "真实扩展三图链路通过：Grsai Chat API 建立 ReusePlan，Grsai GPT Image 2.5 实际接收 3 图并生成；assetLineage direct=3、analysis=0；网页 Viewer、参考图预览及原图角色/Prompt/ReusePlan/模型/尺寸恢复通过。",
+      "providerE2E": {
+        "testedAt": "2026-09-28",
+        "promptProvider": "Grsai Chat API (gemini-2.5-flash)",
+        "imageProvider": "Grsai GPT Image 2.5",
+        "referenceRoles": [
+          "subject",
+          "composition",
+          "style"
+        ],
+        "providerImages": 3,
+        "direct": 3,
+        "analysis": 0,
+        "reusePlan": true,
+        "generation": true,
+        "assetLineage": true,
+        "webViewer": true,
+        "continuation": true,
+        "referenceInputs": [
+          "assets/recipes/sources/product-source.webp",
+          "assets/recipes/sources/style-composition-layout.webp",
+          "assets/recipes/sources/style-composition-style.webp"
+        ]
+      }
+    }
+  },
+  {
+    "id": "brand-series-consistency",
+    "type": "visual_recipe",
+    "name": "品牌系列统一",
+    "summary": "基于品牌锚点和历史 KV 生成一致的新一张系列资产。",
+    "category": "品牌视觉",
+    "tags": [
+      "品牌",
+      "系列资产",
+      "商业"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "style",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "layout",
+        "required": false
+      },
+      {
+        "slot": 3,
+        "role": "subject",
+        "required": false
+      }
+    ],
+    "preserve": [
+      "主色",
+      "字体节奏",
+      "品牌识别"
+    ],
+    "change": [
+      "内容主体",
+      "活动主题"
+    ],
+    "goalTemplate": "图1提供品牌色彩、材质和识别规则；图2提供历史 KV 的网格节奏；图3若有则提供新主体。围绕{title}制作{ratio}系列画面，保持品牌系统但避免照搬旧版面。",
+    "output": "品牌系列 KV",
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "commercial-person-scene",
+    "type": "visual_recipe",
+    "name": "人物商业换景",
+    "summary": "稳定保留人物身份，替换环境并匹配商业布光。",
+    "category": "商业人像",
+    "tags": [
+      "人物",
+      "海报",
+      "商业"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      },
+      {
+        "slot": 2,
+        "role": "composition",
+        "required": true
+      },
+      {
+        "slot": 3,
+        "role": "color_material",
+        "required": true
+      }
+    ],
+    "preserve": [
+      "人物身份",
+      "脸型",
+      "关键服饰"
+    ],
+    "change": [
+      "环境",
+      "机位",
+      "光影"
+    ],
+    "goalTemplate": "图1锁定人物身份、脸型和服饰；图2提供{scene}的空间线索；图3只提供光影和色彩。输出{ratio}商业人物视觉，匹配人物边缘、脚下阴影和环境反射，避免换脸或漂浮。",
+    "output": "商业人像海报",
+    "thumbnail": "assets/recipes/thumbnails/commercial-person-scene.webp",
+    "preview": "assets/recipes/previews/commercial-person-scene.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/Apatero-Org/ComfyUI-AWESOME-Workflows",
+      "author": "Apatero-Org",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅参考人物场景商业合成的表达方式；人物、场景、光色参考和两轮输出均为本项目原创。",
+      "notes": "人物身份、空间构图、光色三图分工与真实 Grsai 生成、网页 Viewer 和恢复创作链已验证。"
+    },
+    "score": {
+      "repeatability": 27,
+      "design": 26,
+      "roleClarity": 21,
+      "caseEvidence": 10
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/era-portrait-source.webp",
+        "assets/recipes/sources/commercial-person-scene.webp",
+        "assets/recipes/sources/commercial-person-light.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/era-portrait-source.webp",
+        "assets/recipes/sources/commercial-person-scene.webp",
+        "assets/recipes/sources/commercial-person-light.webp"
+      ],
+      "testImage": "assets/recipes/validation/commercial-person-scene-reference-test.webp",
+      "testVariables": {
+        "scene": "日落时分的现代城市广场",
+        "ratio": "3:4",
+        "pose": "台阶旁侧身站姿"
+      },
+      "result": "两轮原创三图编辑分别呈现走动与侧身站姿；人物的长黑发、面部轮廓与深色服饰保持，广场透视和橙蓝光色来自对应参考。",
+      "scope": "真实扩展三图链路通过：Grsai Chat API 建立 ReusePlan，Grsai GPT Image 2.5 实际接收 3 图并生成；assetLineage direct=3、analysis=0；网页 Viewer、参考图预览及原图角色/Prompt/ReusePlan/模型/尺寸恢复通过。",
+      "providerE2E": {
+        "testedAt": "2026-09-28",
+        "promptProvider": "Grsai Chat API (gemini-2.5-flash)",
+        "imageProvider": "Grsai GPT Image 2.5",
+        "referenceRoles": [
+          "subject",
+          "composition",
+          "color_material"
+        ],
+        "providerImages": 3,
+        "direct": 3,
+        "analysis": 0,
+        "reusePlan": true,
+        "generation": true,
+        "assetLineage": true,
+        "webViewer": true,
+        "continuation": true,
+        "referenceInputs": [
+          "assets/recipes/sources/era-portrait-source.webp",
+          "assets/recipes/sources/commercial-person-scene.webp",
+          "assets/recipes/sources/commercial-person-light.webp"
+        ]
+      }
+    }
+  },
+  {
+    "id": "one-image-multi-assets",
+    "type": "visual_recipe",
+    "name": "一图多资产",
+    "summary": "从同一核心视觉派生多种版式而不丢失视觉锚点。",
+    "category": "系列资产",
+    "tags": [
+      "系列资产",
+      "社交",
+      "海报"
+    ],
+    "mode": "reuse",
+    "references": [
+      {
+        "slot": 1,
+        "role": "subject",
+        "required": true
+      }
+    ],
+    "preserve": [
+      "核心视觉主体",
+      "关键配色",
+      "主视觉识别"
+    ],
+    "change": [
+      "画布比例",
+      "留白",
+      "信息层级"
+    ],
+    "goalTemplate": "以图1为唯一视觉锚点，先制作{ratio}版本用于{scene}；保留主体、色彩与识别特征，按新画幅重构留白和文字区，不拉伸主体。后续可依次派生竖版海报、横版 KV、社交封面、详情页头图和视频封面。",
+    "output": "多尺寸资产组",
+    "thumbnail": "assets/recipes/thumbnails/one-image-multi-assets.webp",
+    "preview": "assets/recipes/previews/one-image-multi-assets.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅参考单一素材多画幅派生思路；参考图和两轮编辑结果均为本项目原创。",
+      "notes": "单图锚点的真实 Grsai ReusePlan/生成、网页 Viewer 来源和恢复创作链已验证。"
+    },
+    "score": {
+      "repeatability": 28,
+      "design": 25,
+      "roleClarity": 20,
+      "caseEvidence": 10
+    },
+    "development": {
+      "previewKind": "reference-edit",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp"
+      ]
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "referenceInputs": [
+        "assets/recipes/sources/product-source.webp"
+      ],
+      "testImage": "assets/recipes/validation/one-image-multi-assets-wide-test.webp",
+      "testVariables": {
+        "ratio": "16:9",
+        "scene": "网站首页横版 KV"
+      },
+      "result": "同一原创钴蓝色水瓶分别生成竖版海报和横版 KV；瓶身比例、颜色与银色瓶盖保持，横版为文案留出左侧空间。",
+      "scope": "真实扩展单图链路通过：Grsai Chat API 建立 ReusePlan，Grsai GPT Image 2.5 实际生成；assetLineage direct=1、analysis=0；网页 Viewer、参考图预览及原图角色/Prompt/ReusePlan/模型/尺寸恢复通过。",
+      "providerE2E": {
+        "testedAt": "2026-09-28",
+        "promptProvider": "Grsai Chat API (gemini-2.5-flash)",
+        "imageProvider": "Grsai GPT Image 2.5",
+        "referenceRoles": [
+          "subject"
+        ],
+        "providerImages": 1,
+        "direct": 1,
+        "analysis": 0,
+        "reusePlan": true,
+        "generation": true,
+        "assetLineage": true,
+        "webViewer": true,
+        "continuation": true,
+        "referenceInputs": [
+          "assets/recipes/sources/product-source.webp"
+        ]
+      }
+    }
+  }
+]

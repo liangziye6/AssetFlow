@@ -1,0 +1,125 @@
+{
+  "extensionId": "foodnakcbgmdnndefjmhjpokhncgdicb",
+  "providerCalls": "mocked at existing analysis/generation boundary; no live Provider calls",
+  "migrationSeeded": true,
+  "migration": {
+    "version": 3,
+    "stores": [
+      "gallery",
+      "images",
+      "recipes"
+    ],
+    "image": true,
+    "gallery": true,
+    "api": true
+  },
+  "localViewer": {
+    "imageSave": true,
+    "duplicateGenerationAllowed": true,
+    "textHidden": true,
+    "legacyDisabled": true,
+    "tagValidation": true
+  },
+  "pageViewer": true,
+  "preview": {
+    "type": "image/webp",
+    "dimensions": [
+      768,
+      1024
+    ],
+    "recipeAsset": true,
+    "independent": true
+  },
+  "sidePanelDocumentReopen": true,
+  "library": {
+    "search": true,
+    "detail": true,
+    "rename": true,
+    "edit": true,
+    "referenceStructureReadOnly": true
+  },
+  "threeImageReuse": {
+    "mode": "reuse",
+    "goal": "编辑后的科技海报需求",
+    "width": "768",
+    "height": "1024",
+    "model": "runninghub-rhart-image-g-2",
+    "textMode": "with-text",
+    "title": "新品",
+    "roles": [
+      "subject",
+      "composition",
+      "style"
+    ],
+    "planRoles": [
+      "subject",
+      "composition",
+      "style"
+    ],
+    "preserve": [
+      "保留产品轮廓"
+    ],
+    "change": [
+      "改变背景光线"
+    ],
+    "instruction": true,
+    "compiled": "verified saved constraints in compiled prompt",
+    "generationMode": "image",
+    "source": "reuse",
+    "generationReferences": 3,
+    "placeholderAdded": true
+  },
+  "oneImageReuse": {
+    "roles": [
+      "subject"
+    ],
+    "goal": "更换产品背景",
+    "plan": "ready"
+  },
+  "conflictChoices": {
+    "choices": [
+      "应用角色",
+      "仅填需求",
+      "取消"
+    ],
+    "unchanged": true
+  },
+  "unavailableModelFallback": true,
+  "rollback": [
+    {
+      "stage": "images",
+      "message": "方案保存失败：浏览器本地存储空间不足。",
+      "metadata": false,
+      "preview": false
+    },
+    {
+      "stage": "recipes",
+      "message": "方案保存失败：浏览器本地存储空间不足。",
+      "metadata": false,
+      "preview": false
+    }
+  ],
+  "galleryDeleteIsolation": true,
+  "recipeDeleteIsolation": {
+    "recipe": false,
+    "preview": false,
+    "gallery": true
+  },
+  "builtinProtected": true,
+  "remainingIds": [
+    "user-recipe-145fb154-9d62-4034-827e-35e606f11760",
+    "user-recipe-389ff4d4-46c7-4695-87cf-25cd5bd5950f"
+  ],
+  "consoleErrors": [],
+  "browserProfileReopen": true,
+  "nativeSidePanelReopen": [
+    {
+      "targetId": "8A007961A09683E493B545AC6346A357",
+      "count": 2
+    },
+    {
+      "targetId": "D770ECF75F76FF579C7EE5436EC87E99",
+      "count": 2
+    }
+  ]
+}

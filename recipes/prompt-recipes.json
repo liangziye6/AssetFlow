@@ -1,0 +1,656 @@
+[
+  {
+    "id": "era-film-portrait",
+    "type": "prompt_recipe",
+    "name": "年代穿越胶片肖像",
+    "summary": "保留人物身份，重建指定年代的服饰、发型、场景与胶片质感。",
+    "category": "人像摄影",
+    "tags": [
+      "人像",
+      "摄影",
+      "年代"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "以{subject}为唯一人物，保持可辨认的五官、肤色与年龄特征；将服饰改为{clothing}，放在{scene}。画面呈现{era}年代真实生活摄影的布光、颗粒、褪色与镜头缺陷，避免现代电子产品和夸张美颜。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "clothing",
+      "scene",
+      "era",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/era-film-portrait.webp",
+    "preview": "assets/recipes/previews/era-film-portrait.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "Mira",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "originalUrl": "https://x.com/miratechtool/status/2097712223044907454",
+      "licenseNote": "仅参考玩法机制并重写 Prompt；原创人物与生成预览，不复用来源图片或文案。"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-27",
+      "previewOriginal": true,
+      "referenceInputs": [
+        "assets/recipes/sources/era-portrait-source.webp"
+      ],
+      "testImage": "assets/recipes/validation/era-film-portrait-reference-test.webp",
+      "testVariables": {
+        "subject": "同一原创成年年轻女性肖像",
+        "clothing": "靛蓝牛仔夹克与条纹上衣",
+        "scene": "1990 年代北京家庭客厅",
+        "era": "1990",
+        "ratio": "3:4"
+      },
+      "result": "同一原创成年年轻女性两轮图像编辑；1980 年代上海街景与 1990 年代北京室内的服饰、背景和胶片色调变化明显，五官、长直发和右眼下方痣点可辨。"
+    },
+    "score": {
+      "spread": 14,
+      "design": 23,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    }
+  },
+  {
+    "id": "character-sheet",
+    "type": "prompt_recipe",
+    "name": "角色四视图 Character Sheet",
+    "summary": "同一原创角色的正面、侧面、背面和配件视图保持一致。",
+    "category": "角色/IP",
+    "tags": [
+      "角色",
+      "IP",
+      "多视图"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{subject}绘制一张专业角色设定页：中央全身正面，左侧头部侧面，右侧全身背面，下方展示{accessory}。在所有视图中锁定发型轮廓、脸型、服装材质、配色和配件；使用{style}表现，浅色干净背景，清晰分栏，不添加无关人物。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "accessory",
+      "style",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/character-sheet.webp",
+    "preview": "assets/recipes/previews/character-sheet.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/gpt-img-2/gpt-image-2-character-sheet",
+      "author": "gpt-img-2",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "人工检查生成结果与玩法机制一致",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 16,
+      "design": 24,
+      "variable": 24,
+      "clarity": 15,
+      "crossModel": 11
+    }
+  },
+  {
+    "id": "y2k-ccd-travel",
+    "type": "prompt_recipe",
+    "name": "Y2K CCD 直闪旅拍",
+    "summary": "把旅行人物转换为千禧数码相机直闪抓拍。",
+    "category": "人像摄影",
+    "tags": [
+      "人像",
+      "旅行",
+      "Y2K"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "在{location}拍摄{subject}穿着{clothing}的旅行抓拍；以早期 CCD 数码相机直闪照亮人物，保留轻微噪点、高光溢出、偶然倾斜构图和真实环境线索，避免过度磨皮与精致棚拍感。画幅{ratio}。",
+    "variables": [
+      "location",
+      "subject",
+      "clothing",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/y2k-ccd-travel.webp",
+    "preview": "assets/recipes/previews/y2k-ccd-travel.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "originalUrl": "https://x.com/abxxai/status/2097698730564796683",
+      "author": "abxxai",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴视觉机制；Prompt 已重写，预览与测试图由本项目原创生成；不复用原帖图片。",
+      "notes": "原作者由公开汇编索引署名；原帖可能需要登录 X 查看。"
+    },
+    "score": {
+      "spread": 15,
+      "design": 21,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 11
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "testImage": "assets/recipes/validation/y2k-ccd-travel-variable-test.webp",
+      "testVariables": {
+        "location": "首尔江边夜景",
+        "subject": "携带地图的成年男性旅行者",
+        "clothing": "森林绿雨衣",
+        "ratio": "3:4"
+      },
+      "result": "第二组变量生成成功；直闪、轻微噪点、倾斜构图与旅行场景清楚可辨"
+    }
+  },
+  {
+    "id": "landmark-miniature-card",
+    "type": "prompt_recipe",
+    "name": "城市地标微缩收藏卡",
+    "summary": "把真实地标重构成可收藏的手工微缩模型摄影。",
+    "category": "旅行设计",
+    "tags": [
+      "旅行",
+      "微缩",
+      "收藏"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "将{location}的{landmark}制作成摆放在桌面上的手工微缩收藏模型；保留地标的关键建筑轮廓，展示底座、比例尺感、细密材料与柔和展柜光；下方预留城市铭牌区域但不生成伪文字。画幅{ratio}。",
+    "variables": [
+      "location",
+      "landmark",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/landmark-miniature-card.webp",
+    "preview": "assets/recipes/previews/landmark-miniature-card.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "simeon-sanai (indexed by opensource-works)",
+      "views": 10700,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "单次生成输出体现玩法主要视觉机制；人工检查构图与独立预览",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 14,
+      "design": 23,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    }
+  },
+  {
+    "id": "product-ad",
+    "type": "prompt_recipe",
+    "name": "参数型产品广告海报",
+    "summary": "单一产品、商业布景与可编辑卖点区域形成完整广告画面。",
+    "category": "商业产品",
+    "tags": [
+      "产品",
+      "商业",
+      "海报"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{product}制作{ratio}商业广告：产品作为唯一主体，置于{scene}，保持真实结构、材质与可读轮廓；使用{color}作为主色，设置准确边缘光与层次；左上保留品牌标题区，右下预留{feature}卖点参数区，不生成虚构品牌标识或小字。",
+    "variables": [
+      "product",
+      "ratio",
+      "scene",
+      "color",
+      "feature"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/product-ad.webp",
+    "preview": "assets/recipes/previews/product-ad.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/kwistzzqq-byte/image2-ads-studio",
+      "author": "kwistzzqq-byte",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "人工检查生成结果与玩法机制一致",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 12,
+      "design": 24,
+      "variable": 24,
+      "clarity": 15,
+      "crossModel": 11
+    }
+  },
+  {
+    "id": "map-pop-up-world",
+    "type": "prompt_recipe",
+    "name": "地图展开微缩旅行世界",
+    "summary": "地图折页上长出城市地标与地形的微缩世界。",
+    "category": "旅行设计",
+    "tags": [
+      "地图",
+      "旅行",
+      "微缩"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "一张展开的{location}地图占据画面下半部，纸面上升起{landmark}与周边地形的精致微缩模型；纸张折线、真实材料和定位标记相互呼应，背景简洁，保留标题留白。画幅{ratio}。",
+    "variables": [
+      "location",
+      "landmark",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/map-pop-up-world.webp",
+    "preview": "assets/recipes/previews/map-pop-up-world.webp",
+    "status": "verified",
+    "source": {
+      "platform": "internal",
+      "url": "",
+      "author": "AssetFlow",
+      "notes": "旅行目的地微缩叙事的产品内容需求，原创机制与预览",
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "单次生成输出体现玩法主要视觉机制；人工检查构图与独立预览",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 14,
+      "design": 23,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    }
+  },
+  {
+    "id": "phone-in-phone-portrait",
+    "type": "prompt_recipe",
+    "name": "手机框中框肖像",
+    "summary": "真人举手机遮脸，屏幕中的肖像与真实姿态连接。",
+    "category": "视觉实验",
+    "tags": [
+      "人像",
+      "手机",
+      "实验"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "拍摄{subject}站在{scene}，举起手机遮挡面部；手机屏幕显示同一人物的正面肖像，保持发型、衣着、光线与身份一致，并让屏幕、手部与身体透视自然衔接。真实摄影质感，画幅{ratio}。",
+    "variables": [
+      "subject",
+      "scene",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/phone-in-phone-portrait.webp",
+    "preview": "assets/recipes/previews/phone-in-phone-portrait.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "originalUrl": "https://x.com/AI__TSUBAKI/status/2097448516322988041",
+      "author": "AI__TSUBAKI",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴视觉机制；Prompt 已重写，预览与测试图由本项目原创生成；不复用原帖图片。",
+      "notes": "原作者由公开汇编索引署名；原帖可能需要登录 X 查看。"
+    },
+    "score": {
+      "spread": 14,
+      "design": 22,
+      "variable": 21,
+      "clarity": 15,
+      "crossModel": 10
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "testImage": "assets/recipes/validation/phone-in-phone-portrait-variable-test.webp",
+      "testVariables": {
+        "subject": "灰发成年男性植物学家",
+        "scene": "热带植物温室",
+        "ratio": "3:4"
+      },
+      "result": "第二组变量生成成功；手机内外人物发型、服装和场景一致"
+    }
+  },
+  {
+    "id": "lookbook-callouts",
+    "type": "prompt_recipe",
+    "name": "穿搭商品标注 Lookbook",
+    "summary": "人物穿搭主图与局部单品标注组合成杂志页。",
+    "category": "时尚编辑",
+    "tags": [
+      "穿搭",
+      "时尚",
+      "排版"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{subject}制作{ratio}穿搭 Lookbook：主图展示人物在{scene}的全身造型；旁侧用小图拆解{items}，以细线连接到服装对应部位。各图保持同一套服饰与材质，留白供后期添加真实商品文案，不生成品牌标识或伪文字。",
+    "variables": [
+      "subject",
+      "scene",
+      "items",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/lookbook-callouts.webp",
+    "preview": "assets/recipes/previews/lookbook-callouts.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "originalUrl": "https://x.com/LiEvanna85716/status/2097663816339427547",
+      "author": "LiEvanna85716",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴视觉机制；Prompt 已重写，预览与测试图由本项目原创生成；不复用原帖图片。",
+      "notes": "原作者由公开汇编索引署名；原帖可能需要登录 X 查看。"
+    },
+    "score": {
+      "spread": 13,
+      "design": 23,
+      "variable": 24,
+      "clarity": 14,
+      "crossModel": 11
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "previewOriginal": true,
+      "testedAt": "2026-09-27",
+      "testImage": "assets/recipes/validation/lookbook-callouts-variable-test.webp",
+      "testVariables": {
+        "subject": "穿铁锈橙衬衫的成年男性",
+        "scene": "海滨木栈道",
+        "items": "衬衫缝线与帆布鞋",
+        "ratio": "3:4"
+      },
+      "result": "第二组变量生成成功；主图、单品细节和连接线清晰，服饰一致"
+    }
+  },
+  {
+    "id": "badge-collection",
+    "type": "prompt_recipe",
+    "name": "个人徽章收藏套装",
+    "summary": "同一人物或 IP 变成主徽章和兴趣属性徽章套装。",
+    "category": "角色/IP",
+    "tags": [
+      "IP",
+      "徽章",
+      "收藏"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "将{subject}转化为一套原创收藏徽章：一个主徽章和围绕{interest}的三枚小徽章；保持角色识别特征，统一轮廓线、材质和配色，整齐陈列在{scene}，为名称与属性留出空白标签区。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "interest",
+      "scene",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/badge-collection.webp",
+    "preview": "assets/recipes/previews/badge-collection.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "Mira",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "originalUrl": "https://x.com/miratechtool/status/2097710852413497646",
+      "licenseNote": "仅借鉴主徽章加属性徽章的结构；数量、角色、图像和 Prompt 均由本项目重新创作。"
+    },
+    "score": {
+      "spread": 13,
+      "design": 23,
+      "variable": 22,
+      "clarity": 15,
+      "crossModel": 10
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-27",
+      "previewOriginal": true,
+      "testImage": "assets/recipes/validation/badge-collection-reference-test.webp",
+      "testVariables": {
+        "subject": "原创中年男性植物学家",
+        "interest": "蕨叶、野外笔记、放大镜",
+        "scene": "深蓝色毛毡展示台",
+        "ratio": "3:4"
+      },
+      "result": "两轮不同人物与兴趣主题均形成 1 枚主徽章加 3 枚小徽章，材质和配色统一，标签保留空白。"
+    }
+  },
+  {
+    "id": "two-image-fusion",
+    "type": "prompt_recipe",
+    "name": "双图融合动态场景",
+    "summary": "把主体与新场景统一成具有可信透视和光照的动作瞬间。",
+    "category": "视觉实验",
+    "tags": [
+      "双图",
+      "动态",
+      "合成"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "将{subject}置于{scene}的动态瞬间，匹配脚下接触阴影、镜头透视、运动方向与环境光；确保主体结构和身份稳定，背景与前景形成真实空间连续性，不要拼贴边缘。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "scene",
+      "ratio"
+    ],
+    "thumbnail": "",
+    "preview": "",
+    "status": "candidate",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "opensource-works",
+      "views": null,
+      "checkedAt": "2026-09-26"
+    }
+  },
+  {
+    "id": "cinema-closeup",
+    "type": "prompt_recipe",
+    "name": "超近景电影人物肖像",
+    "summary": "用极近镜头、局部焦点和电影光比构成肖像。",
+    "category": "人像摄影",
+    "tags": [
+      "人像",
+      "电影",
+      "特写"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{subject}拍摄{ratio}电影特写，镜头距离极近，视觉焦点落在{focus}；保留真实皮肤纹理和自然不对称细节，用{light}形成主光与暗部层次，背景只提供轻微故事线索，避免塑料皮肤。",
+    "variables": [
+      "subject",
+      "ratio",
+      "focus",
+      "light"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/cinema-closeup.webp",
+    "preview": "assets/recipes/previews/cinema-closeup.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/opensource-works/awesome-gpt-image-prompts",
+      "author": "Jahan Zaib (indexed by opensource-works)",
+      "views": 2900,
+      "checkedAt": "2026-09-26"
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-26",
+      "result": "单次生成输出体现玩法主要视觉机制；人工检查构图与独立预览",
+      "previewOriginal": true
+    },
+    "score": {
+      "spread": 14,
+      "design": 23,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    }
+  },
+  {
+    "id": "character-film-bible",
+    "type": "prompt_recipe",
+    "name": "角色电影设定 Bible",
+    "summary": "将角色、表情、服装、道具和场景整合成设定页。",
+    "category": "角色/IP",
+    "tags": [
+      "角色",
+      "电影",
+      "设定"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "制作{subject}的电影角色设定页：主角色全身图、两种表情、{accessory}道具特写、{scene}环境小样分区展示；在各面板保持脸型和服装关键特征一致，设置清晰信息层级与注释留白，不写伪文字。画幅{ratio}。",
+    "variables": [
+      "subject",
+      "accessory",
+      "scene",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/character-film-bible.webp",
+    "preview": "assets/recipes/previews/character-film-bible.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/gpt-img-2/gpt-image-2-character-sheet",
+      "author": "gpt-img-2",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅借鉴电影角色设定页的表达方式；Prompt、人物与预览图均为本项目原创，不复用来源图像。",
+      "originalUrl": "https://github.com/gpt-img-2/gpt-image-2-character-sheet"
+    },
+    "score": {
+      "spread": 12,
+      "design": 23,
+      "variable": 24,
+      "clarity": 16,
+      "crossModel": 9
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-27",
+      "previewOriginal": true,
+      "testImage": "assets/recipes/validation/character-film-bible-variable-test.webp",
+      "testVariables": {
+        "subject": "26 岁成年黑人女性沙漠探险者，奶油色飞行服与赭色围巾",
+        "accessory": "黄铜星盘",
+        "scene": "砂岩天文台",
+        "ratio": "3:4"
+      },
+      "result": "两轮原创变量测试分别呈现都市科幻女主与沙漠探险者；全身造型、两种表情、道具与环境分区清晰，人物身份和服装在同页保持一致。区别于已有的正侧背四视图。"
+    }
+  },
+  {
+    "id": "product-exploded-view",
+    "type": "prompt_recipe",
+    "name": "产品结构拆解图",
+    "summary": "按可见部件顺序展示产品拆解层级，保留人工添加参数的留白。",
+    "category": "商业产品",
+    "tags": [
+      "产品",
+      "结构",
+      "电商"
+    ],
+    "modes": [
+      "text",
+      "image"
+    ],
+    "prompt": "为{product}制作{ratio}结构拆解视觉示意，沿单一装配轴依次展开{components}；保持部件比例、连接逻辑和{material}材质一致，置于{background}。为人工校对后的说明预留空白，不生成未经核实的尺寸、型号、性能参数、伪文字或品牌标识。",
+    "variables": [
+      "product",
+      "components",
+      "material",
+      "background",
+      "ratio"
+    ],
+    "thumbnail": "assets/recipes/thumbnails/product-exploded-view.webp",
+    "preview": "assets/recipes/previews/product-exploded-view.webp",
+    "status": "verified",
+    "source": {
+      "platform": "github",
+      "url": "https://github.com/buluslan/gpt-image2-ecommerce",
+      "author": "buluslan",
+      "views": null,
+      "checkedAt": "2026-09-27",
+      "licenseNote": "仅参考技术拆解图这一电商表现方式；Prompt 和图像原创，不复制仓库案例，示意图不作为工程规格。",
+      "originalUrl": "https://github.com/buluslan/gpt-image2-ecommerce"
+    },
+    "score": {
+      "spread": 12,
+      "design": 24,
+      "variable": 23,
+      "clarity": 15,
+      "crossModel": 10
+    },
+    "validation": {
+      "generator": "Codex image_gen",
+      "testedAt": "2026-09-27",
+      "previewOriginal": true,
+      "testImage": "assets/recipes/validation/product-exploded-view-reference-test.webp",
+      "testVariables": {
+        "product": "便携式阅读灯",
+        "components": "灯罩、LED 面板、散热件、壳体、电池、转轴与夹座",
+        "material": "象牙白与拉丝黄铜",
+        "background": "暖灰无缝背景",
+        "ratio": "3:4"
+      },
+      "result": "无参数版桌面风扇预览与便携阅读灯第二轮生成均呈现独立可见部件及装配层级，无虚构规格文字；仅作为概念示意。"
+    }
+  }
+]

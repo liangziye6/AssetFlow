@@ -5,7 +5,11 @@
   const MAX_IMAGES = 80;
   const MAX_TEXT = 180;
   const VIEWER_THUMB_PAGE_SIZE = 20;
+  const VIEWER_THUMB_PREVIEW_SIZE = 16;
   const VIEWER_ID = "image-spark-page-viewer";
+  const VIEWER_ROLE_LABELS = { subject: "主体与动作", composition: "构图与留白", layout: "排版与字体", typography: "排版与字体", style: "风格与材质", color_material: "色彩与光影", decoration: "装饰与细节", auxiliary: "装饰与细节", auto: "自动判断" };
+  let sourcePreviewToken = 0;
+  let viewerPageOverflow = null;
   const ENABLE_EAGLE_INTEGRATION = true;
   let lastContextImage = null;
   let lastContextPoint = null;
@@ -359,8 +363,17 @@
   }
 
   function closeViewer() {
-    document.getElementById(VIEWER_ID)?.remove();
-    document.documentElement.style.removeProperty("overflow");
+    const host = document.getElementById(VIEWER_ID);
+    if (host) {
+      host.remove();
+      if (viewerPageOverflow?.value) {
+        document.documentElement.style.setProperty("overflow", viewerPageOverflow.value, viewerPageOverflow.priority);
+      } else {
+        document.documentElement.style.removeProperty("overflow");
+      }
+      viewerPageOverflow = null;
+    }
+    sourcePreviewToken += 1;
     viewerState.imageExpanded = false;
     viewerState.spacePressed = false;
     viewerState.panning = false;
@@ -420,38 +433,6 @@
       english: english || "No English prompt yet. Use the translation tool in the side panel to create one.",
       chinese: chinese || "暂无中文提示词。可在侧栏点击「反推提示词」生成中文版本。"
     };
-  }
-
-  function promptSections(prompt) {
-    const text = String(prompt || "").trim();
-    if (!text) return [];
-
-    const matches = [...text.matchAll(/\*\*([^:*：]+)[:：]?\*\*\s*([\s\S]*?)(?=\n?\s*\*\*[^:*：]+[:：]?\*\*|$)/g)];
-    const rawSections = matches.length
-      ? matches.map((match) => ({ title: match[1].trim(), text: match[2].trim() }))
-      : text.split(/\n{2,}/).map((part, index) => ({
-        title: ["主体与画面", "风格与质感", "构图与细节", "补充要求"][index] || "其他",
-        text: part.trim()
-      }));
-
-    const groups = [
-      { title: "主体", keys: /主体|角色|人物|subject|character|main/i, items: [] },
-      { title: "构图", keys: /构图|镜头|视角|composition|camera|view|framing/i, items: [] },
-      { title: "风格", keys: /风格|艺术|参考|style|art|aesthetic/i, items: [] },
-      { title: "光影色彩", keys: /光|影|色|调|lighting|color|palette|tone/i, items: [] },
-      { title: "细节元素", keys: /细节|材质|服装|背景|detail|texture|background|props/i, items: [] },
-      { title: "文字信息", keys: /文字|标题|typography|text|banner|logo/i, items: [] },
-      { title: "其他", keys: /.^/, items: [] }
-    ];
-
-    rawSections.forEach((section) => {
-      const target = groups.find((group) => group.keys.test(`${section.title} ${section.text}`)) || groups[groups.length - 1];
-      target.items.push(section.text ? `${section.title}：${section.text}` : section.title);
-    });
-
-    return groups
-      .filter((group) => group.items.length)
-      .map((group) => ({ title: group.title, text: group.items.join("\n") }));
   }
 
   function copyText(text) {
@@ -578,27 +559,43 @@
     root.append(card);
   }
 
+  function promptSummaryFields(text) {
+    const categories = [
+      ["画面类型", /^(?:画面类型|Image Type)$/i],
+      ["主体", /^(?:主体|Subject)$/i],
+      ["动作", /^(?:动作姿态|动作|Pose and Action|Action)$/i],
+      ["构图", /^(?:构图|Composition)$/i],
+      ["风格", /^(?:风格|Style)$/i],
+      ["色彩光影", /^(?:色彩光照|色彩光影|Color and Lighting|Color and Light)$/i]
+    ];
+    const entries = String(text || "").split(/\n\s*\n/).map((block) => {
+      const match = block.trim().match(/^([^\n：:]{1,32})[：:]\s*([\s\S]*)$/);
+      return match ? { key: match[1].trim(), value: match[2].trim() } : null;
+    }).filter(Boolean);
+    const fields = categories.map(([label, key]) => ({
+      label,
+      value: entries.find((entry) => key.test(entry.key))?.value || ""
+    })).filter((field) => field.value);
+    if (fields.length) return fields;
+    const plain = String(text || "").trim();
+    return [{
+      label: "画面描述",
+      value: plain.length > 240 ? plain.slice(0, 240).trimEnd() + "…" : plain || "暂无提示词。"
+    }];
+  }
+
   function renderPromptPanels(item) {
     const host = document.getElementById(VIEWER_ID);
     if (!host?.shadowRoot) return;
-
     const root = host.shadowRoot.querySelector(".prompt-stack");
-    root.innerHTML = "";
+    root.replaceChildren();
     const prompt = item.prompt || "无提示词";
     const blocks = languageBlocks(prompt, item);
+    const englishPrompt = String(item.promptEn || "").trim();
     const panels = [
-      { title: "中文", text: blocks.chinese || item.promptCn || prompt || "暂无中文提示词。" }
+      { title: "中文", text: blocks.chinese || item.promptCn || prompt || "暂无中文提示词。", available: true },
+      { title: "ENGLISH", text: englishPrompt, available: Boolean(englishPrompt) }
     ];
-    if (item.promptEn) {
-      panels.push({ title: "ENGLISH", text: item.promptEn });
-    }
-    if (item.promptStructure) {
-      const structureText = promptSections(item.promptStructure)
-        .map((section) => `${section.title}：\n${section.text}`)
-        .join("\n\n") || item.promptStructure;
-      panels.push({ title: "提示词结构", text: structureText || "暂无提示词结构。" });
-    }
-
     const card = document.createElement("section");
     card.className = "prompt-switch-card";
     const head = document.createElement("div");
@@ -607,23 +604,44 @@
     tabs.className = "prompt-switch-tabs";
     tabs.setAttribute("role", "tablist");
     tabs.dataset.count = String(panels.length);
-    tabs.style.setProperty("--active-index", "0");
+    tabs.dataset.activeIndex = "0";
     tabs.style.setProperty("--panel-count", String(panels.length));
     const copy = document.createElement("button");
     copy.className = "copy-text";
     copy.type = "button";
     copy.setAttribute("aria-label", "复制当前提示词");
     copy.title = "复制当前提示词";
-    const body = document.createElement("pre");
+    const body = document.createElement("div");
     body.className = "prompt-switch-body";
     let activeIndex = 0;
     const setActivePanel = (nextIndex) => {
-      activeIndex = Math.max(0, Math.min(nextIndex, panels.length - 1));
-      tabs.style.setProperty("--active-index", String(activeIndex));
+      if (!panels[nextIndex]?.available) return;
+      activeIndex = nextIndex;
+      tabs.dataset.activeIndex = String(activeIndex);
       tabs.querySelectorAll(".prompt-switch-tab").forEach((button, buttonIndex) => {
         button.setAttribute("aria-selected", buttonIndex === activeIndex ? "true" : "false");
       });
-      body.textContent = panels[activeIndex].text;
+      body.replaceChildren();
+      const summary = document.createElement("div");
+      summary.className = "prompt-summary";
+      promptSummaryFields(panels[activeIndex].text).forEach(({ label, value }) => {
+        const row = document.createElement("div");
+        row.className = "prompt-summary-row";
+        const name = document.createElement("strong");
+        name.textContent = label;
+        const description = document.createElement("p");
+        description.textContent = value;
+        row.append(name, description);
+        summary.append(row);
+      });
+      const full = document.createElement("details");
+      full.className = "prompt-full";
+      const toggle = document.createElement("summary");
+      toggle.textContent = "查看完整提示词";
+      const fullText = document.createElement("pre");
+      fullText.textContent = panels[activeIndex].text;
+      full.append(toggle, fullText);
+      body.append(summary, full);
       body.scrollTop = 0;
     };
     panels.forEach((panel, panelIndex) => {
@@ -632,6 +650,7 @@
       tab.type = "button";
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-selected", panelIndex === 0 ? "true" : "false");
+      tab.disabled = !panel.available;
       tab.textContent = panel.title;
       tab.addEventListener("click", () => setActivePanel(panelIndex));
       tabs.append(tab);
@@ -643,44 +662,277 @@
     setActivePanel(0);
   }
 
+  function viewerSourceFallbackUrl(source) {
+    return source?.previewUrl || source?.source?.uri || "";
+  }
+
+  async function resolveViewerSourceImageUrl(source, variant = "thumbnail") {
+    if (source?.previewStoreId) {
+      const response = await sendRuntimeMessage({
+        type: "IMAGE_SPARK_GET_LOCAL_IMAGE",
+        payload: { id: source.previewStoreId, variant }
+      });
+      if (response?.dataUrl) return response.dataUrl;
+    }
+    return viewerSourceFallbackUrl(source);
+  }
+
+  function populateViewerSourceThumbnail(image, source) {
+    const fallback = viewerSourceFallbackUrl(source);
+    if (fallback) image.src = fallback;
+    if (!source?.previewStoreId) return;
+    const host = document.getElementById(VIEWER_ID);
+    resolveViewerSourceImageUrl(source, "thumbnail").then((url) => {
+      if (url && image.isConnected && document.getElementById(VIEWER_ID) === host) {
+        image.src = url;
+      }
+    });
+  }
+
+
+  function setViewerContinueMenuOpen(open) {
+    const shadow = document.getElementById(VIEWER_ID)?.shadowRoot;
+    const menu = shadow?.querySelector(".continue-menu");
+    const button = shadow?.querySelector(".continue-trigger");
+    if (!menu || !button) return;
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  async function requestViewerContinuation(action) {
+    const item = viewerState.items[viewerState.activeIndex];
+    if (!item) return;
+    setViewerContinueMenuOpen(false);
+    const response = await sendRuntimeMessage({
+      type: "IMAGE_SPARK_CONTINUE_CREATION",
+      payload: {
+        galleryId: item.galleryId || item.localStoreId || "",
+        originalUrl: item.originalUrl || "",
+        action
+      }
+    });
+    if (!response?.ok) {
+      showViewerNotice("继续创作暂不可用，请从 Side Panel 图库重试。");
+      return;
+    }
+    closeViewer();
+  }
+
+  async function saveViewerRecipe() {
+    const item = viewerState.items[viewerState.activeIndex];
+    const root = document.getElementById(VIEWER_ID)?.shadowRoot;
+    if (!root || !item) return;
+    const trigger = root.querySelector(".save-recipe");
+    trigger.disabled = true;
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "ASSETFLOW_RECIPE_FROM_GALLERY", galleryId: item.galleryId, action: "draft" });
+      if (!response?.ok) throw new Error(response?.error || "方案读取失败。");
+      AssetFlowRecipeEditor.open({ root, recipe: response.recipe, onSave: async (edits) => {
+        const saved = await chrome.runtime.sendMessage({ type: "ASSETFLOW_RECIPE_FROM_GALLERY", galleryId: item.galleryId, action: "save", edits });
+        if (!saved?.ok) throw new Error(saved?.error || "方案保存失败。");
+        showViewerNotice("已保存到「我的方案」");
+      } });
+    } catch (error) { showViewerNotice(error.message); }
+    finally { trigger.disabled = false; }
+  }
+
+  function renderViewerSources(item) {
+    const host = document.getElementById(VIEWER_ID);
+    const panel = host?.shadowRoot?.querySelector(".source-panel");
+    if (!panel) return;
+    panel.replaceChildren();
+    panel.open = false;
+    const lineage = item.assetLineage;
+    const assets = lineage?.sourceAssets;
+    const traceable = Array.isArray(assets)
+      && Array.isArray(lineage?.directReferenceIds)
+      && Array.isArray(lineage?.analysisReferenceIds)
+      && assets.every((source) => source.participation === "direct" || source.participation === "analysis");
+    const summary = document.createElement("summary");
+    const heading = document.createElement("strong");
+    heading.textContent = "生成来源";
+    const overview = document.createElement("span");
+    overview.textContent = viewerSourceLabel(item) + " · " + (traceable ? assets.length + " 张参考" : "来源待确认");
+    const title = document.createElement("span");
+    title.className = "source-title";
+    title.append(heading, overview);
+    const restore = document.createElement("button");
+    restore.className = "source-restore";
+    restore.type = "button";
+    restore.textContent = "恢复创作链";
+    restore.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      requestViewerContinuation(
+        String(item.source || "") === "reuse" ? "reuse" : item.mode === "image" ? "image" : "text"
+      );
+    });
+    summary.append(title, restore);
+    panel.append(summary);
+    const content = document.createElement("div");
+    content.className = "source-content";
+    const mode = document.createElement("p");
+    mode.className = "source-mode";
+    mode.textContent = "生成模式：" + viewerSourceLabel(item);
+    content.append(mode);
+    if (!traceable || !assets.length) {
+      const empty = document.createElement("p");
+      empty.className = "source-empty";
+      empty.textContent = !traceable
+        ? "该资产生成于来源追踪功能上线前，无法确认实际输入图片。"
+        : item.mode === "text" ? "无直接参考图" : "本次供应商请求未包含图片输入。";
+      content.append(empty);
+      panel.append(content);
+      return;
+    }
+    for (const [participation, title] of [["direct", "直接参与生成"], ["analysis", "仅用于分析"]]) {
+      const group = assets.filter((source) => source.participation === participation);
+      if (!group.length) continue;
+      const section = document.createElement("section");
+      section.className = "source-group";
+      const groupHeading = document.createElement("h4");
+      groupHeading.textContent = title + " · " + group.length;
+      section.append(groupHeading);
+      for (const source of group) {
+        const card = document.createElement("button");
+        card.className = "source-card";
+        card.type = "button";
+        card.title = "预览" + (source.name || "来源图");
+        const image = document.createElement("img");
+        image.alt = source.name || "来源图";
+        image.loading = "lazy";
+        populateViewerSourceThumbnail(image, source);
+        const copy = document.createElement("span");
+        copy.className = "source-card-copy";
+        const name = document.createElement("strong");
+        name.textContent = "图" + (source.order || assets.indexOf(source) + 1) + " · " + (source.name || "来源图");
+        const roles = document.createElement("small");
+        const roleLabels = [...new Set((Array.isArray(source.roles) ? source.roles : [])
+          .map((role) => VIEWER_ROLE_LABELS[role] || String(role || "").trim())
+          .filter(Boolean))];
+        roles.textContent = roleLabels.join("＋") || (participation === "direct" ? "生成参考" : "分析参考");
+        copy.append(name, roles);
+        card.append(image, copy);
+        card.addEventListener("click", () => openViewerSourcePreview(source));
+        section.append(card);
+      }
+      content.append(section);
+    }
+    panel.append(content);
+  }
+
+  async function openViewerSourcePreview(source) {
+    closeViewerImageZoom();
+    const host = document.getElementById(VIEWER_ID);
+    const token = ++sourcePreviewToken;
+    const url = await resolveViewerSourceImageUrl(source, "full");
+    if (token !== sourcePreviewToken || document.getElementById(VIEWER_ID) !== host) return;
+    if (!url) {
+      showViewerNotice("来源图预览不可用；来源关系和角色仍已保留。");
+      return;
+    }
+    const shadow = host?.shadowRoot;
+    const layer = shadow?.querySelector(".image-zoom");
+    const image = shadow?.querySelector(".image-zoom img");
+    if (!layer || !image) return;
+    resetViewerPan();
+    setViewerZoom(1);
+    image.src = url;
+    image.alt = source.name || "来源图";
+    const back = shadow.querySelector(".source-preview-back");
+    if (back) back.hidden = false;
+    const caption = shadow.querySelector(".source-preview-caption");
+    if (caption) {
+      caption.textContent = source.name || "来源图";
+      caption.hidden = false;
+    }
+    layer.hidden = false;
+    viewerState.imageExpanded = true;
+    updateViewerPanUi();
+    layer.focus({ preventScroll: true });
+  }
+
   function renderViewerThumbs() {
     const host = document.getElementById(VIEWER_ID);
     const shadow = host?.shadowRoot;
     const thumbs = shadow?.querySelector(".thumbs");
     if (!thumbs) return;
-
     const totalItems = viewerState.items.length;
+    const expanded = viewerState.galleryExpanded;
     const totalPages = Math.max(1, Math.ceil(totalItems / VIEWER_THUMB_PAGE_SIZE));
     viewerState.thumbPage = Math.max(1, Math.min(Number(viewerState.thumbPage) || 1, totalPages));
-
-    const pageStart = (viewerState.thumbPage - 1) * VIEWER_THUMB_PAGE_SIZE;
-    const pageItems = viewerState.items.slice(pageStart, pageStart + VIEWER_THUMB_PAGE_SIZE);
-    thumbs.innerHTML = "";
+    const pageStart = expanded
+      ? (viewerState.thumbPage - 1) * VIEWER_THUMB_PAGE_SIZE
+      : Math.floor(viewerState.activeIndex / VIEWER_THUMB_PREVIEW_SIZE) * VIEWER_THUMB_PREVIEW_SIZE;
+    const pageItems = viewerState.items.slice(pageStart, pageStart + (expanded ? VIEWER_THUMB_PAGE_SIZE : VIEWER_THUMB_PREVIEW_SIZE));
+    thumbs.replaceChildren();
     pageItems.forEach((item, offset) => {
       const index = pageStart + offset;
       const button = document.createElement("button");
       button.className = "thumb";
       button.type = "button";
-      button.title = `${item.model} - ${item.index}`;
-      button.dataset.label = viewerSourceLabel(item);
+      button.title = item.model + " - " + item.index;
       button.setAttribute("aria-current", index === viewerState.activeIndex ? "true" : "false");
+      button.setAttribute("aria-label", "查看第 " + (index + 1) + " 张生成图" + (index === viewerState.activeIndex ? "，当前图片" : ""));
       button.addEventListener("click", () => setActiveViewerItem(index));
       const img = document.createElement("img");
-      img.alt = item.index || `#${index + 1}`;
+      img.alt = item.index || "#" + (index + 1);
       button.append(img);
       applyViewerImage(img, item, "thumbnail");
       thumbs.append(button);
     });
-
-    const pager = shadow?.querySelector(".thumbs-pager");
+    const count = shadow.querySelector(".thumbs-count");
+    if (count) count.textContent = "已生成 " + totalItems;
+    shadow.querySelector(".thumbs-panel")?.classList.toggle("is-expanded", expanded);
+    const showAll = shadow.querySelector(".thumbs-show-all");
+    if (showAll) {
+      showAll.hidden = totalItems <= VIEWER_THUMB_PREVIEW_SIZE;
+      showAll.textContent = expanded ? "收起图库" : "查看全部 →";
+      showAll.setAttribute("aria-expanded", expanded ? "true" : "false");
+    }
+    const pager = shadow.querySelector(".thumbs-pager");
     if (!pager) return;
-    pager.hidden = totalPages <= 1;
+    pager.hidden = !expanded || totalPages <= 1;
     const info = pager.querySelector(".thumb-page-info");
     const prev = pager.querySelector(".thumb-page-prev");
     const next = pager.querySelector(".thumb-page-next");
-    if (info) info.textContent = `${viewerState.thumbPage} / ${totalPages}`;
+    if (info) info.textContent = viewerState.thumbPage + " / " + totalPages;
     if (prev) prev.disabled = viewerState.thumbPage <= 1;
     if (next) next.disabled = viewerState.thumbPage >= totalPages;
+  }
+
+  function viewerAssetName(item) {
+    for (const text of [item.promptCn, item.prompt, item.promptEn]) {
+      if (!text) continue;
+      const type = promptSummaryFields(text).find((field) => field.label === "画面类型")?.value;
+      if (type) return type.replace(/\s+/g, " ").trim().slice(0, 80);
+    }
+    return "视觉资产 " + (item.index || "");
+  }
+
+  function renderViewerAssetInfo(item) {
+    const host = document.getElementById(VIEWER_ID);
+    const shadow = host?.shadowRoot;
+    if (!shadow) return;
+    const date = Number(item.createdAt);
+    const generatedAt = Number.isFinite(date) && date > 0
+      ? new Intl.DateTimeFormat("zh-CN", {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit"
+      }).format(new Date(date))
+      : "时间未知";
+    const title = shadow.querySelector(".stage-title");
+    const model = shadow.querySelector(".stage-model");
+    const size = shadow.querySelector(".stage-size");
+    const time = shadow.querySelector(".stage-time");
+    if (title) title.textContent = viewerAssetName(item);
+    if (model) {
+      model.textContent = String(item.model || "未知模型").replace(/^Grsai\s+/i, "");
+      model.title = item.model || "";
+    }
+    if (size) size.textContent = item.width && item.height
+      ? item.width + " × " + item.height : "尺寸未知";
+    if (time) time.textContent = generatedAt;
   }
 
   function setActiveViewerItem(index) {
@@ -691,13 +943,24 @@
 
     closeViewerImageZoom();
     const item = viewerState.items[viewerState.activeIndex];
+    setViewerContinueMenuOpen(false);
     const mainImage = host.shadowRoot.querySelector(".main-image");
-    mainImage.alt = `${item.model} ${item.index}`;
+    mainImage.alt = viewerAssetName(item);
     applyViewerImage(mainImage, item, "full");
-    host.shadowRoot.querySelector(".stage-title").textContent = `${item.model} · ${item.width} × ${item.height} · ${item.index}`;
     resetViewerPan();
     setViewerZoom(1);
     renderPromptPanels(item);
+    renderViewerSources(item);
+    renderViewerAssetInfo(item);
+    const recipeButton = host.shadowRoot.querySelector(".save-recipe");
+    recipeButton.hidden = !item.recipeAvailability?.visible;
+    recipeButton.disabled = !item.recipeAvailability?.enabled;
+    recipeButton.title = item.recipeAvailability?.reason || "";
+    if (item.recipeAvailability?.visible && !item.recipeAvailability.enabled) showViewerNotice(item.recipeAvailability.reason);
+    const previous = host.shadowRoot.querySelector(".stage-prev");
+    const next = host.shadowRoot.querySelector(".stage-next");
+    if (previous) previous.disabled = viewerState.activeIndex === 0;
+    if (next) next.disabled = viewerState.activeIndex === viewerState.items.length - 1;
     renderViewerThumbs();
   }
 
@@ -711,6 +974,11 @@
     const zoomImage = shadow.querySelector(".image-zoom img");
     if (!zoomLayer || !zoomImage) return;
 
+    sourcePreviewToken += 1;
+    const back = shadow.querySelector(".source-preview-back");
+    const caption = shadow.querySelector(".source-preview-caption");
+    if (back) back.hidden = true;
+    if (caption) caption.hidden = true;
     zoomImage.alt = `${item.model} ${item.index}`;
     applyViewerImage(zoomImage, item, "full");
     const zoomReadout = shadow.querySelector(".image-zoom .zoom-readout");
@@ -722,10 +990,15 @@
   }
 
   function closeViewerImageZoom() {
+    sourcePreviewToken += 1;
     const host = document.getElementById(VIEWER_ID);
     const shadow = host?.shadowRoot;
     const zoomLayer = shadow?.querySelector(".image-zoom");
     const zoomImage = shadow?.querySelector(".image-zoom img");
+    const back = shadow?.querySelector(".source-preview-back");
+    const caption = shadow?.querySelector(".source-preview-caption");
+    if (back) back.hidden = true;
+    if (caption) caption.hidden = true;
     if (!zoomLayer || zoomLayer.hidden) {
       viewerState.imageExpanded = false;
       return false;
@@ -790,11 +1063,10 @@
   async function collectViewerImageToEagle() {
     const item = viewerState.items[viewerState.activeIndex];
     if (!hasViewerImage(item)) return;
-    await resolveViewerImageUrl(item, "full");
-
     if (await collectViewerImageToEagleApi(item)) {
       return;
     }
+    if (item.localStoreId) return;
 
     if (viewerState.eagle?.mode === "api") {
       showViewerNotice("Eagle Local API 暂不可用，已改用 eagle:// 协议尝试收集。");
@@ -805,7 +1077,7 @@
 
   async function collectViewerImageToEagleApi(item) {
     const eagle = viewerState.eagle || {};
-    if (eagle.mode !== "api") {
+    if (eagle.mode !== "api" && !item.localStoreId) {
       return false;
     }
 
@@ -815,6 +1087,7 @@
         payload: {
           item: {
             url: item.originalUrl || item.url,
+            localStoreId: item.localStoreId || "",
             model: item.model,
             index: item.index,
             prompt: item.prompt || "",
@@ -834,7 +1107,10 @@
       }
       showViewerNotice("已通过 Eagle Local API 收集图片。");
       return true;
-    } catch {
+    } catch (error) {
+      if (item.localStoreId) {
+        showViewerNotice(`Eagle 收集失败：${error?.message || "请确认 Eagle 已启动并开启本地 API。"}`);
+      }
       return false;
     }
   }
@@ -865,7 +1141,7 @@
 
   function openViewer(payload) {
     const items = Array.isArray(payload?.items)
-      ? payload.items.filter(hasViewerImage).slice(0, 24)
+      ? payload.items.filter(hasViewerImage)
       : [];
     if (!items.length) return false;
 
@@ -874,6 +1150,7 @@
       items,
       activeIndex: Math.max(0, Math.min(Number(payload?.activeIndex) || 0, items.length - 1)),
       thumbPage: 1,
+      galleryExpanded: false,
       zoom: 1,
       panX: 0,
       panY: 0,
@@ -957,7 +1234,10 @@
           border-radius: 999px;
           color: #f7f7fb;
           background: rgba(255, 255, 255, 0.08);
-          font: 700 13px/1 inherit;
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 1;
           cursor: pointer;
           backdrop-filter: blur(14px);
         }
@@ -990,6 +1270,66 @@
         }
         .action-btn.eagle.is-collected::before {
           mask: url("${chrome.runtime.getURL("assets/check.svg")}") center / contain no-repeat;
+        }
+
+        .actions { flex-wrap: wrap; }
+        .continue-wrap { position: relative; }
+        .continue-trigger {
+          border-color: rgba(146, 119, 230, 0.38);
+          color: #ede5ff;
+          background: linear-gradient(135deg, rgba(94, 58, 161, 0.28), rgba(35, 67, 128, 0.18));
+        }
+        .continue-menu {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          z-index: 7;
+          display: grid;
+          gap: 4px;
+          width: 176px;
+          padding: 8px;
+          border: 1px solid rgba(167, 139, 250, 0.32);
+          border-radius: 12px;
+          background: #171622;
+          box-shadow: 0 18px 50px rgba(0, 0, 0, 0.48);
+        }
+        .continue-menu[hidden] { display: none; }
+        .continue-menu strong {
+          padding: 4px 8px 6px;
+          color: rgba(224, 215, 249, 0.72);
+          font-size: 11px;
+        }
+        .continue-menu button {
+          width: 100%;
+          height: 32px;
+          padding: 0 9px;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          text-align: left;
+          white-space: nowrap;
+        }
+        .continue-menu button:hover,
+        .continue-menu button:focus-visible { background: rgba(132, 104, 216, 0.2); }
+        .source-restore {
+          flex: 0 0 auto;
+          height: 30px;
+          padding: 0 10px;
+          border: 1px solid rgba(179, 158, 255, 0.38);
+          border-radius: 9px;
+          color: #ddd3ff;
+          background: rgba(111, 77, 188, 0.18);
+          font: inherit;
+          font-size: 11px;
+          font-weight: 700;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+        .source-restore:hover,
+        .source-restore:focus-visible {
+          border-color: #a994ff;
+          background: rgba(111, 77, 188, 0.35);
+          outline: none;
         }
         .notice {
           justify-self: end;
@@ -1080,6 +1420,34 @@
           line-height: 1.35;
           pointer-events: none;
         }
+
+        .stage-nav {
+          position: absolute;
+          top: 50%;
+          z-index: 3;
+          display: grid;
+          place-items: center;
+          width: 38px;
+          height: 44px;
+          padding: 0;
+          border-radius: 10px;
+          background: rgba(5, 7, 16, 0.64);
+          transform: translateY(-50%);
+        }
+        .stage-nav svg {
+          display: block;
+          width: 20px;
+          height: 20px;
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 2.6;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        .stage-prev svg { transform: scaleX(-1); }
+        .stage-prev { left: 18px; }
+        .stage-next { right: 18px; }
+        .stage-nav:disabled { opacity: 0.32; cursor: default; }
         .main-image {
           max-width: 100%;
           max-height: calc(100vh - 102px);
@@ -1113,6 +1481,30 @@
           transform-origin: center center;
           transition: transform 120ms ease;
           cursor: zoom-out;
+        }
+
+        .source-preview-back {
+          position: absolute;
+          top: 22px;
+          right: 22px;
+          z-index: 6;
+          padding: 0 14px;
+        }
+        .source-preview-back[hidden],
+        .source-preview-caption[hidden] { display: none; }
+        .source-preview-caption {
+          position: absolute;
+          bottom: 22px;
+          left: 50%;
+          z-index: 6;
+          max-width: min(720px, 88vw);
+          padding: 8px 14px;
+          border-radius: 999px;
+          color: #f7f7fb;
+          background: rgba(5, 7, 16, 0.75);
+          font-size: 12px;
+          text-align: center;
+          transform: translateX(-50%);
         }
         .image-zoom .zoom-readout {
           opacity: 1;
@@ -1159,72 +1551,80 @@
         }
         .prompt-switch-head {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-columns: minmax(0, 1fr) 28px;
           gap: 8px;
           align-items: center;
-          min-height: 42px;
-          padding: 7px 8px 7px 10px;
+          min-height: 58px;
+          padding: 7px 8px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           background: rgba(255, 255, 255, 0.04);
         }
         .prompt-switch-tabs {
-          --active-index: 0;
           --panel-count: 1;
           position: relative;
           display: grid;
-          justify-self: start;
-          grid-template-columns: repeat(var(--panel-count), max-content);
-          width: max-content;
-          max-width: 100%;
+          grid-template-columns: repeat(var(--panel-count), minmax(0, 1fr));
+          gap: 4px;
+          width: 100%;
           min-width: 0;
-          height: 30px;
-          padding: 3px;
+          height: 48px;
+          padding: 5px;
           overflow: hidden;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 999px;
-          background: rgba(4, 5, 10, 0.52);
+          border: 1px solid #2a2438;
+          border-radius: 14px;
+          background: #0b0910;
         }
         .prompt-switch-tabs::before {
           content: "";
           position: absolute;
-          inset: 3px auto 3px 3px;
-          width: calc((100% - 6px) / var(--panel-count));
-          border-radius: 999px;
-          background: linear-gradient(110deg, rgba(168, 85, 247, 0.68), rgba(59, 130, 246, 0.58));
-          box-shadow: 0 8px 26px rgba(59, 130, 246, 0.18);
-          transform: translateX(calc(var(--active-index) * 100%));
-          transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+          inset: 5px auto 5px 5px;
+          width: calc((100% - 10px - (var(--panel-count) - 1) * 4px) / var(--panel-count));
+          border: 1px solid rgba(139, 92, 246, 0.45);
+          border-radius: 9px;
+          background: linear-gradient(180deg, rgba(139, 92, 246, 0.32), rgba(139, 92, 246, 0.14));
+          box-shadow: 0 0 18px rgba(139, 92, 246, 0.25);
+          pointer-events: none;
+          transform: translateX(0);
+          transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .prompt-switch-tab {
+        .prompt-switch-tabs[data-active-index="1"]::before { transform: translateX(calc(100% + 4px)); }
+        .prompt-switch-tab,
+        .prompt-switch-tab:hover,
+        .prompt-switch-tab:focus-visible {
           position: relative;
           z-index: 1;
           min-width: 0;
           height: 100%;
-          padding: 0 18px;
+          padding: 0 6px;
           border: 0;
-          border-radius: 999px;
-          color: rgba(235, 236, 248, 0.62);
+          border-radius: 8px;
           background: transparent;
-          font-size: 11px;
-          font-weight: 800;
+          box-shadow: none;
+          backdrop-filter: none;
+          font-size: 12px;
+          font-weight: 650;
           white-space: nowrap;
-          cursor: pointer;
+          transform: none;
         }
-        .prompt-switch-tab[aria-selected="true"] {
-          color: #ffffff;
+        .prompt-switch-tab {
+          color: #9b96ac;
+          transition: color 180ms ease;
         }
-        .prompt-switch-tabs[data-count="1"] .prompt-switch-tab {
-          min-width: 92px;
+        .prompt-switch-tab:hover { color: #cbc6d8; }
+        .prompt-switch-tab:disabled,
+        .prompt-switch-tab:disabled:hover {
+          color: #686474;
+          cursor: not-allowed;
         }
-        .prompt-switch-tabs[data-count="2"] .prompt-switch-tab {
-          min-width: 92px;
+        .prompt-switch-tab[aria-selected="true"],
+        .prompt-switch-tab[aria-selected="true"]:hover { color: #f1eef7; }
+        .prompt-switch-tab:focus-visible {
+          outline: 1px solid rgba(167, 139, 250, 0.72);
+          outline-offset: -3px;
         }
-        .prompt-switch-tabs[data-count="3"] {
-          width: min(100%, 300px);
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-        .prompt-switch-tabs[data-count="3"] .prompt-switch-tab {
-          padding: 0 10px;
+        @media (prefers-reduced-motion: reduce) {
+          .prompt-switch-tabs::before,
+          .prompt-switch-tab { transition: none; }
         }
         .prompt-switch-body {
           margin: 0;
@@ -1236,7 +1636,7 @@
           font-size: 13px;
           line-height: 1.72;
           white-space: pre-wrap;
-          font-family: "Roboto Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          font-family: inherit;
         }
         .prompt-card,
         .prompt-template {
@@ -1282,7 +1682,7 @@
           font-size: 13px;
           line-height: 1.65;
           white-space: pre-wrap;
-          font-family: "Roboto Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          font-family: inherit;
           transition: max-height 220ms ease, opacity 160ms ease, padding 180ms ease;
         }
         .prompt-card:not(.is-language) pre {
@@ -1390,16 +1790,128 @@
           line-height: 1.55;
           white-space: pre-wrap;
         }
+
+        .source-panel {
+          display: grid;
+          gap: 8px;
+          flex: 0 0 auto;
+          max-height: min(32vh, 270px);
+          overflow: auto;
+        }
+        .source-panel h3,
+        .source-group h4 { margin: 0; font-size: 12px; }
+        .source-panel h3 { font-size: 13px; color: #ffffff; }
+        .source-mode,
+        .source-empty {
+          margin: 0;
+          color: rgba(230, 229, 245, 0.72);
+          font-size: 11px;
+          line-height: 1.55;
+        }
+        .source-group { display: grid; gap: 6px; }
+        .source-group h4 { color: #cfc5ff; }
+        .source-card {
+          display: grid;
+          grid-template-columns: 52px minmax(0, 1fr);
+          align-items: center;
+          gap: 9px;
+          width: 100%;
+          height: auto;
+          min-height: 64px;
+          padding: 6px;
+          border-radius: 9px;
+          text-align: left;
+          background: rgba(255, 255, 255, 0.035);
+        }
+        .source-card img {
+          width: 52px;
+          height: 52px;
+          border-radius: 6px;
+          object-fit: cover;
+          background: rgba(255, 255, 255, 0.06);
+        }
+        .source-card-copy { display: grid; min-width: 0; gap: 4px; }
+        .source-card-copy strong,
+        .source-card-copy small {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .source-card-copy strong { font-size: 11px; }
+        .source-card-copy small {
+          color: rgba(210, 205, 232, 0.72);
+          font-size: 10px;
+        }
         .thumbs-panel {
+          --gallery-glow-x: 50%;
+          --gallery-glow-y: 50%;
+          position: relative;
+          isolation: isolate;
           display: grid;
           grid-template-rows: auto auto;
           align-content: start;
           gap: 10px;
           flex: 0 0 auto;
+          padding: 12px;
           min-height: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 14px;
+          background: rgba(11, 12, 21, 0.7);
           overflow: visible;
         }
+        .thumbs-panel::before,
+        .thumbs-panel::after {
+          content: "";
+          position: absolute;
+          pointer-events: none;
+          border-radius: inherit;
+        }
+        .thumbs-panel::before {
+          z-index: 0;
+          inset: -1px;
+          padding: 1px;
+          opacity: 0;
+          background: radial-gradient(
+            112px circle at var(--gallery-glow-x) var(--gallery-glow-y),
+            rgba(34, 211, 238, 0.92) 0%,
+            rgba(167, 139, 250, 0.96) 30%,
+            rgba(59, 130, 246, 0.62) 48%,
+            transparent 73%
+          );
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          transition: opacity 180ms ease;
+        }
+        .thumbs-panel::after {
+          z-index: 0;
+          inset: -7px;
+          opacity: 0;
+          background: radial-gradient(
+            128px circle at var(--gallery-glow-x) var(--gallery-glow-y),
+            rgba(34, 211, 238, 0.32) 0%,
+            rgba(167, 139, 250, 0.5) 34%,
+            rgba(59, 130, 246, 0.3) 52%,
+            transparent 74%
+          );
+          filter: blur(11px);
+          transition: opacity 220ms ease;
+        }
+        .thumbs-panel.is-glow-active::before {
+          opacity: 1;
+        }
+        .thumbs-panel.is-glow-active::after {
+          opacity: 0.58;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .thumbs-panel::before,
+          .thumbs-panel::after {
+            transition: none;
+          }
+        }
         .thumbs {
+          position: relative;
+          z-index: 1;
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
           align-content: start;
@@ -1436,13 +1948,9 @@
           box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
         }
         .thumb[aria-current="true"] {
-          border-color: transparent;
-          background:
-            linear-gradient(rgba(5, 5, 7, 0.95), rgba(5, 5, 7, 0.95)) padding-box,
-            linear-gradient(110deg, rgba(34, 211, 238, 0.95), rgba(168, 85, 247, 0.95), rgba(20, 184, 166, 0.82)) border-box;
-          box-shadow:
-            0 0 0 1px rgba(5, 5, 7, 0.94),
-            0 0 16px rgba(59, 130, 246, 0.3);
+          border-color: rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.06);
+          box-shadow: none;
         }
         .thumb img {
           width: 100%;
@@ -1467,6 +1975,8 @@
           backdrop-filter: blur(10px);
         }
         .thumbs-pager {
+          position: relative;
+          z-index: 1;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1503,6 +2013,213 @@
           font-size: 11px;
           font-weight: 800;
         }
+        .prompt-switch-body {
+          padding: 0;
+          font-family: inherit;
+        }
+        .prompt-summary {
+          display: grid;
+          gap: 0;
+        }
+        .prompt-summary-row {
+          display: grid;
+          grid-template-columns: 70px minmax(0, 1fr);
+          gap: 8px;
+          padding: 10px 12px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .prompt-summary-row strong {
+          color: rgba(205, 195, 245, 0.76);
+          font-size: 11px;
+          font-weight: 750;
+        }
+        .prompt-summary-row p {
+          margin: 0;
+          color: #f7f7fb;
+          font-size: 12px;
+          line-height: 1.55;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+        }
+        .prompt-full {
+          padding: 10px 12px 12px;
+        }
+        .prompt-full summary {
+          width: max-content;
+          max-width: 100%;
+          color: #cfc5ff;
+          font-size: 11px;
+          font-weight: 750;
+          cursor: pointer;
+        }
+        .prompt-full pre {
+          margin: 10px 0 0;
+          padding: 10px;
+          overflow-wrap: anywhere;
+          white-space: pre-wrap;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 8px;
+          color: rgba(247, 247, 251, 0.82);
+          background: rgba(4, 5, 10, 0.28);
+          font-family: inherit;
+          font-size: 11px;
+          line-height: 1.6;
+        }
+        .source-panel {
+          display: block;
+          flex: 0 0 auto;
+          max-height: min(34vh, 260px);
+          padding: 0;
+          overflow: auto;
+        }
+        .source-panel > summary {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-height: 54px;
+          padding: 10px 14px;
+          list-style: none;
+          cursor: pointer;
+        }
+        .source-panel > summary::-webkit-details-marker { display: none; }
+        .source-title {
+          display: flex;
+          flex: 1 1 auto;
+          align-items: center;
+          gap: 9px;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .source-title strong {
+          flex: 0 0 auto;
+          color: #fff;
+          font-size: 12px;
+        }
+        .source-title > span {
+          min-width: 0;
+          overflow: hidden;
+          color: rgba(210, 205, 232, 0.72);
+          font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .source-panel > summary::after {
+          content: "›";
+          flex: 0 0 auto;
+          color: #cfc5ff;
+        }
+        .source-panel[open] > summary::after { transform: rotate(90deg); }
+        .source-content {
+          display: grid;
+          gap: 10px;
+          padding: 0 12px 12px;
+          border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .source-mode { padding-top: 10px; }
+        .source-card {
+          grid-template-columns: 42px minmax(0, 1fr);
+          min-height: 52px;
+          padding: 4px;
+        }
+        .source-card img { width: 42px; height: 42px; }
+        .thumbs-panel {
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          flex: 0 0 230px;
+          height: 230px;
+          max-height: 230px;
+          overflow: hidden;
+        }
+        .thumbs-header {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .thumbs-header strong { color: rgba(230, 229, 245, 0.82); font-size: 12px; }
+        .thumbs-show-all {
+          height: 24px;
+          padding: 0 7px;
+          border: 0;
+          color: #cfc5ff;
+          background: transparent;
+          font-size: 11px;
+        }
+        .thumbs-show-all[hidden] { display: none; }
+        .thumbs {
+          overflow: hidden;
+          align-content: start;
+          grid-auto-rows: max-content;
+        }
+        .thumbs::before { content: none; }
+        .thumbs-panel.is-expanded .thumbs { overflow-y: auto; }
+        .thumb { aspect-ratio: 4 / 3; }
+        .thumb:hover { z-index: 1; transform: none; box-shadow: none; }
+        .thumb[aria-current="true"] {
+          border-color: rgba(167, 139, 250, 0.95);
+          box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.34), 0 0 12px rgba(59, 130, 246, 0.22);
+        }
+        .thumb[aria-current="true"]::after {
+          content: "当前";
+          display: block;
+          top: 4px;
+          left: 4px;
+          min-width: 0;
+          padding: 2px 4px;
+          font-size: 9px;
+        }
+        .stage {
+          padding-bottom: 112px;
+        }
+        .main-image {
+          max-height: calc(100vh - 220px);
+        }
+        .stage-footer {
+          position: absolute;
+          inset: auto 0 0;
+          z-index: 2;
+          display: grid;
+          gap: 8px;
+          min-width: 0;
+          padding: 22px 18px 16px;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          background: linear-gradient(0deg, rgba(8, 9, 19, 0.96), rgba(8, 9, 19, 0.74) 70%, transparent);
+          pointer-events: none;
+        }
+        .stage-title {
+          position: static;
+          inset: auto;
+          min-height: 0;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+          background: none;
+          font-size: 18px;
+          font-weight: 800;
+          line-height: 1.35;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .stage-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px 14px;
+          color: rgba(230, 229, 245, 0.7);
+          font-size: 11px;
+          line-height: 1.4;
+        }
+        .stage-meta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .thumbs-panel {
+          flex-basis: 355px;
+          height: 355px;
+          max-height: 355px;
+        }
+        .thumb { aspect-ratio: 3 / 2; }
+        .thumb[aria-current="true"] {
+          z-index: 2;
+          transform: scale(1.025);
+        }
         @media (max-width: 860px) {
           .viewer { padding: 12px; }
           .layout {
@@ -1527,6 +2244,7 @@
           .prompt-switch-body {
             max-height: none;
           }
+          .source-panel { max-height: none; overflow: visible; }
           .thumbs-panel {
             flex: 0 1 auto;
           }
@@ -1539,22 +2257,48 @@
         <div class="actions">
           <button class="action-btn download" type="button">下载图片</button>
           ${ENABLE_EAGLE_INTEGRATION ? '<button class="action-btn eagle" type="button">收集到 Eagle</button>' : ''}
+          <div class="continue-wrap">
+            <button class="action-btn continue-trigger" type="button" aria-haspopup="menu" aria-expanded="false">✨继续创作</button>
+            <div class="continue-menu" role="menu" hidden>
+              <strong>继续创作</strong>
+              <button type="button" role="menuitem" data-continue="text">使用此提示词</button>
+              <button type="button" role="menuitem" data-continue="image">图生图编辑</button>
+              <button type="button" role="menuitem" data-continue="reuse">恢复视觉复用</button>
+            </div>
+          </div>
+          <button class="action-btn save-recipe" type="button" hidden>保存为方案</button>
           <button class="action-btn close" type="button">关闭</button>
         </div>
         <div class="notice" hidden></div>
         <div class="layout">
           <div class="stage">
-            <div class="stage-title"></div>
             <img class="main-image" alt="放大预览">
+            <button class="stage-nav stage-prev" type="button" aria-label="上一张"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.5 5 7 7-7 7"/></svg></button>
+            <button class="stage-nav stage-next" type="button" aria-label="下一张"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.5 5 7 7-7 7"/></svg></button>
             <div class="zoom-readout" aria-live="polite">100%</div>
+            <div class="stage-footer">
+              <h2 class="stage-title"></h2>
+              <div class="stage-meta">
+                <span class="stage-model"></span>
+                <span class="stage-size"></span>
+                <span class="stage-time"></span>
+              </div>
+            </div>
           </div>
           <div class="image-zoom" hidden tabindex="-1" role="dialog" aria-modal="true" aria-label="图片放大预览">
             <img alt="整屏图片预览">
+            <button class="source-preview-back" type="button" hidden>返回生成图</button>
+            <div class="source-preview-caption" hidden></div>
             <div class="zoom-readout" aria-live="polite">100%</div>
           </div>
           <div class="side">
             <div class="prompt-stack"></div>
+            <details class="panel source-panel" aria-label="生成来源"></details>
             <div class="panel thumbs-panel">
+              <div class="thumbs-header">
+                <strong class="thumbs-count"></strong>
+                <button class="thumbs-show-all" type="button" aria-expanded="false" hidden>查看全部 →</button>
+              </div>
               <div class="thumbs"></div>
               <div class="thumbs-pager" hidden>
                 <button class="thumb-page-btn thumb-page-prev" type="button" aria-label="Previous page">&lsaquo;</button>
@@ -1569,10 +2313,49 @@
     shadow.querySelector(".eagle")?.classList.remove("is-collected");
 
     shadow.querySelector(".close").addEventListener("click", closeViewer);
+    shadow.querySelector(".continue-trigger").addEventListener("click", () => {
+      setViewerContinueMenuOpen(shadow.querySelector(".continue-menu").hidden);
+    });
+    shadow.querySelectorAll("[data-continue]").forEach((button) => {
+      button.addEventListener("click", () => requestViewerContinuation(button.dataset.continue));
+    });
+    shadow.addEventListener("click", (event) => {
+      if (!event.target.closest(".continue-wrap")) setViewerContinueMenuOpen(false);
+    });
+    shadow.querySelector(".save-recipe").addEventListener("click", saveViewerRecipe);
     shadow.querySelector(".download").addEventListener("click", downloadViewerImage);
+    shadow.querySelector(".stage-prev").addEventListener("click", () => setActiveViewerItem(viewerState.activeIndex - 1));
+    shadow.querySelector(".stage-next").addEventListener("click", () => setActiveViewerItem(viewerState.activeIndex + 1));
+    shadow.querySelector(".source-preview-back").addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeViewerImageZoom();
+    });
     shadow.querySelector(".eagle")?.addEventListener("click", collectViewerImageToEagle);
     const stage = shadow.querySelector(".stage");
     const zoomLayer = shadow.querySelector(".image-zoom");
+    const thumbsPanel = shadow.querySelector(".thumbs-panel");
+    let thumbsGlowFrame = 0;
+    let thumbsGlowPoint = null;
+    const updateThumbsGlow = () => {
+      thumbsGlowFrame = 0;
+      if (!thumbsPanel || !thumbsGlowPoint) return;
+      const rect = thumbsPanel.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((thumbsGlowPoint.x - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((thumbsGlowPoint.y - rect.top) / rect.height) * 100));
+      thumbsPanel.style.setProperty("--gallery-glow-x", `${x}%`);
+      thumbsPanel.style.setProperty("--gallery-glow-y", `${y}%`);
+    };
+    thumbsPanel?.addEventListener("pointermove", (event) => {
+      thumbsGlowPoint = { x: event.clientX, y: event.clientY };
+      thumbsPanel.classList.add("is-glow-active");
+      if (!thumbsGlowFrame) thumbsGlowFrame = requestAnimationFrame(updateThumbsGlow);
+    });
+    thumbsPanel?.addEventListener("pointerleave", () => {
+      thumbsGlowPoint = null;
+      thumbsPanel.classList.remove("is-glow-active");
+      if (thumbsGlowFrame) cancelAnimationFrame(thumbsGlowFrame);
+      thumbsGlowFrame = 0;
+    });
     const bindViewerPanSurface = (surface) => {
       if (!surface) return;
       surface.addEventListener("wheel", (event) => {
@@ -1663,6 +2446,11 @@
     shadow.querySelector(".viewer").addEventListener("click", (event) => {
       if (event.target.classList.contains("viewer")) closeViewer();
     });
+    shadow.querySelector(".thumbs-show-all")?.addEventListener("click", () => {
+      viewerState.galleryExpanded = !viewerState.galleryExpanded;
+      viewerState.thumbPage = Math.floor(viewerState.activeIndex / VIEWER_THUMB_PAGE_SIZE) + 1;
+      renderViewerThumbs();
+    });
     shadow.querySelector(".thumb-page-prev")?.addEventListener("click", () => {
       viewerState.thumbPage = Math.max(1, viewerState.thumbPage - 1);
       renderViewerThumbs();
@@ -1674,6 +2462,10 @@
     });
 
     document.documentElement.append(host);
+    viewerPageOverflow = {
+      value: document.documentElement.style.getPropertyValue("overflow"),
+      priority: document.documentElement.style.getPropertyPriority("overflow")
+    };
     document.documentElement.style.overflow = "hidden";
     setActiveViewerItem(viewerState.activeIndex);
     return true;
@@ -1690,8 +2482,23 @@
       return;
     }
 
+    if (viewerOpen && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+      const target = event.composedPath?.()[0] || event.target;
+      if (!target || !["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) {
+        event.preventDefault();
+        setActiveViewerItem(viewerState.activeIndex + (event.key === "ArrowRight" ? 1 : -1));
+        return;
+      }
+    }
+
     if (event.key === "Escape" && document.getElementById(VIEWER_ID)) {
       if (closeViewerImageZoom()) {
+        event.preventDefault();
+        return;
+      }
+      const menu = document.getElementById(VIEWER_ID)?.shadowRoot?.querySelector(".continue-menu");
+      if (menu && !menu.hidden) {
+        setViewerContinueMenuOpen(false);
         event.preventDefault();
         return;
       }

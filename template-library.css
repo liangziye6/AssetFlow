@@ -579,3 +579,17 @@
 @media (max-width: 560px) {
   .template-types button { min-height: 40px; font-size: 11.5px; }
 }
+
+/* Personal recipes reuse the existing card, drawer and confirmation controls. */
+.template-sources { margin-bottom:8px; flex:0 0 auto; flex-wrap:wrap; min-height:30px; }
+.template-sources[hidden] { display:none; }
+.template-card { position:relative; }
+.template-manage { position:absolute; top:8px; right:8px; z-index:3; }
+.template-manage summary { list-style:none; cursor:pointer; padding:4px 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel-strong); color:var(--text); }
+.template-manage summary::-webkit-details-marker { display:none; }
+.template-manage-actions { display:flex; flex-direction:column; gap:4px; padding:6px; min-width:100px; border:1px solid var(--line); border-radius:8px; background:#171622; box-shadow:0 8px 28px #0008; }
+.template-manage summary:focus-visible { outline:2px solid var(--violet); }
+.template-preview-head { position:relative; min-height:34px; }
+.template-personal-badge { display:block; color:#c6b4ed; font-size:11px; margin-bottom:6px; }
+.template-detail-goal p { white-space:pre-wrap; overflow-wrap:anywhere; }
+#lightboxRecipeNotice { color:var(--muted); font-size:12px; max-width:320px; }

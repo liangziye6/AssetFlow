@@ -1,3 +1,5 @@
+importScripts("template-library.js", "user-recipes.js");
+
 const panelPath = "popup.html?standalone=1";
 const addImageMenuId = "lyz-add-image-to-prompt";
 const pendingContextImageKey = "imageSparkPendingContextImage";
@@ -9,7 +11,7 @@ const completedGenerationResultsKey = "imageSparkCompletedGenerationResults";
 const maxCompletedGenerationResults = 120;
 const pendingGenerationAlarmName = "imageSparkPollPendingGeneration";
 const localImageDbName = "imageSparkLocalImages";
-const localImageDbVersion = 2;
+const localImageDbVersion = 3;
 const localImageStore = "images";
 const runningHubApiModeEnterprise = "enterprise";
 const runningHubApiModeOfficial = "official";
@@ -58,7 +60,7 @@ function injectContentScript(tabId) {
     }
     chrome.scripting.executeScript({
       target: { tabId },
-      files: ["content.js"]
+      files: ["recipe-editor.js", "content.js"]
     }, () => resolve(!chrome.runtime.lastError));
   });
 }
@@ -276,6 +278,7 @@ function openLocalImageDb() {
     const request = indexedDB.open(localImageDbName, localImageDbVersion);
     request.onupgradeneeded = () => {
       const db = request.result;
+      if (!db.objectStoreNames.contains("recipes")) db.createObjectStore("recipes", { keyPath: "id" });
       if (!db.objectStoreNames.contains(localImageStore)) {
         db.createObjectStore(localImageStore, { keyPath: "id" });
       }
@@ -284,7 +287,7 @@ function openLocalImageDb() {
         galleryStore.createIndex("createdAt", "createdAt");
       }
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => { request.result.onversionchange = () => request.result.close(); resolve(request.result); };
     request.onerror = () => reject(request.error);
   });
 }
@@ -829,6 +832,17 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "ASSETFLOW_RECIPE_FROM_GALLERY") {
+    (async () => {
+      const item = await AssetFlowUserRecipes.getGalleryItem(String(message.galleryId || ""));
+      if (!item) throw new Error("原图库资产已不存在，请从 Side Panel 重试。");
+      const recipe = AssetFlowUserRecipes.buildUserVisualRecipe(item,
+        message.action === "save" ? message.edits || {} : {});
+      if (message.action === "save") await AssetFlowUserRecipes.saveUserRecipe(recipe, item);
+      return { ok: true, recipe };
+    })().then(sendResponse).catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
   if (message?.type === "IMAGE_SPARK_CONTINUE_CREATION") {
     const payload = message.payload || {};
     if (!sender.tab?.id || !["text", "image", "reuse"].includes(payload.action)

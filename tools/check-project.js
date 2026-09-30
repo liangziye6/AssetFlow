@@ -21,6 +21,8 @@ function checkJavaScriptSyntax(relativePath) {
   "preview-server.js",
   "reuse-plan.js",
   "template-library.js",
+  "user-recipes.js",
+  "recipe-editor.js",
   "template-library-ui.js",
   "soft-aurora.js"
 ].forEach(checkJavaScriptSyntax);
@@ -395,3 +397,5 @@ async function checkGenerationLineage() {
 checkGenerationLineage()
   .then(() => console.log(`AssetFlow ${packageJson.version} checks passed.`))
   .catch((error) => { console.error(error); process.exitCode = 1; });
+
+require("./check-user-recipes.js");

@@ -30,12 +30,16 @@
   let category = "";
   let tag = "";
   let research = false;
+  let sourceType = "";
+  let refreshSequence = 0;
+  const previewUrls = new Map();
+  let previewEpoch = 0;
   let lastFocus = null;
   let pending = null;
   let selectedId = "";
   let activeRoleRecipe = null;
 
-  const isUsable = (item) => library.PUBLIC_STATUSES.has(item.status) || item.status === "testing";
+  const isUsable = (item) => library.PUBLIC_STATUSES.has(item.status) || item.status === "testing" || (item.sourceType === "user" && item.status === "personal");
   function applyPendingRoles() {
     if (!activeRoleRecipe || promptMethod !== "reuse") return false;
     let changed = false;
@@ -83,14 +87,25 @@
   }
   function imageFor(item, detail = false) {
     const img = document.createElement("img");
-    img.src = detail ? item.preview : item.thumbnail;
+    if (item.sourceType === "user") {
+      const epoch = previewEpoch;
+      const cached = previewUrls.get(item.previewStoreId);
+      if (cached) img.src = cached;
+      else AssetFlowUserRecipes.getPreview(item.previewStoreId).then((record) => {
+        if (!record?.blob) throw new Error("Preview 缺失");
+        if (epoch !== previewEpoch || !img.isConnected) return;
+        let url = previewUrls.get(item.previewStoreId);
+        if (!url) { url = URL.createObjectURL(record.blob); previewUrls.set(item.previewStoreId, url); }
+        img.src = url;
+      }).catch(() => { if (img.isConnected) img.dispatchEvent(new Event("error")); });
+    } else img.src = detail ? item.preview : item.thumbnail;
     img.alt = item.name + "预览";
     img.loading = "lazy";
     return img;
   }
   function roleSummary(item) {
     return (item.references || item.rolePreset || []).map((entry) =>
-      "图" + entry.slot + " → " + visualReuseRoleMeta(entry.role).label + (entry.required === false ? "（可选）" : "（必需）")).join(" · ");
+      "图" + entry.slot + " → " + (entry.roles || [entry.role]).map((role) => visualReuseRoleMeta(role).label).join("＋") + (entry.required === false ? "（可选）" : "（必需）")).join(" · ");
   }
   function actionsFor(item, detail = false) {
     const actions = document.createElement("div");
@@ -102,6 +117,86 @@
       actions.append(button(item.status === "testing" ? "测试使用方案" : "使用方案", "template-use-btn", () => requestUse(item)));
     }
     return actions;
+  }
+  function clearPreviewUrls() {
+    previewEpoch += 1;
+    for (const url of previewUrls.values()) URL.revokeObjectURL(url);
+    previewUrls.clear();
+  }
+  async function refresh() {
+    const sequence = ++refreshSequence;
+    const data = await library.load();
+    if (sequence !== refreshSequence) return;
+    items = data;
+    clearPreviewUrls();
+    renderList();
+    renderQuick();
+    if (selectedId) {
+      const current = items.find((item) => item.id === selectedId);
+      if (current) showPreview(current);
+      else returnToList();
+    }
+  }
+  function manageMenu(item) {
+    const menu = document.createElement("details");
+    menu.className = "template-manage";
+    const toggle = document.createElement("summary");
+    toggle.textContent = "•••";
+    toggle.setAttribute("aria-label", "管理方案：" + item.name);
+    const actions = document.createElement("div");
+    actions.className = "template-manage-actions";
+    for (const [label, action] of [["重命名", () => editUserRecipe(item, "rename")],
+      ["编辑", () => editUserRecipe(item, "edit")], ["删除", () => confirmDelete(item)]]) {
+      actions.append(button(label, "template-copy-btn", () => { menu.open = false; action(); }));
+    }
+    menu.addEventListener("click", (event) => event.stopPropagation());
+    menu.append(toggle, actions);
+    return menu;
+  }
+  function editUserRecipe(item, mode) {
+    if (item.sourceType !== "user") return;
+    AssetFlowRecipeEditor.open({ recipe: item, mode, onSave: async (edits) => {
+      await AssetFlowUserRecipes.updateUserRecipe(item.id, edits);
+      await refresh();
+      notice("方案已更新");
+    } });
+  }
+  function confirmDelete(item) {
+    if (item.sourceType !== "user") return;
+    ask("删除方案", "确认删除“" + item.name + "”？", [
+      ["删除方案", async () => {
+        const buttons = [...confirmActions.querySelectorAll("button")];
+        buttons.forEach((node) => { node.disabled = true; });
+        try {
+          await AssetFlowUserRecipes.deleteUserRecipe(item.id);
+          if (activeRoleRecipe?.id === item.id) activeRoleRecipe = null;
+          await refresh();
+          closeConfirm();
+          notice("方案已删除");
+        } catch (error) {
+          confirmText.textContent = error.message || "删除失败，请重试。";
+          buttons.forEach((node) => { node.disabled = false; });
+        }
+      }, true], ["取消", closeConfirm, false]
+    ]);
+  }
+  function validateReferences(count) {
+    if (!activeRoleRecipe || count >= library.requiredImageCount(activeRoleRecipe)) return true;
+    setStatus("该方案需要 " + library.requiredImageCount(activeRoleRecipe) + " 张参考图：" + roleSummary(activeRoleRecipe));
+    setVisualReusePanelOpen(true);
+    return false;
+  }
+  function recipeInstruction() {
+    if (activeRoleRecipe?.sourceType !== "user") return "";
+    return "\n用户保存的方案约束（基于本次新参考图重新分析）：\n" + JSON.stringify({
+      preserve: activeRoleRecipe.preserve, change: activeRoleRecipe.change,
+      textStrategy: activeRoleRecipe.textStrategy
+    });
+  }
+  function applyRecipeConstraints(plan) {
+    if (activeRoleRecipe?.sourceType !== "user") return;
+    plan.analysis.inheritedTraits = [...new Set([...plan.analysis.inheritedTraits, ...activeRoleRecipe.preserve])];
+    plan.analysis.changedTraits = [...new Set([...plan.analysis.changedTraits, ...activeRoleRecipe.change])];
   }
   function renderQuick() {
     quick.replaceChildren();
@@ -124,7 +219,8 @@
   function availableItems() {
     return items.filter((item) => item.type === type
       && (research ? ["candidate", "testing"].includes(item.status)
-        : library.PUBLIC_STATUSES.has(item.status)));
+        : library.PUBLIC_STATUSES.has(item.status) || item.status === "personal")
+      && (!sourceType || type !== "visual_recipe" || (item.sourceType || "builtin") === sourceType));
   }
   function returnToList() {
     const previous = [...list.querySelectorAll(".template-card")]
@@ -132,7 +228,7 @@
     preview.hidden = true;
     browse.hidden = false;
     selectedId = "";
-    previous?.focus();
+    if (previous) previous.focus(); else search.focus();
   }
   function renderCategories() {
     categories.replaceChildren();
@@ -159,7 +255,7 @@
   function cardImage(item) {
     const media = document.createElement("div");
     media.className = "template-card-media";
-    if (item.thumbnail) {
+    if (item.thumbnail || item.previewStoreId) {
       const img = imageFor(item);
       img.addEventListener("error", () => {
         media.textContent = "Preview 生成中";
@@ -175,14 +271,19 @@
   function renderList() {
     typeButtons.forEach((node) =>
       node.setAttribute("aria-pressed", node.dataset.templateType === type ? "true" : "false"));
+    const sources = document.querySelector("#templateSources");
+    sources.hidden = type !== "visual_recipe" || research;
+    sources.querySelectorAll("button").forEach((node) => node.setAttribute("aria-pressed", String(node.dataset.recipeSource === sourceType)));
     renderCategories();
     renderTags();
     const active = availableItems();
     const publicCount = items.filter((item) => item.type === type && library.PUBLIC_STATUSES.has(item.status)).length;
     const studyCount = items.filter((item) => item.type === type && ["candidate", "testing"].includes(item.status)).length;
+    const personalCount = items.filter((item) => item.type === type && item.sourceType === "user").length;
     modeLabel.textContent = research
       ? studyCount + " 个研究案例 · 测试中与待验证"
-      : publicCount + (type === "prompt_recipe" ? " 个玩法" : " 个方案") + " · " + publicCount + " 已验证";
+      : publicCount + (type === "prompt_recipe" ? " 个玩法" : " 个方案") + " · " + publicCount + " 已验证" + (type === "visual_recipe" ? " · " + personalCount + " 我的方案" : "");
+    if (!research && type === "visual_recipe" && sourceType === "user") modeLabel.textContent = personalCount + " 个我的方案";
     researchButton.textContent = research ? "← 返回正式库" : "案例研究 " + studyCount + " →";
     researchButton.setAttribute("aria-label", research ? "返回正式灵感库" : "查看案例研究，共 " + studyCount + " 项");
     list.replaceChildren();
@@ -195,7 +296,7 @@
       const empty = document.createElement("p");
       empty.className = "template-empty";
       empty.textContent = !items.length ? "正在加载方案…" : research
-        ? "当前筛选下没有研究案例。" : "当前筛选下没有正式方案。";
+        ? "当前筛选下没有研究案例。" : sourceType === "user" ? "还没有匹配的个人方案。可从生成结果 Viewer 保存为方案。" : "当前筛选下没有匹配方案。";
       list.append(empty);
       return;
     }
@@ -209,7 +310,7 @@
       card.setAttribute("aria-label", "查看方案：" + item.name);
       card.addEventListener("click", () => showPreview(item));
       card.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); showPreview(item); }
+        if (event.target === card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); showPreview(item); }
       });
       const body = document.createElement("div");
       body.className = "template-card-body";
@@ -225,6 +326,13 @@
         chipRow.append(chip);
       }
       body.append(name, summary, chipRow);
+      if (item.sourceType === "user") {
+        const badge = document.createElement("small");
+        badge.className = "template-personal-badge";
+        badge.textContent = "我的方案";
+        body.prepend(badge);
+        card.append(manageMenu(item));
+      }
       if (research) {
         const state = document.createElement("small");
         state.className = "template-research-state";
@@ -288,7 +396,7 @@
     const row = document.createElement("div");
     row.className = "template-similar-list";
     for (const { item: peer } of peers) {
-      const isResearch = !library.PUBLIC_STATUSES.has(peer.status);
+      const isResearch = !library.PUBLIC_STATUSES.has(peer.status) && peer.sourceType !== "user";
       const choice = button((isResearch ? "案例研究 · " : "") + peer.name, "template-similar-card", () => {
         if (peer.type !== type || isResearch !== research) {
           type = peer.type;
@@ -300,7 +408,7 @@
         }
         showPreview(peer);
       });
-      if (peer.thumbnail) choice.prepend(imageFor(peer));
+      if (peer.thumbnail || peer.previewStoreId) choice.prepend(imageFor(peer));
       row.append(choice);
     }
     block.append(row);
@@ -313,7 +421,8 @@
     head.className = "template-preview-head";
     head.append(button("← 返回列表", "template-back-btn", returnToList));
     preview.append(head);
-    if (item.preview) {
+    if (item.sourceType === "user") head.append(manageMenu(item));
+    if (item.preview || item.previewStoreId) {
       const img = imageFor(item, true);
       img.className = "template-detail-image";
       img.addEventListener("error", () => {
@@ -338,6 +447,12 @@
     tagLine.className = "template-preview-tags";
     tagLine.textContent = (item.tags || []).join(" · ");
     intro.append(name, summary, tagLine);
+    if (item.sourceType === "user") {
+      const badge = document.createElement("p");
+      badge.className = "template-personal-badge";
+      badge.textContent = "我的方案";
+      intro.insertBefore(badge, summary);
+    }
     preview.append(intro);
     if (item.type === "prompt_recipe") {
       const block = section("Prompt", "template-detail-prompt");
@@ -359,7 +474,7 @@
       const roles = section("参考结构", "template-detail-roles");
       for (const entry of item.references || item.rolePreset || []) {
         const line = document.createElement("p");
-        line.textContent = "图" + entry.slot + " → " + visualReuseRoleMeta(entry.role).label
+        line.textContent = "图" + entry.slot + " → " + (entry.roles || [entry.role]).map((role) => visualReuseRoleMeta(role).label).join("＋")
           + (entry.required === false ? "（可选）" : "");
         roles.append(line);
       }
@@ -372,6 +487,11 @@
         strategy.append(line);
       }
       preview.append(strategy);
+      const goal = section("核心需求", "template-detail-goal");
+      const goalText = document.createElement("p");
+      goalText.textContent = textFor(item);
+      goal.append(goalText);
+      preview.append(goal);
     }
     if (isUsable(item)) {
       const actions = actionsFor(item, true);
@@ -456,6 +576,7 @@
   function apply(how) {
     if (!pending) return;
     const { item, roleChoice, existing } = pending;
+    let modelWarning = "";
     const nextText = textFor(item);
     const value = how === "append" && existing ? existing + "\n\n" + nextText : nextText;
     if (item.type === "visual_recipe") {
@@ -474,6 +595,14 @@
         renderImageStack();
       }
       if (applyPendingRoles()) renderImageStack();
+      if (item.sourceType === "user" && activeRoleRecipe) {
+        const context = item.generationContext;
+        const model = [...nodes.modelSelect.options].find((option) => !option.hidden && !option.disabled
+          && (option.value === context.modelValue || option.text === context.model));
+        restoreContinuationOptions({ ...context, modelValue: model?.value || "__unavailable__", model: model?.text || "__unavailable__" }, {});
+        if (!model) modelWarning = "原模型不可用，已保留当前可选模型。";
+        restoreContinuationReuseOptions(context);
+      }
       nodes.visualReuseNotes.value = value;
       nodes.visualReuseNotes.dispatchEvent(new Event("input", { bubbles: true }));
       saveWorkspaceState();
@@ -481,9 +610,9 @@
       close();
       nodes.visualReuseNotes.focus();
       const missing = Math.max(0, library.requiredImageCount(item) - imageItems.length);
-      notice(missing
-        ? "已填入方案，请补充 " + missing + " 张参考图，再点击“查看方案”。"
-        : "已填入方案与角色。确认后点击“查看方案”建立 ReusePlan。");
+      notice(modelWarning + (missing
+        ? "该方案需要 " + library.requiredImageCount(item) + " 张参考图：" + roleSummary(item) + "。请补充 " + missing + " 张后查看方案。"
+        : "已填入方案与角色。确认后点击“查看方案”建立 ReusePlan。"));
     } else {
       activeRoleRecipe = null;
       if (promptMethod === "reuse") setGenerationMode("text", { silent: true });
@@ -521,31 +650,33 @@
     browse.hidden = !preview.hidden;
     renderList();
     search.focus();
-    library.load().then((data) => {
-      items = data;
-      renderList();
-      renderQuick();
-      if (selectedId) {
-        const current = items.find((item) => item.id === selectedId);
-        if (current) showPreview(current);
-      }
-    }).catch((error) => { list.textContent = error.message || "灵感库加载失败。"; });
+    refresh().catch((error) => { list.textContent = error.message || "灵感库加载失败。"; });
   }
   function close() {
     closeConfirm();
     preview.hidden = true;
     browse.hidden = false;
     selectedId = "";
+    clearPreviewUrls();
     drawer.hidden = true;
     scrim.hidden = true;
     lastFocus?.focus?.();
   }
+  document.querySelectorAll("[data-recipe-source]").forEach((node) => node.addEventListener("click", () => {
+    sourceType = node.dataset.recipeSource;
+    category = ""; tag = ""; renderList();
+  }));
+  window.addEventListener("assetflow-recipes-changed", () => { if (!drawer.hidden) refresh().catch((error) => notice(error.message)); });
+  window.chrome?.storage?.onChanged?.addListener((changes, area) => {
+    if (area === "local" && changes.assetflowUserRecipesChangedAt && !drawer.hidden) refresh().catch((error) => notice(error.message));
+  });
   filterButton.addEventListener("click", () => {
     tags.hidden = !tags.hidden;
     filterButton.setAttribute("aria-expanded", String(!tags.hidden));
   });
   researchButton.addEventListener("click", () => {
     research = !research;
+    sourceType = "";
     category = "";
     tag = "";
     tags.hidden = true;
@@ -589,7 +720,7 @@
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
   });
-  window.AssetFlowTemplateUI = { onModeChange, open, close, applyPendingRoles };
+  window.AssetFlowTemplateUI = { onModeChange, open, close, refresh, applyPendingRoles, validateReferences, recipeInstruction, applyRecipeConstraints };
   onModeChange();
   library.load().then((data) => { items = data; renderQuick(); }).catch(() => {
     document.querySelector("#templateQuick").hidden = true;

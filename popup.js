@@ -358,7 +358,7 @@ const COMPLETED_GENERATION_RESULTS_KEY = "imageSparkCompletedGenerationResults";
 const PENDING_CONTEXT_IMAGE_KEY = "imageSparkPendingContextImage";
 const PENDING_CONTINUE_CREATION_KEY = "imageSparkPendingContinueCreation";
 const LOCAL_IMAGE_DB_NAME = "imageSparkLocalImages";
-const LOCAL_IMAGE_DB_VERSION = 2;
+const LOCAL_IMAGE_DB_VERSION = 3;
 const LOCAL_IMAGE_STORE = "images";
 const LOCAL_GALLERY_STORE = "gallery";
 const MAX_UPLOAD_IMAGES = 4;
@@ -4220,6 +4220,7 @@ async function callVisualReusePromptApi(imageInput, instruction) {
 async function generateVisualReusePrompt() {
   setPromptMethod("reuse");
   const targets = getVisualReuseTargetImages();
+  if (window.AssetFlowTemplateUI?.validateReferences(targets.length) === false) return;
   if (!targets.length) {
     setStatus("请先添加至少 1 张参考图，再使用视觉复用。");
     return;
@@ -4240,12 +4241,14 @@ async function generateVisualReusePrompt() {
     if (draftErrors.length) {
       throw new Error(draftErrors.map((issue) => issue.message).join(" "));
     }
-    const instruction = reusePlanApi().buildAnalysisInstruction(draft);
+    const instruction = reusePlanApi().buildAnalysisInstruction(draft)
+      + (window.AssetFlowTemplateUI?.recipeInstruction() || "");
     setStatus(targets.length > 1
       ? `正在分析 ${targets.length} 张参考图，建立 ReusePlan...`
       : "正在分析参考图，建立 ReusePlan...");
     const content = await callVisualReusePromptApi(targets, instruction);
     const plan = reusePlanApi().applyAnalysisResponse(draft, content);
+    window.AssetFlowTemplateUI?.applyRecipeConstraints(plan);
     compileReusePlanToPrompt(plan);
     saveWorkspaceState();
     resetPromptViewportToTop();
@@ -4261,6 +4264,7 @@ async function generateVisualReusePrompt() {
 }
 
 function generateNewVisualFromReusePlan() {
+  if (window.AssetFlowTemplateUI?.validateReferences(getVisualReuseTargetImages().length) === false) return;
   if (!isReusePlanCurrent()) {
     setStatus("当前参考图、核心需求或尺寸已变化，请先查看并更新方案。");
     setVisualReusePanelOpen(true);
@@ -4879,6 +4883,7 @@ function openLocalImageDb() {
     const request = indexedDB.open(LOCAL_IMAGE_DB_NAME, LOCAL_IMAGE_DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
+      if (!db.objectStoreNames.contains("recipes")) db.createObjectStore("recipes", { keyPath: "id" });
       if (!db.objectStoreNames.contains(LOCAL_IMAGE_STORE)) {
         db.createObjectStore(LOCAL_IMAGE_STORE, { keyPath: "id" });
       }
@@ -4887,7 +4892,7 @@ function openLocalImageDb() {
         galleryStore.createIndex("createdAt", "createdAt");
       }
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => { request.result.onversionchange = () => request.result.close(); resolve(request.result); };
     request.onerror = () => reject(request.error);
   });
 }
@@ -6002,10 +6007,29 @@ async function openLightbox(item, options = {}) {
   openLocalLightbox(readyItem);
 }
 
+async function saveLightboxRecipe() {
+  const item = activeLightboxItem;
+  try {
+    const draft = AssetFlowUserRecipes.buildUserVisualRecipe(item);
+    AssetFlowRecipeEditor.open({ recipe: draft, onSave: async (edits) => {
+      await AssetFlowUserRecipes.saveUserRecipe(AssetFlowUserRecipes.applyEdits(draft, edits), item);
+      document.querySelector("#lightboxRecipeNotice").textContent = "已保存到「我的方案」";
+      window.AssetFlowTemplateUI?.refresh();
+    } });
+  } catch (error) { setStatus(error.message); }
+}
+document.querySelector("#lightboxSaveRecipeBtn").addEventListener("click", saveLightboxRecipe);
+
 function openLocalLightbox(item) {
   setLocalContinueMenuOpen(false);
   activePageLightboxTabId = 0;
   activeLightboxItem = item;
+  const recipeState = AssetFlowUserRecipes.availability(item);
+  const recipeButton = document.querySelector("#lightboxSaveRecipeBtn");
+  recipeButton.hidden = !recipeState.visible;
+  recipeButton.disabled = !recipeState.enabled;
+  recipeButton.title = recipeState.reason;
+  document.querySelector("#lightboxRecipeNotice").textContent = recipeState.visible && !recipeState.enabled ? recipeState.reason : "";
   nodes.eagleCollectBtn.classList.remove("is-collected");
   nodes.eagleCollectBtn.textContent = "收集到 Eagle";
   nodes.lightboxImage.src = item.url;
@@ -6044,6 +6068,7 @@ async function openPageLightbox(item) {
       mode: normalizeGalleryMode(galleryItem.mode),
       source: normalizeGallerySource(galleryItem.source || galleryItem.generationSource, galleryItem.mode),
       assetLineage: galleryItem.assetLineage || null,
+      recipeAvailability: AssetFlowUserRecipes.availability(galleryItem),
       url: galleryItem.localStoreId ? "" : galleryItem.url,
       originalUrl: galleryItem.originalUrl || galleryItem.url,
       localStoreId: galleryItem.localStoreId || "",
@@ -6101,7 +6126,7 @@ function injectContentScript(tabId) {
     chrome.scripting.executeScript(
       {
         target: { tabId },
-        files: ["content.js"]
+        files: ["recipe-editor.js", "content.js"]
       },
       () => {
         resolve(!chrome.runtime.lastError);
@@ -8401,6 +8426,7 @@ function shouldUseRealImageApi() {
 }
 
 function generate() {
+  if (promptMethod === "reuse" && window.AssetFlowTemplateUI?.validateReferences(getVisualReuseTargetImages().length) === false) return;
   if (isWorkspaceHydrating) {
     setStatus("正在恢复参考图，请稍候再生成。");
     return;

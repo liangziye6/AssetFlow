@@ -23,6 +23,8 @@ const files = [
   "soft-aurora.js",
   "reuse-plan.js",
   "template-library.js",
+  "user-recipes.js",
+  "recipe-editor.js",
   "popup.js",
   "template-library-ui.js",
   "template-library.css",

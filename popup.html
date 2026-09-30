@@ -638,6 +638,8 @@
               <button type="button" role="menuitem" data-local-continue="reuse">恢复视觉复用</button>
             </div>
           </div>
+          <button id="lightboxSaveRecipeBtn" class="lightbox-action-btn" type="button" hidden>保存为方案</button>
+          <span id="lightboxRecipeNotice" role="status"></span>
           <button id="lightboxClose" class="lightbox-action-btn" type="button">关闭</button>
         </div>
         <div class="lightbox-layout">
@@ -665,6 +667,7 @@
         <div class="template-drawer-head"><div><span class="template-eyebrow">ASSETFLOW · LIBRARY</span><h2>灵感库</h2></div><button id="templateCloseBtn" class="template-close-btn" type="button" aria-label="关闭灵感库">×</button></div>
         <div id="templateBrowse" class="template-browse">
           <nav class="template-types" aria-label="方案类型"><button type="button" data-template-type="prompt_recipe" aria-pressed="true">Prompt玩法</button><button type="button" data-template-type="visual_recipe" aria-pressed="false">视觉方案</button></nav>
+          <nav id="templateSources" class="template-categories template-sources" aria-label="方案来源" hidden><button type="button" data-recipe-source="" aria-pressed="true">全部</button><button type="button" data-recipe-source="builtin" aria-pressed="false">内置方案</button><button type="button" data-recipe-source="user" aria-pressed="false">我的方案</button></nav>
           <label class="template-search-label" for="templateSearch">搜索方案</label><input id="templateSearch" class="template-search" type="search" placeholder="搜索名称、标签或用途……" autocomplete="off">
           <div class="template-filter-bar"><nav id="templateCategories" class="template-categories" aria-label="方案分类"></nav><button id="templateFilterBtn" class="template-filter-btn" type="button" aria-expanded="false" aria-controls="templateTags">筛选 ▾</button></div>
           <nav id="templateTags" class="template-tags" aria-label="标签筛选" hidden></nav>
@@ -680,6 +683,8 @@
     <script src="soft-aurora.js"></script>
     <script src="reuse-plan.js"></script>
     <script src="template-library.js"></script>
+    <script src="user-recipes.js"></script>
+    <script src="recipe-editor.js"></script>
     <script src="popup.js"></script>
     <script src="template-library-ui.js"></script>
   </body>

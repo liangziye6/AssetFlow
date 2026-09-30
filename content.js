@@ -718,6 +718,24 @@
     closeViewer();
   }
 
+  async function saveViewerRecipe() {
+    const item = viewerState.items[viewerState.activeIndex];
+    const root = document.getElementById(VIEWER_ID)?.shadowRoot;
+    if (!root || !item) return;
+    const trigger = root.querySelector(".save-recipe");
+    trigger.disabled = true;
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "ASSETFLOW_RECIPE_FROM_GALLERY", galleryId: item.galleryId, action: "draft" });
+      if (!response?.ok) throw new Error(response?.error || "方案读取失败。");
+      AssetFlowRecipeEditor.open({ root, recipe: response.recipe, onSave: async (edits) => {
+        const saved = await chrome.runtime.sendMessage({ type: "ASSETFLOW_RECIPE_FROM_GALLERY", galleryId: item.galleryId, action: "save", edits });
+        if (!saved?.ok) throw new Error(saved?.error || "方案保存失败。");
+        showViewerNotice("已保存到「我的方案」");
+      } });
+    } catch (error) { showViewerNotice(error.message); }
+    finally { trigger.disabled = false; }
+  }
+
   function renderViewerSources(item) {
     const host = document.getElementById(VIEWER_ID);
     const panel = host?.shadowRoot?.querySelector(".source-panel");
@@ -934,6 +952,11 @@
     renderPromptPanels(item);
     renderViewerSources(item);
     renderViewerAssetInfo(item);
+    const recipeButton = host.shadowRoot.querySelector(".save-recipe");
+    recipeButton.hidden = !item.recipeAvailability?.visible;
+    recipeButton.disabled = !item.recipeAvailability?.enabled;
+    recipeButton.title = item.recipeAvailability?.reason || "";
+    if (item.recipeAvailability?.visible && !item.recipeAvailability.enabled) showViewerNotice(item.recipeAvailability.reason);
     const previous = host.shadowRoot.querySelector(".stage-prev");
     const next = host.shadowRoot.querySelector(".stage-next");
     if (previous) previous.disabled = viewerState.activeIndex === 0;
@@ -2243,6 +2266,7 @@
               <button type="button" role="menuitem" data-continue="reuse">恢复视觉复用</button>
             </div>
           </div>
+          <button class="action-btn save-recipe" type="button" hidden>保存为方案</button>
           <button class="action-btn close" type="button">关闭</button>
         </div>
         <div class="notice" hidden></div>
@@ -2298,6 +2322,7 @@
     shadow.addEventListener("click", (event) => {
       if (!event.target.closest(".continue-wrap")) setViewerContinueMenuOpen(false);
     });
+    shadow.querySelector(".save-recipe").addEventListener("click", saveViewerRecipe);
     shadow.querySelector(".download").addEventListener("click", downloadViewerImage);
     shadow.querySelector(".stage-prev").addEventListener("click", () => setActiveViewerItem(viewerState.activeIndex - 1));
     shadow.querySelector(".stage-next").addEventListener("click", () => setActiveViewerItem(viewerState.activeIndex + 1));

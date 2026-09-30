@@ -1,195 +1,379 @@
 <p align="center">
-  <img src="assets/logo.png" width="96" alt="AssetFlow 图标">
+  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.17 - 视觉资产复用工作台" width="100%">
 </p>
 
-<h1 align="center"><img src="assets/logo-wordmark.png" width="360" alt="AssetFlow"></h1>
+<h1 align="center">AssetFlow</h1>
 
 <p align="center">
-  面向 Chrome / Edge 的视觉资产复用工作台：Reference · Plan · Create
+  <strong>把参考图、提示词、生成参数和视觉规则整理成可追溯、可复用的视觉资产工作流。</strong>
 </p>
+
+<p align="center">Reference · Plan · Create · Save · Reuse</p>
 
 <p align="center">
-  <strong>当前版本：v1.9.17</strong>
+  <img alt="version" src="https://img.shields.io/badge/version-v1.9.17-6D5DFC">
+  <img alt="Chrome" src="https://img.shields.io/badge/Chrome-Side%20Panel-4285F4">
+  <img alt="Edge" src="https://img.shields.io/badge/Edge-Compatible-0AA0F6">
+  <img alt="data" src="https://img.shields.io/badge/data-local--first-16A34A">
+  <img alt="CI" src="https://img.shields.io/badge/CI-passing-16A34A">
 </p>
 
-AssetFlow 可以把网页图片或本地图片整理成带角色、真实尺寸与来源关系的结构化 `ReusePlan`，将视觉分析和提示词编译分离，再通过现有生图 API 生成可追溯的新视觉资产。它同时保留文生图、图生图、反推提示词、异步任务恢复、本地图库、Eagle 收集与个人视觉方案管理能力。
+---
 
-典型流程：添加 1-4 张参考图 → 定义参考角色与核心需求 → 查看结构化复用方案 → 生成新视觉。
+## AssetFlow 是什么？
 
-## 功能
+AssetFlow 是一个面向 Chrome / Edge 的 AI 视觉资产复用工作台。
 
-- 点击扩展图标后优先打开浏览器右侧 Side Panel，适合从网页拖图片进去。
-- Side Panel 会根据浏览器侧栏宽度自适应布局：宽屏双栏，窄屏单列。
-- 文生图、图生图和视觉复用使用独立的三段式模式导航，并按模式显示对应工作区。
-- 支持拖入网页图片、拖入本地图片、粘贴图片地址、点击上传。
-- 自动读取原图尺寸；比例与 1K/2K/4K 分辨率可独立组合，也可以自定义宽高。
-- 视觉复用主流程支持 1-4 张参考图，参考角色直接显示在图片上，强度与锁定状态放入单张参考图的高级设置。
-- 填写一句核心需求后先查看设计决策摘要，再执行“生成新视觉”；完整分析可折叠查看。
-- 文字策略默认参考排版并预留文字区，也可生成指定文字（标题必填、副标题可选）、不需要文字或保留原图文字。
-- `ReusePlan` 分离视觉分析与提示词编译，记录真实尺寸校验和来源资产关系。
-- 使用原生 WebGL 构建 Soft Aurora 动态背景，不依赖背景图片或额外前端框架。
-- 页面 Logo 与扩展 16/32/48/128 图标统一使用 AssetFlow 品牌图。
-- 错误、进度和成功状态使用结构化提示卡片；存储空间错误可直接进入图库清理操作。
-- 支持反推提示词、中英转译、清空提示词。
-- 支持反推提示词 API 和生图 API 分开配置。
-- 设置页复刻独立 API 工作台：标题区显示当前配置摘要，并以反推、生图、自定义、Eagle 四个页签管理。
-- 支持新增、命名、编辑、删除并直接应用自定义 OpenAI-compatible API 服务商。
-- 已支持 Google Gemini 和火山引擎方舟作为反推提示词 API。
-- 已支持即梦 Doubao-Seedream-4.0 / 4.5 生图配置。
-- RunningHub 生图支持消费级会员 AI 应用、企业级共享低价渠道 Standard-API、官方稳定版 Standard-API 三种模式。
-- 已生成图库会保存在本地，下次打开继续显示。新生成资产记录实际直传来源与仅用于分析的参考图；点击缩略图默认在当前网页打开全览 Viewer，受限页面回退至插件内详情；来源图可在 Viewer 中预览，旧图库显示兼容说明。
-- APIMart / RunningHub / Grsai 异步任务会保留任务信息，侧栏重新打开后继续恢复。
+它不只负责“生成一张图”，而是把一次创作过程中真正有价值的内容一起保留下来：
 
-## Grsai API
+- 参考图及其角色
+- 核心需求
+- 结构化 ReusePlan
+- Prompt 与生成参数
+- 模型、尺寸与文字策略
+- 生成来源与资产关系
+- 成功方案与个人工作流
 
-- 在「设置 → 反推」选择 `Grsai Chat API`，默认使用 `gemini-3.1-pro`；在「设置 → 生图」选择 `Grsai GPT Image API`，支持 `gpt-image-2` 与 `gpt-image-2.5`。两处分别填写 Grsai API Key 并保存。
-- Base URL 默认使用国内节点 `https://grsai.dakka.com.cn`，也可改为全球节点 `https://grsaiapi.com`；已有带 `/v1` 的地址继续兼容。
-- 生图通过 `/v1/api/generate` 异步提交，后台通过 `/v1/api/result?id=...` 恢复结果；图生图直接传递参与生成的参考图。上述两个基础模型只支持 1K；插件会把现有尺寸预设映射为 Grsai 支持的比例值，选择更大尺寸时会给出提示。
+最终形成：
 
-## v1.9.17 保存为方案与个人视觉资产库
+Reference → Plan → Create → Save → Reuse
 
-- 图生图和视觉复用的生成结果可在网页 Viewer 或插件内 Viewer 中保存为个人视觉方案；文生图结果不显示该入口，缺少完整生成上下文的旧资产会给出禁用原因。
-- 保存弹窗可填写名称、描述、分类和标签，自动保留原生成的核心需求、参考图角色结构、保持 / 变化策略、文字策略、模型与尺寸。个人 Preview 独立保存在本地；不会复制原参考图，下次使用方案时需重新上传。
-- 「视觉方案」中可按「全部 / 内置方案 / 我的方案」筛选，个人方案支持搜索、重命名、编辑和删除。删除原 Gallery 不影响已保存方案；删除方案也不会删除原 Gallery。
-- 「使用方案」沿用现有 ReusePlan 与生成入口，恢复参考角色、核心需求、文字和生成参数；参考图数量不足时会阻止生成并提示补齐。
-- 个人方案存于当前浏览器 Profile 的 IndexedDB，不计入官方 verified 案例数。本版不提供账号同步、分享或导入导出。实现与浏览器验收见 [v1.9.17 报告](docs/user-recipes-v1.9.17.md)。
+适合需要频繁处理海报、商业 KV、电商视觉、角色 / IP 延展、人物换景、产品场景迁移、风格复用和多参考图创作的设计工作流。
 
-## v1.9.16 灵感库 V2
+---
 
-- 输入区域旁的「✨ 灵感库」打开右侧抽屉，分为「Prompt玩法」和「视觉方案」两个 Tab，不增加一级导航。
-- 当前案例池包含 13 个 Prompt 玩法和 10 个视觉方案；正式库展示 12 个 Prompt 玩法与 7 个视觉方案。当前剩余 1 个 Prompt candidate 与 3 个 Visual candidate 统一放在「案例研究」，可查看但不能直接应用。数据位于 `recipes/`，支持分类、折叠标签筛选、搜索和详情预览。
-- 灵感玩法可以复制 Prompt，或应用到当前文生图 / 图生图输入框。已有内容时必须选择替换、追加或取消。
-- 视觉方案包含目标、参考图角色和保持 / 改变策略。「使用方案」会切换到视觉复用并填入核心需求；已有参考图时可选择应用角色、仅填需求或取消。之后沿用现有「查看方案」建立 ReusePlan，再由用户确认并生成。
-- 灵感库沿用现有 ReusePlan、assetLineage、Viewer、供应商接口和 Prompt Compiler。
-- 正式卡片使用项目生成的等比例 WebP 缩略图，双列瀑布流完整展示画幅；详情页在同一抽屉中完整展示 Preview、Prompt 或参考结构、变量、来源与相似玩法。候选案例保留真实测试状态，待完成专属预览和真实生成测试后再发布。内容审核流程见 `docs/recipe-curation-v2.md`；最新数量、真实 Provider 验证和已知边界统一以 `docs/recipe-status.md` 为准。
-- v1.9.16 已完成 1/2/3 图视觉复用真实 Provider 链路验证；「风格与构图双迁移」「人物商业换景」「一图多资产」已升级为 verified。图生图 Side Panel 持久恢复与图库重复写入问题已修复并通过连续 reopen / 幂等 smoke。具体当前状态见 `docs/recipe-status.md`。
+## 核心功能
 
-## v1.9.14 收尾变更
+| 功能 | 能做什么 |
+| --- | --- |
+| ✨ 文生图 | 直接输入 Prompt 生成视觉结果 |
+| 🖼️ 图生图 | 基于本地图片或网页图片继续创作 |
+| 🧩 视觉复用 | 给 1–4 张参考图分配主体 / 构图 / 排版 / 色彩 / 风格 / 装饰等角色，再生成新的统一视觉 |
+| ↩️ 反推提示词 | 分析参考图，提取可用于再创作的 Prompt |
+| 🧠 ReusePlan | 把“保留什么、改变什么、参考哪张图”整理成结构化方案 |
+| 💡 灵感库 | 内置 Prompt玩法与 Visual Recipe，可搜索、筛选和直接应用 |
+| 💾 保存为方案 | 把成功的图生图 / 视觉复用结果沉淀成自己的视觉方案 |
+| 📁 我的方案 | 搜索、重命名、编辑、删除并再次复用个人方案 |
+| 🖼️ 本地图库 | 生成结果持久化到浏览器本地，重新打开 Side Panel 后继续使用 |
+| 🔎 Viewer | 在当前网页打开大图 Viewer，查看 Prompt、来源、参考图和生成关系 |
+| 🔁 继续创作 | 从 Viewer 一键回到文生图、图生图或完整视觉复用工作流 |
+| 🦅 Eagle 收集 | 将生成资产快速收集到 Eagle |
+| 🔌 多 Provider | 反推与生图 API 可以分别配置，并支持自定义 OpenAI-compatible 服务 |
 
-- Viewer 顶部“✨继续创作”可把当前资产的提示词、生成参数或成品图回填到 Side Panel；视觉复用资产可从“生成来源 → 恢复创作链”恢复原参考图、角色和 ReusePlan。历史资产若缺失原参考图文件，会保留当前工作区并提示。
-- 网页全览 Viewer 继续作为图库默认详情；右栏优先展示 Prompt 摘要，完整提示词按需展开；生成来源默认折叠，资产名称及模型、尺寸、时间与大图绑定；图库默认显示 16 张，查看全部可分页浏览历史结果；受限网页的插件内 fallback 同步采用资产名称、摘要、折叠来源与固定图库。来源模块明确标注实际直传和仅参与分析的参考图、图号与设计角色。
-- 视觉复用主界面将用途、创意自由度和风格方向收在高级设置；每张参考图仅展示角色，参考强度与锁定在单图菜单内。
-- “生成指定文字”使用必填标题与可选副标题；“查看方案”默认展示来源、固定项、变化项、文字和预计生成策略，完整分析按需展开。
-- 当核心需求与手动角色冲突时，可更新角色或保持当前设置；旧角色字段、旧图库和原有 ReusePlan 数据结构继续兼容。
+---
 
-## 本地预览
+## 视觉复用怎么工作？
 
-```bash
-npm run preview
-```
+普通图生图通常只有：参考图 + Prompt。
 
-如果当前环境只有 `node`，也可以直接运行：
+AssetFlow 会把多张参考图拆成不同职责，例如：
 
-```bash
-node preview-server.js
-```
+- 图1 → 主体与动作
+- 图2 → 构图与留白
+- 图3 → 风格与材质
 
-然后打开：
+再结合一句核心需求，例如“制作一张新的产品科技海报”，建立结构化 ReusePlan。
 
-```text
-http://127.0.0.1:4173/popup.html
-```
+ReusePlan 会明确：
 
-## 项目记录
+- 哪些特征要保持
+- 哪些内容允许变化
+- 哪张图负责哪个视觉维度
+- 文字如何处理
+- 最终应该生成什么资产
 
-本轮需求、设计取舍、API 规划和后续待办已整理到：
+随后再交给 Prompt Compiler 与实际生图 Provider。
 
-```text
-docs/conversation-notes.md
-docs/reuse-plan-v1.0.md
-docs/user-recipes-v1.9.17.md
-```
+这样比简单把多张图一起丢给模型更适合稳定复用视觉规则。
 
-## 一键打包
+---
 
-```bash
-npm run package
-```
+## v1.9.17：从生成走向沉淀
 
-如果当前环境只有 `node`，也可以直接运行：
+v1.9.17 新增完整的个人视觉方案闭环：
 
-```bash
-node package-extension.js
-```
+生成满意结果 → Viewer → 保存为方案 → 我的方案 → 下次重新上传参考图 → 恢复角色 / 需求 / 参数 → 再次生成
 
-脚本会生成：
+保存方案时会自动保留：
 
-- `dist/assetflow`：用于“加载已解压的扩展”的目录。
-- `dist/assetflow-v1.9.17.zip`：用于归档或后续发布的压缩包。
-- `dist/lyz-assetflow`：旧版解压安装的兼容目录，打包时会同步为最新版，Chrome 可以继续沿用原路径和扩展 ID。
-- `dist/image-prompt-builder`：更早版本的兼容目录，也会同步为最新版。
+- 参考图角色结构
+- 核心需求
+- preserve / change
+- 文字策略
+- Prompt
+- 模型
+- 比例与尺寸
+- ReusePlan
+- 独立 Preview
 
-给新电脑或其他用户安装时，推荐直接发送版本化的 `dist/assetflow-v*.zip`。对方解压后在扩展管理页选择解压出来的完整文件夹；不要只复制 `popup.html`、`soft-aurora.js`、`reuse-plan.js`、`popup.js`、`popup.css` 等单个文件，否则动态背景、结构化方案能力和 `assets/` 资源会丢失。
+个人方案默认只保存“方法”和“角色结构”，不会永久复制用户原参考图。这样可以减少本地存储占用，也让方案真正成为可替换素材的工作流模板。
 
-浏览器出于安全限制，不能被网页静默安装扩展。加载本地插件时仍需要手动打开扩展管理页，开启开发者模式，然后选择 `dist/assetflow`。
+---
 
-如果 Chrome 之前已经从 `dist/lyz-assetflow` 或 `dist/image-prompt-builder` 加载过插件，不要移除后改选新目录；运行一次 `npm run package` 后，直接在扩展管理页点击该插件的“重新加载”即可更新并保留原配置。
+## 灵感库
 
-## 安装为浏览器插件
+当前内置案例池：
 
-1. 打开 Chrome 或 Edge。
-2. 进入扩展管理页：
-   - Chrome: `chrome://extensions`
-   - Edge: `edge://extensions`
-3. 打开“开发者模式”。
-4. 点击“加载已解压的扩展”。
-5. 选择 `dist/assetflow`，或直接选择项目根目录。
+| 类型 | 总数 | 正式可用 | 案例研究 |
+| --- | ---: | ---: | ---: |
+| Prompt Recipe | 13 | 12 | 1 |
+| Visual Recipe | 10 | 7 | 3 |
 
-## API 提示
+正式库目前共 19 项。
 
-直接用 `file://` 或本地网页预览时，部分远程 API 可能会被浏览器跨域策略拦截。加载成 Chrome / Edge 扩展后，`manifest.json` 里的 `host_permissions` 会让 API 请求更稳定。
+Prompt玩法适合直接复制 / 应用 Prompt；视觉方案则包含参考角色、保持项、变化项和目标结构。
 
-“自定义 API 服务商”会按用途保存名称、Base URL、API Key 和真实模型名。反推提示词用途调用 `{Base URL}/chat/completions`，生图用途调用 `{Base URL}/images/generations`；保存后服务商会进入对应下拉列表和模型选择器。旧版的临时 `custom`、`GPT Image`、`GPT Image 2` 配置仍可恢复，但不会继续出现在新建配置的默认选择列表中。
+个人保存的方案使用 personal 状态，不计入官方 verified 数量。
 
-Gemini 反推提示词默认配置：
+- [Recipe 当前状态](docs/recipe-status.md)
+- [v1.9.17 个人方案实现与验收](docs/user-recipes-v1.9.17.md)
 
-- Base URL: `https://generativelanguage.googleapis.com/v1beta`
-- 默认模型: `gemini-2.5-flash`
-- 调用路径: `/models/{model}:generateContent`
-- 鉴权方式: `x-goog-api-key`
+---
 
-阿里云百炼千问视觉反推默认配置：
+## 典型使用流程
 
-- Base URL: `https://dashscope.aliyuncs.com/compatible-mode/v1`
-- 默认模型: `qwen-vl-plus`
-- 调用路径: `/chat/completions`
-- 鉴权方式: `Authorization: Bearer <DASHSCOPE_API_KEY>`
-- 网页参考图会先在 AssetFlow 中转换为 Base64 再提交，避免百炼服务器下载外链图片时出现 `Download multimodal file timed out`。
-- 本地预览使用仅监听 `127.0.0.1`、限制图片类型与 7 MB 大小的读取代理；正式扩展则使用 `host_permissions` 直接读取图片。
+### 1. 文生图
 
-火山引擎方舟反推提示词默认配置：
+文生图 → 输入 Prompt → 选择模型 / 比例 / 尺寸 → 生成 → Viewer
 
-- Base URL: `https://ark.cn-beijing.volces.com/api/v3`
-- 视觉分析模型: `doubao-seed-2-0-lite-260215`
-- 提示词语言模型: `glm-5.2` 或 `deepseek-v4-flash`
-- 调用路径: `/chat/completions`
-- 鉴权方式: `Authorization: Bearer <ARK_API_KEY>`
-- GLM-5.2 与 DeepSeek V4 Flash 都作为语言编译模型使用；插件先用豆包视觉模型分析图片，再把分析结果编译成最终提示词。
-- 如果账号使用推理接入点，可在语言模型中选择“自定义方舟接入点”，填写控制台提供的 `ep-...` ID。
+### 2. 单图再创作
 
-RunningHub 生图默认配置：
+图生图 → 上传图片 → 输入需求 → 生成 → Viewer → 图生图编辑
 
-- Base URL: `https://www.runninghub.cn`
-- 默认模型: `RunningHub 全能图片G-2.0 低价渠道版`
-- 消费级会员模式：
-  - 文生图 AI 应用 ID: `2046794551444119554`
-  - 图生图 AI 应用 ID: `2046794946094571522`
-  - 提交路径: `/task/openapi/ai-app/run`
-  - 图片上传路径: `/task/openapi/upload`
-  - 查询路径: `/task/openapi/outputs`
-- 企业级共享模式：
-  - 文生图路径: `/openapi/v2/rhart-image-g-2/text-to-image`
-  - 图生图路径: `/openapi/v2/rhart-image-g-2/image-to-image`
-  - 图片上传路径: `/openapi/v2/media/upload/binary`
-  - 查询路径: `/openapi/v2/query`
-- 官方稳定版模式：
-  - 模型选项: `RunningHub 全能图片G-2 官方稳定版`
-  - 文生图路径: `/openapi/v2/rhart-image-g-2-official/text-to-image`
-  - 图生图路径: `/openapi/v2/rhart-image-g-2-official/image-to-image`
-  - 图片上传路径: `/openapi/v2/media/upload/binary`
-  - 查询路径: `/openapi/v2/query`
-  - 默认提交 `quality: low`，尺寸继续使用界面选择的 `aspectRatio` 与 `resolution`。
+### 3. 多参考视觉复用
 
-`/openapi/v2/rhart-image-g-2/...` 属于 RunningHub Standard-API；如果 API Key 不是企业共享 Key，服务端会返回访问拒绝。消费级会员 Key 请使用“消费级会员（AI应用）”模式。
+上传 1–4 张参考图 → 分配角色 → 输入一句核心需求 → 查看方案 → AI 建立 ReusePlan → Prompt Compiler → 生成 → Viewer 查看来源
 
-RunningHub 中国站页面目前提示官方稳定版将主要迁移到全球站。如果 `.cn` 接口停止提供服务，可在生图 API 配置中把 Base URL 改为 `https://www.runninghub.ai`，其余官方稳定版路径保持不变。
+### 4. 保存并复用成功工作流
+
+Viewer → 保存为方案 → 我的方案 → 使用方案 → 重新上传参考图 → 自动恢复角色与参数 → 再次生成
+
+---
+
+## 支持的参考角色
+
+| 角色 | 适合参考 |
+| --- | --- |
+| 主体与动作 | 人物、产品、IP、姿态、主要结构 |
+| 构图与留白 | 镜头、位置关系、空间结构、视角 |
+| 排版与文字 | 网格、标题区域、信息层级 |
+| 色彩与材质 | 主色、光影、材质表现 |
+| 风格与材质 | 摄影、插画、3D、艺术语言 |
+| 装饰与细节 | 小元素、氛围装饰、局部特征 |
+
+每张参考图可以在高级设置中继续调整强度与锁定状态。
+
+> 角色强度主要用于 ReusePlan / Prompt 编译的语义控制。不同 Provider 对“每张图独立数值权重”的原生支持并不一致，AssetFlow 不会伪造 Provider 不存在的精确权重能力。
+
+---
+
+## 安装
+
+当前版本：v1.9.17
+
+### 从源码加载
+
+1. 克隆或下载本仓库。
+2. 在项目目录执行 npm run package。
+3. 打开浏览器扩展管理页：
+   - Chrome：chrome://extensions
+   - Edge：edge://extensions
+4. 开启“开发者模式”。
+5. 点击“加载已解压的扩展”。
+6. 选择 dist/assetflow。
+
+打包脚本同时生成 dist/assetflow-v1.9.17.zip，用于归档或分发。
+
+### 已安装旧版本？
+
+如果之前已经从 dist/lyz-assetflow 或 dist/image-prompt-builder 加载，执行一次 npm run package 后，在扩展管理页直接点击“重新加载”即可，通常不需要删除原扩展。
+
+---
+
+## API 配置
+
+AssetFlow 将“反推 / 分析 API”和“生图 API”分开管理，因此可以自由组合不同供应商。
+
+### 反推与视觉分析
+
+- Grsai Chat API
+- Google Gemini
+- 阿里云百炼 Qwen-VL
+- 火山引擎方舟
+- 自定义 OpenAI-compatible Chat API
+
+### 生图
+
+- Grsai GPT Image
+- RunningHub
+- APIMart
+- 即梦 / Seedream 相关配置
+- 自定义 OpenAI-compatible Image API
+
+不同 Provider 的多图能力、分辨率和异步任务方式不同，AssetFlow 会按实际接口能力适配。
+
+<details>
+<summary><strong>Grsai 配置示例</strong></summary>
+
+反推：设置 → 反推 → Grsai Chat API。
+
+生图：设置 → 生图 → Grsai GPT Image API。
+
+默认国内节点：https://grsai.dakka.com.cn
+
+也兼容：https://grsaiapi.com
+
+AssetFlow 已对异步提交 / 查询 / Side Panel 重开恢复做处理。
+
+</details>
+
+<details>
+<summary><strong>Gemini / Qwen-VL / 方舟</strong></summary>
+
+Google Gemini 默认 Base URL：https://generativelanguage.googleapis.com/v1beta
+
+阿里云百炼 OpenAI-compatible Base URL：https://dashscope.aliyuncs.com/compatible-mode/v1
+
+火山引擎方舟 Base URL：https://ark.cn-beijing.volces.com/api/v3
+
+</details>
+
+<details>
+<summary><strong>RunningHub</strong></summary>
+
+支持消费级会员 AI 应用、企业级 Standard-API 和官方稳定版 Standard-API。
+
+AssetFlow 对 RunningHub 的提交、上传、查询和异步任务恢复分别适配。
+
+</details>
+
+---
+
+## 本地数据与隐私
+
+AssetFlow 当前采用 local-first 方式管理工作区和个人资产。
+
+默认保存在当前浏览器 Profile：
+
+- 本地图库
+- Workspace 状态
+- 个人视觉方案
+- 独立 Preview
+- API 配置
+
+个人方案使用 IndexedDB 持久化。
+
+### v1.9.17 不提供
+
+- 账号系统
+- 云同步
+- 在线 Marketplace
+- 社区分享
+- 自动上传个人方案
+- 自动保存原参考图到个人方案
+
+> 当你实际调用第三方 AI Provider 时，对应 Prompt / 图片会根据该 Provider 的接口要求发送给该服务商。具体数据处理方式取决于你选择的 Provider。
+
+---
+
+## Viewer 与生成来源
+
+Viewer 可以查看：
+
+- 大图
+- Prompt 摘要 / 完整 Prompt
+- 模型与尺寸
+- 生成来源
+- 参考图
+- 参考图角色
+- direct / analysis 来源关系
+- 已生成图库
+
+并支持：使用此提示词、图生图编辑、恢复视觉复用、保存为方案、下载和 Eagle 收集。
+
+旧资产如果缺少完整 lineage，不会伪造来源。
+
+---
+
+## 本地图库与异步恢复
+
+生成结果会保存到浏览器本地图库。
+
+对于支持异步任务的 Provider，AssetFlow 会保存任务信息，因此可以实现：提交任务 → 关闭 Side Panel → Provider 后台完成 → 重新打开 → 恢复结果。
+
+v1.9.16 已修复：
+
+- 图生图继续创作后 reopen 丢失参考图
+- 同一异步生成结果重复写入图库
+
+当前使用稳定 IndexedDB 图片引用与 generationId / resultIndex 做结果幂等。
+
+---
+
+## Eagle
+
+Viewer 中可以直接使用“收集到 Eagle”。AssetFlow 优先读取本地 IndexedDB 中保存的原图，再交给 Eagle Local API，避免依赖已经过期的 Provider 临时图片 URL。
+
+需要本机已安装并运行 Eagle。
+
+---
+
+## 当前版本验证
+
+v1.9.17 当前已经通过：
+
+- npm run check
+- git diff --check
+- npm run package
+- GitHub Actions CI
+- 真实扩展浏览器 smoke
+- IndexedDB v2 → v3 升级
+- Side Panel 连续 reopen
+- 测试 Profile 完整重启
+- 个人方案保存 / 编辑 / 删除
+- Preview 独立持久化
+- Gallery / Recipe 删除隔离
+- 1 图 / 3 图个人方案复用
+- 存储失败事务回滚
+
+v1.9.16 已完成 Grsai Provider 的真实 1 / 2 / 3 图视觉复用 E2E。
+
+v1.9.17 新增的“保存方案 → 再次使用”链路使用已有 Provider 边界进行自动化验证，没有为了重复验证而再次消耗真实生图 API。
+
+- [v1.9.17 验收报告](docs/user-recipes-v1.9.17.md)
+- [机器可读验证记录](docs/validation/user-recipes-v1.9.17.json)
+- [Recipe 状态](docs/recipe-status.md)
+
+---
+
+## 开发与检查
+
+- 本地预览：npm run preview
+- 项目检查：npm run check
+- 打包：npm run package
+
+GitHub Actions 会自动执行项目检查、git diff --check 和打包。
+
+---
+
+## 当前边界
+
+v1.9.17 暂不包含：
+
+- 文生图保存为个人 Prompt Recipe
+- 个人方案同步
+- 分享链接
+- 导入 / 导出
+- 收藏 / 最近使用
+- Recipe 历史版本
+- Marketplace
+- analysis-only 真实 Provider 专项 E2E
+
+这些不会影响当前文生图、图生图、视觉复用、Viewer、灵感库和个人视觉方案主流程。
+
+---
+
+<p align="center">
+  <strong>AssetFlow v1.9.17</strong><br>
+  Reference · Plan · Create · Save · Reuse
+</p>

@@ -281,6 +281,9 @@ let pendingGenerationResumeTimer = 0;
 let progressSmoothingFrame = 0;
 let progressSmoothingLastTime = 0;
 let galleryItems = [];
+const deletedGalleryKeys = new Set();
+const deletingGalleryKeys = new Set();
+let activeGalleryDeleteMenu = null;
 let apiConfig = null;
 let customApiProviders = [];
 let activeLightboxItem = null;
@@ -355,6 +358,7 @@ const GALLERY_STORAGE_KEY = "imageSparkGalleryItems";
 const PENDING_GENERATION_TASKS_KEY = "imageSparkPendingGenerationTasks";
 const PENDING_GENERATION_TASK_PREFIX = `${PENDING_GENERATION_TASKS_KEY}:`;
 const COMPLETED_GENERATION_RESULTS_KEY = "imageSparkCompletedGenerationResults";
+const DELETED_GALLERY_KEYS_KEY = "imageSparkDeletedGalleryKeys";
 const PENDING_CONTEXT_IMAGE_KEY = "imageSparkPendingContextImage";
 const PENDING_CONTINUE_CREATION_KEY = "imageSparkPendingContinueCreation";
 const LOCAL_IMAGE_DB_NAME = "imageSparkLocalImages";
@@ -1055,6 +1059,7 @@ function loadStoredGalleryItems(stateGallery = []) {
 
   const seen = new Set();
   const loaded = [...fromState, ...fromStandalone].filter((item) => {
+    if (deletedGalleryKeys.has(galleryDeleteKey(item))) return false;
     const key = item.url;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -2426,13 +2431,27 @@ async function galleryItemDataUrlFromStore(item) {
   return fileToDataUrl(stored.blob);
 }
 
+function galleryDeleteKey(item) {
+  const id = item?.galleryId || item?.localStoreId
+    || generationResultId(item?.generationId, item?.resultIndex);
+  if (id) return `id:${id}`;
+  const url = String(item?.originalUrl || item?.url || "");
+  if (!url) return "";
+  let hash = 2166136261;
+  for (let index = 0; index < url.length; index += 1) hash = Math.imul(hash ^ url.charCodeAt(index), 16777619);
+  return `url:${url.length}:${hash >>> 0}`;
+}
+
 function isSameGalleryItem(a, b) {
   if (!a || !b) return false;
   if (a === b) return true;
-  if (a.galleryId && b.galleryId && a.galleryId === b.galleryId) return true;
-  if (a.localStoreId && b.localStoreId && a.localStoreId === b.localStoreId) return true;
-  if (a.generationId && b.generationId && a.generationId === b.generationId) return true;
-  return false;
+  if (a.galleryId && b.galleryId) return a.galleryId === b.galleryId;
+  if (a.localStoreId && b.localStoreId) return a.localStoreId === b.localStoreId;
+  if (a.generationId && b.generationId) {
+    return a.generationId === b.generationId && Number(a.resultIndex || 0) === Number(b.resultIndex || 0);
+  }
+  const key = galleryDeleteKey(a);
+  return Boolean(key && key === galleryDeleteKey(b));
 }
 
 function patchGalleryItem(item, patch) {
@@ -5251,6 +5270,192 @@ async function removeGalleryRecordFromIndexedDb(item) {
   }
 }
 
+function setGalleryDeleteMenuOpen(menu, open) {
+  if (activeGalleryDeleteMenu && activeGalleryDeleteMenu !== menu) {
+    activeGalleryDeleteMenu.hidden = true;
+    activeGalleryDeleteMenu.previousElementSibling?.setAttribute("aria-expanded", "false");
+  }
+  if (!menu) {
+    activeGalleryDeleteMenu = null;
+    return;
+  }
+  menu.hidden = !open;
+  menu.previousElementSibling?.setAttribute("aria-expanded", open ? "true" : "false");
+  activeGalleryDeleteMenu = open ? menu : null;
+}
+
+function confirmGalleryDelete() {
+  const dialog = document.querySelector("#galleryDeleteConfirm");
+  const cancel = document.querySelector("#galleryDeleteCancel");
+  const confirm = document.querySelector("#galleryDeleteSubmit");
+  if (!dialog || !cancel || !confirm) return Promise.resolve(false);
+  const previousFocus = document.activeElement;
+  dialog.hidden = false;
+  cancel.focus();
+  return new Promise((resolve) => {
+    const finish = (accepted) => {
+      dialog.hidden = true;
+      cancel.removeEventListener("click", onCancel);
+      confirm.removeEventListener("click", onConfirm);
+      dialog.removeEventListener("click", onBackdrop);
+      window.removeEventListener("keydown", onKey, true);
+      previousFocus?.focus?.();
+      resolve(accepted);
+    };
+    const onCancel = () => finish(false);
+    const onConfirm = () => finish(true);
+    const onBackdrop = (event) => { if (event.target === dialog) finish(false); };
+    const onKey = (event) => {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        (document.activeElement === cancel && !event.shiftKey ? confirm : cancel).focus();
+        return;
+      }
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      finish(false);
+    };
+    cancel.addEventListener("click", onCancel);
+    confirm.addEventListener("click", onConfirm);
+    dialog.addEventListener("click", onBackdrop);
+    window.addEventListener("keydown", onKey, true);
+  });
+}
+
+function showGalleryDeleteFeedback(message) {
+  setStatus(message);
+  const toast = document.querySelector("#galleryDeleteToast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.hidden = false;
+  window.clearTimeout(showGalleryDeleteFeedback.timer);
+  showGalleryDeleteFeedback.timer = window.setTimeout(() => { toast.hidden = true; }, 3000);
+}
+
+async function deleteGalleryRecordLocally(item) {
+  const db = await openLocalImageDb();
+  let imageCleanupFailed = false;
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction([LOCAL_GALLERY_STORE, LOCAL_IMAGE_STORE], "readwrite");
+      const gallery = transaction.objectStore(LOCAL_GALLERY_STORE);
+      const images = transaction.objectStore(LOCAL_IMAGE_STORE);
+      const request = gallery.getAll();
+      request.onsuccess = () => {
+        const records = request.result || [];
+        const record = records.find((entry) => entry.id === item.galleryId
+          || (item.localStoreId && entry.localStoreId === item.localStoreId));
+        if (record) gallery.delete(record.id);
+        const imageId = record?.localStoreId || item.localStoreId;
+        const shared = records.some((entry) => entry !== record && entry.localStoreId === imageId);
+        if (imageId?.startsWith("image-") && !shared) images.delete(imageId);
+        else if (imageId && !shared) imageCleanupFailed = true;
+      };
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+  const key = galleryDeleteKey(item);
+  deletedGalleryKeys.add(key);
+  let cacheCleanupFailed = false;
+  try {
+    localStorage.setItem(DELETED_GALLERY_KEYS_KEY, JSON.stringify([...deletedGalleryKeys]));
+  } catch {
+    cacheCleanupFailed = true;
+  }
+  return { ok: true, key, imageCleanupFailed, cacheCleanupFailed };
+}
+
+function applyDeletedGalleryKey(key) {
+  if (!key) return;
+  deletedGalleryKeys.add(key);
+  setGalleryDeleteMenuOpen(activeGalleryDeleteMenu, false);
+  const completed = galleryItems.filter((item) => !item.isGenerating);
+  const removedIndex = completed.findIndex((item) => galleryDeleteKey(item) === key);
+  const removed = galleryItems.filter((item) => !item.isGenerating && galleryDeleteKey(item) === key);
+  const activeDeleted = activeLightboxItem && galleryDeleteKey(activeLightboxItem) === key;
+  galleryItems = galleryItems.filter((item) => item.isGenerating || galleryDeleteKey(item) !== key);
+  try {
+    const legacy = JSON.parse(localStorage.getItem(GALLERY_STORAGE_KEY) || "[]");
+    if (Array.isArray(legacy)) {
+      const kept = legacy.filter((item) => galleryDeleteKey(item) !== key);
+      if (kept.length !== legacy.length) localStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(kept));
+    }
+  } catch {
+    // The durable deletion marker still prevents legacy records from returning.
+  }
+  if (!removed.length) return;
+  if (activeDeleted) {
+    const remaining = galleryItems.filter((item) => !item.isGenerating && (item.url || item.localStoreId));
+    const next = remaining[Math.min(removedIndex, remaining.length - 1)];
+    closeLightbox();
+    if (next) openLightbox(next, { forceLocal: true }).catch(() => closeLightbox());
+  }
+  removed.forEach((item) => {
+    if (item.localObjectUrl) URL.revokeObjectURL(item.localObjectUrl);
+    if (item.thumbnailObjectUrl) URL.revokeObjectURL(item.thumbnailObjectUrl);
+  });
+  renderGallery();
+  saveWorkspaceState();
+  showGalleryDeleteFeedback("已从图库删除");
+}
+
+async function deleteGalleryItem(item) {
+  if (!item || item.isGenerating) throw new Error("正在生成的图片不能删除。");
+  const key = galleryDeleteKey(item);
+  if (!key) throw new Error("缺少图库图片标识。");
+  if (deletingGalleryKeys.has(key)) return;
+  deletingGalleryKeys.add(key);
+  try {
+    const response = window.chrome?.runtime?.id
+      ? await sendRuntimeMessage({
+        type: "IMAGE_SPARK_DELETE_GALLERY_ITEM",
+        payload: {
+          galleryId: item.galleryId || "",
+          localStoreId: item.localStoreId || "",
+          generationId: item.generationId || "",
+          resultIndex: item.resultIndex || 0,
+          originalUrl: item.originalUrl || "",
+          url: item.url || "",
+          isGenerating: false
+        }
+      })
+      : await deleteGalleryRecordLocally(item);
+    if (!response?.ok) throw new Error(response?.error || "删除失败，请重试。");
+    applyDeletedGalleryKey(response.key || key);
+    if (response.imageCleanupFailed || response.cacheCleanupFailed) {
+      showGalleryDeleteFeedback("图片已从图库移除，但部分本地缓存未能清理。");
+    }
+  } finally {
+    deletingGalleryKeys.delete(key);
+  }
+}
+
+async function requestGalleryDelete(item) {
+  setGalleryDeleteMenuOpen(activeGalleryDeleteMenu, false);
+  if (!item || item.isGenerating || !await confirmGalleryDelete()) return;
+  try {
+    await deleteGalleryItem(item);
+  } catch (error) {
+    showGalleryDeleteFeedback(error?.message || "删除失败，请重试。");
+  }
+}
+
+async function loadDeletedGalleryKeys() {
+  try {
+    const stored = window.chrome?.runtime?.id
+      ? (await chromeStorageLocalGet(DELETED_GALLERY_KEYS_KEY))[DELETED_GALLERY_KEYS_KEY]
+      : JSON.parse(localStorage.getItem(DELETED_GALLERY_KEYS_KEY) || "[]");
+    if (Array.isArray(stored)) stored.forEach((key) => deletedGalleryKeys.add(key));
+  } catch {
+    // Gallery remains available if deletion history cannot be read.
+  }
+}
+
 async function removeOrphanedSourceAssets(removedItems) {
   const retained = new Set([...galleryItems, ...loadPendingGenerationTasks()]
     .flatMap((item) => item?.assetLineage?.sourceAssets || [])
@@ -5398,6 +5603,7 @@ async function handleGalleryImageError(item) {
 
 async function persistGalleryItemImage(item) {
   const stableId = generationResultId(item?.generationId, item?.resultIndex);
+  if (stableId && deletedGalleryKeys.has(`id:${stableId}`)) return null;
   if (stableId) {
     try {
       const existing = await withLocalGalleryStore("readonly", (store) => requestToPromise(store.get(stableId)));
@@ -5415,9 +5621,14 @@ async function persistGalleryItemImage(item) {
   try {
     const storedItem = await saveImageToIndexedDb(item);
     const galleryItem = await saveGalleryRecord(storedItem);
+    if (deletedGalleryKeys.has(galleryDeleteKey(galleryItem))) {
+      await deleteGalleryRecordLocally(galleryItem);
+      return null;
+    }
     setStatus("图片已保存到浏览器本地图库。");
     return galleryItem;
   } catch (error) {
+    if (deletedGalleryKeys.has(galleryDeleteKey(item))) return null;
     setStatus(`图片已生成，但保存到本地图库失败：${error.message || "浏览器本地存储不可用"}。`);
     return { ...item, localStoreId: "", url: item.url || item.originalUrl || "" };
   }
@@ -5514,6 +5725,9 @@ function createGalleryItem(item) {
     img.alt = item.index;
     img.addEventListener("error", () => handleGalleryImageError(item), { once: true });
     visual.append(img);
+    const actions = document.createElement("div");
+    actions.className = "gallery-item-actions";
+    actions.addEventListener("click", (event) => event.stopPropagation());
     const downloadButton = document.createElement("button");
     downloadButton.className = "gallery-download-btn";
     downloadButton.type = "button";
@@ -5523,7 +5737,32 @@ function createGalleryItem(item) {
       event.stopPropagation();
       downloadImage(item);
     });
-    visual.append(downloadButton);
+    const moreButton = document.createElement("button");
+    moreButton.className = "gallery-more-btn";
+    moreButton.type = "button";
+    moreButton.title = "更多操作";
+    moreButton.setAttribute("aria-label", `更多操作 ${item.index}`);
+    moreButton.setAttribute("aria-haspopup", "menu");
+    moreButton.setAttribute("aria-expanded", "false");
+    const menu = document.createElement("div");
+    menu.className = "gallery-item-menu";
+    menu.setAttribute("role", "menu");
+    menu.hidden = true;
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.setAttribute("role", "menuitem");
+    deleteButton.textContent = "删除图片";
+    deleteButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      requestGalleryDelete(item);
+    });
+    moreButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setGalleryDeleteMenuOpen(menu, menu.hidden);
+    });
+    menu.append(deleteButton);
+    actions.append(downloadButton, moreButton, menu);
+    visual.append(actions);
   } else {
     visual.textContent = item.index;
   }
@@ -6021,6 +6260,7 @@ async function saveLightboxRecipe() {
 document.querySelector("#lightboxSaveRecipeBtn").addEventListener("click", saveLightboxRecipe);
 
 function openLocalLightbox(item) {
+  setGalleryDeleteMenuOpen(activeGalleryDeleteMenu, false);
   setLocalContinueMenuOpen(false);
   activePageLightboxTabId = 0;
   activeLightboxItem = item;
@@ -6160,6 +6400,7 @@ function sendRuntimeMessage(message) {
 }
 
 function closeLightbox() {
+  setGalleryDeleteMenuOpen(activeGalleryDeleteMenu, false);
   setLocalContinueMenuOpen(false);
   activeLightboxItem = null;
   localGalleryExpanded = false;
@@ -6373,6 +6614,7 @@ function currentGalleryPageSize() {
 }
 
 function renderGallery() {
+  setGalleryDeleteMenuOpen(activeGalleryDeleteMenu, false);
   galleryImageObserver?.disconnect?.();
   galleryImageObserver = null;
   nodes.galleryGrid.innerHTML = "";
@@ -6407,7 +6649,8 @@ function renderGallery() {
 }
 
 async function restoreGalleryItemsFromIndexedDb() {
-  const indexedItems = await loadGalleryRecordsFromIndexedDb();
+  const indexedItems = (await loadGalleryRecordsFromIndexedDb())
+    .filter((item) => !deletedGalleryKeys.has(galleryDeleteKey(item)));
   if (indexedItems.length) {
     galleryItems = indexedItems;
     renderGallery();
@@ -6439,7 +6682,8 @@ async function recoverGalleryFromStorage() {
   setStatus("正在重新扫描当前插件身份下的本地图库和已完成任务。");
 
   try {
-    const indexedItems = await loadGalleryRecordsFromIndexedDb();
+    const indexedItems = (await loadGalleryRecordsFromIndexedDb())
+      .filter((item) => !deletedGalleryKeys.has(galleryDeleteKey(item)));
     const runningItems = galleryItems.filter((item) => item.isGenerating);
     const completedItems = galleryItems.filter((item) => !item.isGenerating);
     const seen = new Set();
@@ -8081,6 +8325,7 @@ function galleryItemIndexForTarget(target) {
 
 function upsertGalleryResult(target, item) {
   const stableId = item.galleryId || generationResultId(item.generationId, item.resultIndex);
+  if (deletedGalleryKeys.has(galleryDeleteKey(item))) return false;
   const existingIndex = galleryItems.findIndex((entry) => !entry.isGenerating && stableId
     && entry.galleryId === stableId);
   const targetIndex = galleryItemIndexForTarget(target);
@@ -8338,6 +8583,7 @@ async function consumeCompletedGenerationResults() {
       try {
         for (let itemIndex = 0; itemIndex < localRecords.length; itemIndex += 1) {
           const savedItem = galleryItemFromRecord(localRecords[itemIndex], galleryItems.length);
+          if (deletedGalleryKeys.has(galleryDeleteKey(savedItem))) continue;
           const placeholder = itemIndex === 0
             ? (galleryItems.find((item) => item.isGenerating && item.generationId === task.generationId)
               || pendingTaskToGeneratingItem(task))
@@ -8347,6 +8593,7 @@ async function consumeCompletedGenerationResults() {
 
         for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
           const resultIndex = localRecords.length + urlIndex;
+          if (deletedGalleryKeys.has(`id:${generationResultId(task.generationId, resultIndex)}`)) continue;
           const placeholder = resultIndex === 0
             ? (galleryItems.find((item) => item.isGenerating && item.generationId === task.generationId)
               || pendingTaskToGeneratingItem(task))
@@ -8371,6 +8618,7 @@ async function consumeCompletedGenerationResults() {
             source: normalizeGallerySource(task.source || placeholder?.source, task.mode || placeholder?.mode),
             url: urls[urlIndex]
           });
+          if (!savedItem) continue;
           const persisted = await withLocalGalleryStore("readonly", (store) =>
             requestToPromise(store.get(savedItem.galleryId)));
           if (!persisted) throw new Error("图库结果未能持久保存");
@@ -9529,6 +9777,9 @@ nodes.modelMenu?.addEventListener("click", (event) => {
   event.stopPropagation();
 });
 document.addEventListener("click", (event) => {
+  if (activeGalleryDeleteMenu && !activeGalleryDeleteMenu.parentElement?.contains(event.target)) {
+    setGalleryDeleteMenuOpen(activeGalleryDeleteMenu, false);
+  }
   if (!nodes.modelPicker?.contains(event.target)) {
     setModelMenuOpen(false);
   }
@@ -9626,6 +9877,14 @@ function setLocalContinueMenuOpen(open) {
   button.setAttribute("aria-expanded", open ? "true" : "false");
 }
 nodes.lightboxClose.addEventListener("click", closeLightbox);
+document.querySelector("#lightboxMoreBtn")?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setLocalContinueMenuOpen(false);
+  const menu = document.querySelector("#lightboxDeleteMenu");
+  setGalleryDeleteMenuOpen(menu, menu.hidden);
+});
+document.querySelector("#lightboxDeleteBtn")?.addEventListener("click", () => requestGalleryDelete(activeLightboxItem));
+window.addEventListener("scroll", () => setGalleryDeleteMenuOpen(activeGalleryDeleteMenu, false), true);
 document.querySelector("#lightboxContinueBtn")?.addEventListener("click", () => {
   setLocalContinueMenuOpen(document.querySelector("#lightboxContinueMenu").hidden);
 });
@@ -9644,6 +9903,10 @@ nodes.lightbox.addEventListener("click", (event) => {
   }
 });
 window.addEventListener("keydown", async (event) => {
+  if (event.key === "Escape" && activeGalleryDeleteMenu) {
+    setGalleryDeleteMenuOpen(activeGalleryDeleteMenu, false);
+    return;
+  }
   if (event.key === "Escape") {
     setModelMenuOpen(false);
     setSizeMenuOpen(false);
@@ -9669,6 +9932,12 @@ window.chrome?.storage?.onChanged?.addListener((changes, areaName) => {
   if (!isWorkspaceHydrating && areaName === "local" && changes[COMPLETED_GENERATION_RESULTS_KEY]?.newValue) {
     consumeCompletedGenerationResults();
   }
+  if (areaName === "local" && changes[DELETED_GALLERY_KEYS_KEY]?.newValue) {
+    const oldKeys = new Set(changes[DELETED_GALLERY_KEYS_KEY].oldValue || []);
+    changes[DELETED_GALLERY_KEYS_KEY].newValue.forEach((key) => {
+      if (!oldKeys.has(key)) applyDeletedGalleryKey(key);
+    });
+  }
 });
 
 setApiTab("prompt");
@@ -9679,7 +9948,7 @@ setupOptionalLocalIntegrations();
 syncSizeInputs(1024, 1024);
 syncCustomModelField();
 loadApiConfig();
-loadWorkspaceState().then(() => {
+loadDeletedGalleryKeys().then(loadWorkspaceState).then(() => {
   isWorkspaceHydrating = false;
   syncImageUploadLimitUi();
   consumePendingContextImage();

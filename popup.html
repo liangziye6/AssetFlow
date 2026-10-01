@@ -639,6 +639,12 @@
             </div>
           </div>
           <button id="lightboxSaveRecipeBtn" class="lightbox-action-btn" type="button" hidden>保存为方案</button>
+          <div class="lightbox-more">
+            <button id="lightboxMoreBtn" class="lightbox-action-btn lightbox-more-btn" type="button" aria-label="更多操作" aria-haspopup="menu" aria-expanded="false">···</button>
+            <div id="lightboxDeleteMenu" class="gallery-item-menu lightbox-item-menu" role="menu" hidden>
+              <button id="lightboxDeleteBtn" type="button" role="menuitem">删除此图片</button>
+            </div>
+          </div>
           <span id="lightboxRecipeNotice" role="status"></span>
           <button id="lightboxClose" class="lightbox-action-btn" type="button">关闭</button>
         </div>
@@ -661,6 +667,18 @@
           <div id="lightboxStrip" class="lightbox-strip" aria-label="已生成图片"></div>
         </div>
       </div>
+
+      <div id="galleryDeleteConfirm" class="gallery-delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="galleryDeleteTitle" aria-describedby="galleryDeleteDescription" hidden>
+        <div class="gallery-delete-panel">
+          <h3 id="galleryDeleteTitle">删除这张生成图片？</h3>
+          <p id="galleryDeleteDescription">删除后将从本地图库移除，无法恢复。<br>已保存到「我的方案」的方案不会受到影响。</p>
+          <div class="gallery-delete-buttons">
+            <button id="galleryDeleteCancel" type="button">取消</button>
+            <button id="galleryDeleteSubmit" type="button">删除</button>
+          </div>
+        </div>
+      </div>
+      <div id="galleryDeleteToast" class="gallery-delete-toast" role="status" hidden></div>
 
       <div id="templateScrim" class="template-scrim" hidden></div>
       <aside id="templateDrawer" class="template-drawer" role="dialog" aria-modal="true" aria-label="灵感库" hidden>

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>当前版本：v1.9.17</strong>
+  <strong>当前版本：v1.9.18</strong>
 </p>
 
 AssetFlow 可以把网页图片或本地图片整理成带角色、真实尺寸与来源关系的结构化 `ReusePlan`，将视觉分析和提示词编译分离，再通过现有生图 API 生成可追溯的新视觉资产。它同时保留文生图、图生图、反推提示词、异步任务恢复、本地图库、Eagle 收集与个人视觉方案管理能力。
@@ -45,6 +45,11 @@ AssetFlow 可以把网页图片或本地图片整理成带角色、真实尺寸�
 - 在「设置 → 反推」选择 `Grsai Chat API`，默认使用 `gemini-3.1-pro`；在「设置 → 生图」选择 `Grsai GPT Image API`，支持 `gpt-image-2` 与 `gpt-image-2.5`。两处分别填写 Grsai API Key 并保存。
 - Base URL 默认使用国内节点 `https://grsai.dakka.com.cn`，也可改为全球节点 `https://grsaiapi.com`；已有带 `/v1` 的地址继续兼容。
 - 生图通过 `/v1/api/generate` 异步提交，后台通过 `/v1/api/result?id=...` 恢复结果；图生图直接传递参与生成的参考图。上述两个基础模型只支持 1K；插件会把现有尺寸预设映射为 Grsai 支持的比例值，选择更大尺寸时会给出提示。
+
+## v1.9.18 图库单张删除
+
+- 已生成图库的卡片、网页 Viewer 和插件内 Viewer 均可通过「更多 → 删除此图片」删除单张图片，并在删除前确认。
+- 删除同步清理本地图册记录和对应图片文件，刷新或恢复异步任务后不会重新出现；已保存到「我的方案」的方案及预览不受影响。
 
 ## v1.9.17 保存为方案与个人视觉资产库
 
@@ -115,7 +120,7 @@ node package-extension.js
 脚本会生成：
 
 - `dist/assetflow`：用于“加载已解压的扩展”的目录。
-- `dist/assetflow-v1.9.17.zip`：用于归档或后续发布的压缩包。
+- `dist/assetflow-v1.9.18.zip`：用于归档或后续发布的压缩包。
 - `dist/lyz-assetflow`：旧版解压安装的兼容目录，打包时会同步为最新版，Chrome 可以继续沿用原路径和扩展 ID。
 - `dist/image-prompt-builder`：更早版本的兼容目录，也会同步为最新版。
 

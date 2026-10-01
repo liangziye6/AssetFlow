@@ -690,6 +690,124 @@
   }
 
 
+  function viewerGalleryDeleteKey(item) {
+    const id = item?.galleryId || item?.localStoreId
+      || (item?.generationId ? `generation-${item.generationId}-${Number(item.resultIndex) || 0}` : "");
+    if (id) return `id:${id}`;
+    const url = String(item?.originalUrl || item?.url || "");
+    if (!url) return "";
+    let hash = 2166136261;
+    for (let index = 0; index < url.length; index += 1) hash = Math.imul(hash ^ url.charCodeAt(index), 16777619);
+    return `url:${url.length}:${hash >>> 0}`;
+  }
+
+  function setViewerDeleteMenuOpen(open) {
+    const shadow = document.getElementById(VIEWER_ID)?.shadowRoot;
+    const menu = shadow?.querySelector(".delete-menu");
+    const button = shadow?.querySelector(".delete-trigger");
+    if (!menu || !button) return;
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function confirmViewerDelete() {
+    const shadow = document.getElementById(VIEWER_ID)?.shadowRoot;
+    const dialog = shadow?.querySelector(".delete-confirm");
+    const cancel = dialog?.querySelector(".delete-cancel");
+    const confirm = dialog?.querySelector(".delete-submit");
+    if (!dialog || !cancel || !confirm) return Promise.resolve(false);
+    const previousFocus = shadow.activeElement;
+    dialog.hidden = false;
+    cancel.focus();
+    return new Promise((resolve) => {
+      const finish = (accepted) => {
+        dialog.hidden = true;
+        cancel.removeEventListener("click", onCancel);
+        confirm.removeEventListener("click", onConfirm);
+        document.removeEventListener("keydown", onKey, true);
+        previousFocus?.focus?.();
+        resolve(accepted);
+      };
+      const onCancel = () => finish(false);
+      const onConfirm = () => finish(true);
+      const onKey = (event) => {
+        if (event.key === "Tab") {
+          event.preventDefault();
+          (shadow.activeElement === cancel && !event.shiftKey ? confirm : cancel).focus();
+          return;
+        }
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        finish(false);
+      };
+      cancel.addEventListener("click", onCancel);
+      confirm.addEventListener("click", onConfirm);
+      document.addEventListener("keydown", onKey, true);
+    });
+  }
+
+  function showPageGalleryDeleteToast(message) {
+    const toast = document.createElement("div");
+    toast.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:2147483647";
+    const shadow = toast.attachShadow({ mode: "closed" });
+    const label = document.createElement("div");
+    label.style.cssText = "padding:10px 14px;border:1px solid #ffffff30;border-radius:10px;color:#fff;background:#272536;box-shadow:0 12px 32px #0006;font:13px system-ui";
+    label.textContent = message;
+    shadow.append(label);
+    document.documentElement.append(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
+  function applyViewerDeletedKey(key) {
+    const before = viewerState.items;
+    const activeIndex = viewerState.activeIndex;
+    const active = before[activeIndex];
+    const removedBefore = before.slice(0, activeIndex).filter((item) => viewerGalleryDeleteKey(item) === key).length;
+    const remaining = before.filter((item) => viewerGalleryDeleteKey(item) !== key);
+    if (remaining.length === before.length) return false;
+    viewerState.items = remaining;
+    setViewerDeleteMenuOpen(false);
+    if (!remaining.length) {
+      closeViewer();
+      showPageGalleryDeleteToast("已从图库删除");
+      return true;
+    }
+    const nextIndex = viewerGalleryDeleteKey(active) === key
+      ? Math.min(activeIndex, remaining.length - 1)
+      : Math.max(0, activeIndex - removedBefore);
+    setActiveViewerItem(nextIndex);
+    showViewerNotice("已从图库删除");
+    return true;
+  }
+
+  async function requestViewerDelete() {
+    const item = viewerState.items[viewerState.activeIndex];
+    setViewerDeleteMenuOpen(false);
+    if (!item || !await confirmViewerDelete()) return;
+    const response = await sendRuntimeMessage({
+      type: "IMAGE_SPARK_DELETE_GALLERY_ITEM",
+      payload: {
+        galleryId: item.galleryId || "",
+        localStoreId: item.localStoreId || "",
+        generationId: item.generationId || "",
+        resultIndex: item.resultIndex || 0,
+        originalUrl: item.originalUrl || "",
+        url: item.url || "",
+        isGenerating: false
+      }
+    });
+    if (!response?.ok) {
+      showViewerNotice(response?.error || "删除失败，请重试。");
+      return;
+    }
+    applyViewerDeletedKey(response.key || viewerGalleryDeleteKey(item));
+    if (response.imageCleanupFailed || response.cacheCleanupFailed) {
+      if (document.getElementById(VIEWER_ID)) showViewerNotice("图片已从图库移除，但部分本地缓存未能清理。");
+      else showPageGalleryDeleteToast("图片已从图库移除，但部分本地缓存未能清理。");
+    }
+  }
+
   function setViewerContinueMenuOpen(open) {
     const shadow = document.getElementById(VIEWER_ID)?.shadowRoot;
     const menu = shadow?.querySelector(".continue-menu");
@@ -944,6 +1062,7 @@
     closeViewerImageZoom();
     const item = viewerState.items[viewerState.activeIndex];
     setViewerContinueMenuOpen(false);
+    setViewerDeleteMenuOpen(false);
     const mainImage = host.shadowRoot.querySelector(".main-image");
     mainImage.alt = viewerAssetName(item);
     applyViewerImage(mainImage, item, "full");
@@ -1255,6 +1374,58 @@
           gap: 7px;
           padding: 0 14px;
         }
+        .delete-wrap { position: relative; }
+        .delete-trigger { min-width: 34px; padding: 0 9px; font-size: 20px; }
+        .delete-menu {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          z-index: 6;
+          min-width: 140px;
+          padding: 5px;
+          border: 1px solid rgba(255,255,255,.14);
+          border-radius: 10px;
+          background: #171622;
+          box-shadow: 0 14px 32px rgba(0,0,0,.48);
+        }
+        .delete-menu[hidden], .delete-confirm[hidden] { display: none; }
+        .delete-menu button {
+          width: 100%;
+          border: 0;
+          border-radius: 6px;
+          color: #fca5a5;
+          background: transparent;
+          font-size: 12px;
+          text-align: left;
+        }
+        .delete-menu button:hover, .delete-menu button:focus-visible {
+          color: #fecaca;
+          background: rgba(239,68,68,.12);
+        }
+        .delete-confirm {
+          position: fixed;
+          inset: 0;
+          z-index: 15;
+          display: grid;
+          place-items: center;
+          padding: 16px;
+          background: rgba(3,4,9,.76);
+          backdrop-filter: blur(8px);
+        }
+        .delete-panel {
+          width: min(100%,390px);
+          padding: 20px;
+          border: 1px solid rgba(255,255,255,.16);
+          border-radius: 15px;
+          background: #1c1b28;
+          box-shadow: 0 22px 60px rgba(0,0,0,.5);
+        }
+        .delete-panel h3 { margin: 0 0 10px; font-size: 16px; }
+        .delete-panel p { margin: 0; color: rgba(245,243,255,.72); font-size: 13px; line-height: 1.65; }
+        .delete-panel > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+        .delete-panel button { padding: 0 15px; border-radius: 8px; }
+        .delete-submit { border-color: rgba(239,68,68,.44); color: #fecaca; background: rgba(239,68,68,.13); }
+        .delete-submit:hover, .delete-submit:focus-visible { background: rgba(239,68,68,.24); }
         .action-btn.eagle::before {
           content: "";
           width: 15px;
@@ -2267,9 +2438,20 @@
             </div>
           </div>
           <button class="action-btn save-recipe" type="button" hidden>保存为方案</button>
+          <div class="delete-wrap">
+            <button class="action-btn delete-trigger" type="button" aria-label="更多操作" aria-haspopup="menu" aria-expanded="false">···</button>
+            <div class="delete-menu" role="menu" hidden><button class="delete-item" type="button" role="menuitem">删除此图片</button></div>
+          </div>
           <button class="action-btn close" type="button">关闭</button>
         </div>
         <div class="notice" hidden></div>
+        <div class="delete-confirm" role="alertdialog" aria-modal="true" aria-label="删除这张生成图片？" hidden>
+          <div class="delete-panel">
+            <h3>删除这张生成图片？</h3>
+            <p>删除后将从本地图库移除，无法恢复。<br>已保存到「我的方案」的方案不会受到影响。</p>
+            <div><button class="delete-cancel" type="button">取消</button><button class="delete-submit" type="button">删除</button></div>
+          </div>
+        </div>
         <div class="layout">
           <div class="stage">
             <img class="main-image" alt="放大预览">
@@ -2313,6 +2495,11 @@
     shadow.querySelector(".eagle")?.classList.remove("is-collected");
 
     shadow.querySelector(".close").addEventListener("click", closeViewer);
+    shadow.querySelector(".delete-trigger").addEventListener("click", () => {
+      setViewerContinueMenuOpen(false);
+      setViewerDeleteMenuOpen(shadow.querySelector(".delete-menu").hidden);
+    });
+    shadow.querySelector(".delete-item").addEventListener("click", requestViewerDelete);
     shadow.querySelector(".continue-trigger").addEventListener("click", () => {
       setViewerContinueMenuOpen(shadow.querySelector(".continue-menu").hidden);
     });
@@ -2321,6 +2508,7 @@
     });
     shadow.addEventListener("click", (event) => {
       if (!event.target.closest(".continue-wrap")) setViewerContinueMenuOpen(false);
+      if (!event.target.closest(".delete-wrap")) setViewerDeleteMenuOpen(false);
     });
     shadow.querySelector(".save-recipe").addEventListener("click", saveViewerRecipe);
     shadow.querySelector(".download").addEventListener("click", downloadViewerImage);
@@ -2502,6 +2690,12 @@
         event.preventDefault();
         return;
       }
+      const deleteMenu = document.getElementById(VIEWER_ID)?.shadowRoot?.querySelector(".delete-menu");
+      if (deleteMenu && !deleteMenu.hidden) {
+        setViewerDeleteMenuOpen(false);
+        event.preventDefault();
+        return;
+      }
       closeViewer();
     }
   });
@@ -2520,6 +2714,14 @@
     lastContextPoint = { x: event.clientX, y: event.clientY };
     lastContextImage = enhancedImageFromContextTarget(event) || imageFromContextTarget(event);
   }, true);
+
+  chrome.storage?.onChanged?.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes.imageSparkDeletedGalleryKeys?.newValue) return;
+    const oldKeys = new Set(changes.imageSparkDeletedGalleryKeys.oldValue || []);
+    changes.imageSparkDeletedGalleryKeys.newValue.forEach((key) => {
+      if (!oldKeys.has(key)) applyViewerDeletedKey(key);
+    });
+  });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "IMAGE_SPARK_GET_CONTEXT_IMAGE") {

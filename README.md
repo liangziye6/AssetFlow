@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>当前版本：v1.9.18</strong>
+  <strong>当前版本：v1.9.19</strong>
 </p>
 
 AssetFlow 可以把网页图片或本地图片整理成带角色、真实尺寸与来源关系的结构化 `ReusePlan`，将视觉分析和提示词编译分离，再通过现有生图 API 生成可追溯的新视觉资产。它同时保留文生图、图生图、反推提示词、异步任务恢复、本地图库、Eagle 收集与个人视觉方案管理能力。
@@ -45,6 +45,13 @@ AssetFlow 可以把网页图片或本地图片整理成带角色、真实尺寸�
 - 在「设置 → 反推」选择 `Grsai Chat API`，默认使用 `gemini-3.1-pro`；在「设置 → 生图」选择 `Grsai GPT Image API`，支持 `gpt-image-2` 与 `gpt-image-2.5`。两处分别填写 Grsai API Key 并保存。
 - Base URL 默认使用国内节点 `https://grsai.dakka.com.cn`，也可改为全球节点 `https://grsaiapi.com`；已有带 `/v1` 的地址继续兼容。
 - 生图通过 `/v1/api/generate` 异步提交，后台通过 `/v1/api/result?id=...` 恢复结果；图生图直接传递参与生成的参考图。上述两个基础模型只支持 1K；插件会把现有尺寸预设映射为 Grsai 支持的比例值，选择更大尺寸时会给出提示。
+
+## v1.9.19 API 默认与国内服务商
+
+- 首次使用时，反推提示词默认 OpenAI GPT-4.1 mini，生图默认 OpenAI GPT Image 2；已有用户保存的 API 配置保持原样。
+- 新增智谱 GLM-4.6V 视觉反推，以及阿里云百炼 Qwen-Image 3.0 Pro / 3.0 生图。千问图像支持文生图和最多 3 张参考图的图生图，需使用与 API Key 同地域的 Base URL。
+- OpenAI GPT Image 2 图生图通过 Images Edits API 上传参考图，文生图使用 Images Generations API。
+- 接口依据：[OpenAI 图像文档](https://developers.openai.com/api/docs/guides/image-generation)、[百炼千问图像文档](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference)、[智谱模型概览](https://docs.bigmodel.cn/cn/guide/start/model-overview)。
 
 ## v1.9.18 图库单张删除
 
@@ -120,7 +127,7 @@ node package-extension.js
 脚本会生成：
 
 - `dist/assetflow`：用于“加载已解压的扩展”的目录。
-- `dist/assetflow-v1.9.18.zip`：用于归档或后续发布的压缩包。
+- `dist/assetflow-v1.9.19.zip`：用于归档或后续发布的压缩包。
 - `dist/lyz-assetflow`：旧版解压安装的兼容目录，打包时会同步为最新版，Chrome 可以继续沿用原路径和扩展 ID。
 - `dist/image-prompt-builder`：更早版本的兼容目录，也会同步为最新版。
 

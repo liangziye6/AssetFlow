@@ -123,6 +123,7 @@
                   <option value="gemini">Google Gemini</option>
                   <option value="volcengine">火山引擎方舟</option>
                   <option value="aliyun">阿里云百炼</option>
+                  <option value="zhipu">智谱 GLM</option>
                   <option value="deepseek">DeepSeek</option>
                   <option value="grsai">Grsai Chat API</option>
                   <option value="siliconflow">SiliconFlow</option>
@@ -191,6 +192,7 @@
                   <option value="deepseek-v4-flash">DeepSeek-V4-Flash</option>
                   <option value="deepseek-v4-pro">DeepSeek-V4-Pro</option>
                   <option value="qwen-vl-plus">Qwen VL Plus</option>
+                  <option value="glm-4.6v">智谱 GLM-4.6V</option>
                   <option value="gemini-3.1-pro">Grsai Gemini 3.1 Pro</option>
                   <option value="custom" hidden>自定义视觉模型（旧配置兼容）</option>
                 </select>
@@ -212,10 +214,11 @@
               <label>
                 <span>服务商</span>
                 <select id="imageApiProvider">
-                  <option value="openai">OpenAI</option>
+                  <option value="openai" selected>OpenAI</option>
+                  <option value="aliyun">阿里云百炼（千问图像）</option>
                   <option value="apimart">APIMart</option>
                   <option value="grsai">Grsai GPT Image API</option>
-                  <option value="runninghub" selected>RunningHub</option>
+                  <option value="runninghub">RunningHub</option>
                   <option value="jimeng">即梦</option>
                   <option value="siliconflow">SiliconFlow</option>
                   <option value="replicate">Replicate</option>
@@ -255,9 +258,11 @@
                 <span>生图模型</span>
                 <select id="apiImageModelSelect">
                   <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
-                  <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（APIMart / Grsai）</option>
+                  <option value="gpt-image-2" selected>GPT Image 2</option>
                   <option value="gpt-image-2.5" data-grsai-option="true" hidden>Grsai GPT Image 2.5</option>
-                  <option value="runninghub-rhart-image-g-2" selected>RunningHub 全能图片G-2.0 低价渠道版</option>
+                  <option value="qwen-image-3.0-pro">千问 Qwen-Image 3.0 Pro</option>
+                  <option value="qwen-image-3.0">千问 Qwen-Image 3.0</option>
+                  <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
                   <option value="runninghub-rhart-image-g-2-official">RunningHub 全能图片G-2 官方稳定版</option>
                   <option value="flux-pro">Flux Pro</option>
                   <option value="sdxl">SDXL</option>
@@ -494,15 +499,17 @@
                 <div id="modelPicker" class="model-picker">
                   <button id="modelPickerBtn" class="model-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
                     <span class="model-active-dot" aria-hidden="true"></span>
-                    <span id="modelPickerText">RunningHub 全能图片G-2.0 低价渠道版</span>
+                    <span id="modelPickerText">GPT Image 2</span>
                     <span aria-hidden="true">⌄</span>
                   </button>
                   <div id="modelMenu" class="model-menu" role="listbox" hidden></div>
                   <select id="modelSelect">
                     <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
-                    <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（APIMart / Grsai）</option>
+                    <option value="gpt-image-2" selected>GPT Image 2</option>
                     <option value="gpt-image-2.5" data-grsai-option="true" hidden>Grsai GPT Image 2.5</option>
-                    <option value="runninghub-rhart-image-g-2" selected>RunningHub 全能图片G-2.0 低价渠道版</option>
+                    <option value="qwen-image-3.0-pro">千问 Qwen-Image 3.0 Pro</option>
+                    <option value="qwen-image-3.0">千问 Qwen-Image 3.0</option>
+                    <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
                     <option value="runninghub-rhart-image-g-2-official">RunningHub 全能图片G-2 官方稳定版</option>
                     <option value="flux-pro">Flux Pro</option>
                     <option value="sdxl">SDXL</option>

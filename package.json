@@ -1,6 +1,6 @@
 {
   "name": "assetflow",
-  "version": "1.9.18",
+  "version": "1.9.19",
   "private": true,
   "scripts": {
     "preview": "node preview-server.js",

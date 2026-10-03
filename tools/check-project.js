@@ -206,7 +206,10 @@ assert.match(popupJs, /\/openapi\/v2\/rhart-image-g-2-official\/image-to-image/,
 assert.match(popupJs, /quality:\s*isOfficial\s*\?\s*"low"\s*:\s*"medium"/, "RunningHub 官方稳定版必须默认使用 quality low");
 assert.match(backgroundJs, /runningHubApiModeOfficial[\s\S]*isStandardApi/, "后台任务恢复必须识别 RunningHub 官方稳定版");
 assert.match(popupHtml, /id="customProviderForm"[\s\S]*id="customProviderName"[\s\S]*id="customProviderBaseUrl"[\s\S]*id="customProviderModel"/, "必须提供可编辑的自定义 API 服务商表单");
-assert.match(popupHtml, /value="gpt-image-1" data-legacy-option="true" hidden[\s\S]*value="gpt-image-2" data-legacy-option="true" hidden/, "无实际默认作用的 GPT Image 选项必须从新选择列表隐藏");
+assert.match(popupHtml, /id="imageApiProvider"[\s\S]{0,100}<option value="openai" selected>/, "生图 API 首次使用必须默认 OpenAI");
+assert.match(popupHtml, /value="gpt-image-1" data-legacy-option="true" hidden[\s\S]*value="gpt-image-2" selected>GPT Image 2/, "OpenAI GPT Image 2 必须是可见默认模型");
+assert.match(popupHtml, /value="zhipu">智谱 GLM<\/option>/, "反推服务商必须包含智谱");
+assert.match(popupHtml, /value="qwen-image-3\.0-pro">/, "生图模型必须包含千问图像");
 assert.match(popupJs, /\.filter\(\(option\) => !option\.hidden \|\| option\.selected\)/, "快捷模型菜单必须按当前服务商显示模型，同时允许当前选中项继续显示");
 assert.match(popupJs, /CUSTOM_API_PROVIDERS_STORAGE_KEY[\s\S]*saveCustomApiProviders[\s\S]*loadCustomApiProviders/, "自定义 API 服务商必须持久化");
 assert.match(popupJs, /providerId:\s*promptCustomProvider[\s\S]*providerId:\s*imageCustomProvider/, "自定义服务商必须进入真实 API 配置");

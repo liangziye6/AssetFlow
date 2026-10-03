@@ -1656,6 +1656,7 @@ function defaultBaseUrl(provider) {
     grsai: "https://grsai.dakka.com.cn",
     runninghub: "https://www.runninghub.cn",
     siliconflow: "https://api.siliconflow.cn/v1",
+    zhipu: "https://open.bigmodel.cn/api/paas/v4",
     replicate: "https://api.replicate.com/v1",
     jimeng: "https://ark.cn-beijing.volces.com/api/v3",
     custom: ""
@@ -1759,7 +1760,7 @@ function setupOptionalLocalIntegrations() {
 }
 
 function selectedModelLabel() {
-  return nodes.modelSelect.options[nodes.modelSelect.selectedIndex]?.text || "RunningHub 全能图片G-2.0 低价渠道版";
+  return nodes.modelSelect.options[nodes.modelSelect.selectedIndex]?.text || "GPT Image 2";
 }
 
 function syncGrsaiModelOptions() {
@@ -1767,7 +1768,7 @@ function syncGrsaiModelOptions() {
   [nodes.apiImageModelSelect, nodes.modelSelect].forEach((select) => {
     const gptImage2 = [...select.options].find((option) => option.value === "gpt-image-2");
     const gptImage25 = [...select.options].find((option) => option.value === "gpt-image-2.5");
-    if (gptImage2) gptImage2.hidden = !["apimart", "grsai"].includes(provider);
+    if (gptImage2) gptImage2.hidden = !["openai", "apimart", "grsai"].includes(provider);
     if (gptImage25) gptImage25.hidden = provider !== "grsai";
   });
   renderModelMenu();
@@ -3503,6 +3504,10 @@ function expectedReferenceStrategy(plan) {
   let direct = [];
   if (config.provider === "apimart" && model === "gpt-image-2") {
     direct = plan.references.map((reference) => reference.order);
+  } else if (["openai", "aliyun"].includes(config.provider)) {
+    const selected = imageItems.map((item, index) => selectedImageIds.has(item.id) ? index + 1 : 0).filter(Boolean);
+    direct = (selected.length ? selected : plan.references.map((reference) => reference.order))
+      .slice(0, config.provider === "aliyun" ? 3 : 4);
   } else if (config.provider === "runninghub" && isRunningHubG2Model(model)) {
     const mode = model === RUNNINGHUB_G2_OFFICIAL_MODEL ? RUNNINGHUB_API_MODE_OFFICIAL : config.runninghubMode;
     const selected = imageItems.map((item, index) => selectedImageIds.has(item.id) ? index + 1 : 0).filter(Boolean);
@@ -6957,6 +6962,17 @@ function sizeForApi() {
   return `${width}x${height}`;
 }
 
+function validateOpenAiImageSize(width, height) {
+  const pixels = width * height;
+  if (!Number.isInteger(width) || !Number.isInteger(height)
+    || width % 16 !== 0 || height % 16 !== 0
+    || Math.max(width, height) > 3840
+    || Math.max(width, height) / Math.min(width, height) > 3
+    || pixels < 655360 || pixels > 8294400) {
+    throw new Error("OpenAI GPT Image 2 尺寸需为 16 的倍数，比例不超过 3:1，且总像素在 655360 至 8294400 之间；请调整尺寸后重试。");
+  }
+}
+
 function sizeForSeedreamApi() {
   return sizeForApi();
 }
@@ -8059,6 +8075,53 @@ async function callRunningHubG2({
   }));
 }
 
+async function callOpenAiImageEdit({
+  prompt, displayPrompt, promptCn, promptEn, promptStructure,
+  count, width, height, model, imageModel, apiKey, baseUrl,
+  mode, source, onProgress, onReferencesPrepared,
+  referenceItems, selectedReferenceIds = []
+}) {
+  const selectedItems = referenceItems.filter((item) => selectedReferenceIds.includes(item.id));
+  const directItems = selectedItems.length ? selectedItems : referenceItems;
+  const dataUrls = await selectedImageDataUrlsForApi({
+    useAll: true, max: 4, items: directItems, onReferencesPrepared
+  });
+  if (!dataUrls.length) {
+    throw new Error("OpenAI 图生图未能读取参考图，请重新上传后再试。");
+  }
+  const form = new FormData();
+  form.append("model", imageModel);
+  form.append("prompt", prompt);
+  form.append("n", String(count));
+  form.append("size", String(width) + "x" + String(height));
+  for (let index = 0; index < dataUrls.length; index += 1) {
+    const blob = await (await fetch(dataUrls[index])).blob();
+    if (!["image/png", "image/jpeg", "image/webp"].includes(blob.type)) {
+      throw new Error("OpenAI 参考图格式无效，请上传 PNG、JPEG 或 WebP 图片。");
+    }
+    const extension = blob.type === "image/jpeg" ? "jpg" : blob.type === "image/webp" ? "webp" : "png";
+    form.append("image[]", blob, "reference-" + (index + 1) + "." + extension);
+  }
+  onProgress?.(null, "正在提交 OpenAI 图像编辑");
+  const data = await fetchJson(baseUrlWithPath(baseUrl, "/images/edits"), {
+    method: "POST",
+    headers: { Authorization: "Bearer " + apiKey },
+    body: form
+  }, "OpenAI 图像编辑");
+  const urls = extractGeneratedImages(data);
+  if (!urls.length) {
+    throw new Error("OpenAI 已返回，但没有识别到图片 URL 或 base64 图片。");
+  }
+  onProgress?.(null, "正在载入图片");
+  return urls.slice(0, count).map((url, index) => ({
+    index: "#" + (galleryItems.length + index + 1),
+    model, width, height,
+    prompt: displayPrompt || prompt,
+    promptCn, promptEn, promptStructure, mode,
+    source: normalizeGallerySource(source, mode), url
+  }));
+}
+
 async function callImageGenerationApi({
   prompt,
   displayPrompt,
@@ -8172,6 +8235,21 @@ async function callImageGenerationApi({
     });
   }
 
+  if (provider === "openai" && imageModel === "gpt-image-2") {
+    validateOpenAiImageSize(width, height);
+  }
+  if (provider === "openai" && useImageReferences) {
+    if (!referenceItems.length) {
+      throw new Error("OpenAI 图生图需要先上传参考图片。");
+    }
+    return callOpenAiImageEdit({
+      prompt, displayPrompt, promptCn, promptEn, promptStructure,
+      count, width, height, model, imageModel, apiKey, baseUrl,
+      mode, source, onProgress, onReferencesPrepared,
+      referenceItems, selectedReferenceIds
+    });
+  }
+
   const body = {
     model: imageModel,
     prompt,
@@ -8197,7 +8275,30 @@ async function callImageGenerationApi({
     }
   }
 
-  await onReferencesPrepared?.([]);
+  if (provider === "aliyun") {
+    const pixels = width * height;
+    if (pixels < 512 * 512 || pixels > 2048 * 2048) {
+      throw new Error("千问图像 3.0 的输出总像素需在 512×512 至 2048×2048 之间，请调整尺寸。");
+    }
+    if (useImageReferences) {
+      const selectedItems = referenceItems.filter((item) => selectedReferenceIds.includes(item.id));
+      const directItems = selectedItems.length ? selectedItems : referenceItems;
+      if (directItems.length > 3) {
+        throw new Error("千问图像 3.0 最多支持 3 张参考图，请减少参考图后重试。");
+      }
+      const images = await selectedImageDataUrlsForApi({
+        useAll: true, max: 3, items: directItems, onReferencesPrepared
+      });
+      if (!images.length) {
+        throw new Error("千问图生图未能读取参考图，请重新上传后再试。");
+      }
+      body.image = images.length === 1 ? images[0] : images;
+    } else {
+      await onReferencesPrepared?.([]);
+    }
+  } else {
+    await onReferencesPrepared?.([]);
+  }
   onProgress?.(null, "正在提交请求");
   const data = await fetchJson(baseUrlWithPath(baseUrl, "/images/generations"), {
     method: "POST",
@@ -9098,15 +9199,15 @@ function deleteCustomApiProvider(provider) {
     syncPromptCustomModelField();
   }
   if (imageSelected) {
-    nodes.imageApiProvider.value = "runninghub";
-    nodes.imageApiBaseUrl.value = defaultBaseUrl("runninghub");
+    nodes.imageApiProvider.value = "openai";
+    nodes.imageApiBaseUrl.value = defaultBaseUrl("openai");
     nodes.imageApiKey.value = "";
-    nodes.apiImageModelSelect.value = RUNNINGHUB_G2_MODEL;
-    nodes.runningHubApiMode.value = RUNNINGHUB_API_MODE_CONSUMER;
+    nodes.apiImageModelSelect.value = "gpt-image-2";
     syncRunningHubApiModeField();
+    syncGrsaiModelOptions();
   }
   if (modelSelected) {
-    nodes.modelSelect.value = RUNNINGHUB_G2_MODEL;
+    nodes.modelSelect.value = "gpt-image-2";
     syncModelPicker();
   }
   updateCustomProviderManagedUi();
@@ -9559,6 +9660,12 @@ nodes.promptApiProvider.addEventListener("change", () => {
     return;
   }
   nodes.promptApiBaseUrl.value = defaultBaseUrl(nodes.promptApiProvider.value);
+  if (nodes.promptApiProvider.value === "openai") {
+    nodes.promptModelSelect.value = "gpt-4.1-mini";
+  }
+  if (nodes.promptApiProvider.value === "zhipu") {
+    nodes.promptModelSelect.value = "glm-4.6v";
+  }
   if (nodes.promptApiProvider.value === "grsai") {
     nodes.promptModelSelect.value = "gemini-3.1-pro";
   }
@@ -9591,6 +9698,16 @@ nodes.imageApiProvider.addEventListener("change", () => {
     return;
   }
   nodes.imageApiBaseUrl.value = defaultBaseUrl(nodes.imageApiProvider.value);
+  if (nodes.imageApiProvider.value === "openai") {
+    nodes.apiImageModelSelect.value = "gpt-image-2";
+    nodes.modelSelect.value = "gpt-image-2";
+    syncModelPicker();
+  }
+  if (nodes.imageApiProvider.value === "aliyun") {
+    nodes.apiImageModelSelect.value = "qwen-image-3.0-pro";
+    nodes.modelSelect.value = "qwen-image-3.0-pro";
+    syncModelPicker();
+  }
   if (nodes.imageApiProvider.value === "grsai") {
     nodes.apiImageModelSelect.value = "gpt-image-2";
     nodes.modelSelect.value = "gpt-image-2";
@@ -9635,12 +9752,17 @@ nodes.apiImageModelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "jimeng";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("jimeng");
   }
+  if (nodes.apiImageModelSelect.value.startsWith("qwen-image-3.0")) {
+    nodes.imageApiProvider.value = "aliyun";
+    nodes.imageApiBaseUrl.value = defaultBaseUrl("aliyun");
+  }
   if (nodes.apiImageModelSelect.value === "gpt-image-2.5") {
     nodes.imageApiProvider.value = "grsai";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("grsai");
-  } else if (nodes.apiImageModelSelect.value === "gpt-image-2" && nodes.imageApiProvider.value !== "grsai") {
-    nodes.imageApiProvider.value = "apimart";
-    nodes.imageApiBaseUrl.value = defaultBaseUrl("apimart");
+  } else if (nodes.apiImageModelSelect.value === "gpt-image-2"
+    && !["openai", "grsai", "apimart"].includes(nodes.imageApiProvider.value)) {
+    nodes.imageApiProvider.value = "openai";
+    nodes.imageApiBaseUrl.value = defaultBaseUrl("openai");
   }
   if (isRunningHubG2Model(nodes.apiImageModelSelect.value)) {
     nodes.imageApiProvider.value = "runninghub";
@@ -9688,12 +9810,17 @@ nodes.modelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "jimeng";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("jimeng");
   }
+  if (nodes.modelSelect.value.startsWith("qwen-image-3.0")) {
+    nodes.imageApiProvider.value = "aliyun";
+    nodes.imageApiBaseUrl.value = defaultBaseUrl("aliyun");
+  }
   if (nodes.modelSelect.value === "gpt-image-2.5") {
     nodes.imageApiProvider.value = "grsai";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("grsai");
-  } else if (nodes.modelSelect.value === "gpt-image-2" && nodes.imageApiProvider.value !== "grsai") {
-    nodes.imageApiProvider.value = "apimart";
-    nodes.imageApiBaseUrl.value = defaultBaseUrl("apimart");
+  } else if (nodes.modelSelect.value === "gpt-image-2"
+    && !["openai", "grsai", "apimart"].includes(nodes.imageApiProvider.value)) {
+    nodes.imageApiProvider.value = "openai";
+    nodes.imageApiBaseUrl.value = defaultBaseUrl("openai");
   }
   if (isRunningHubG2Model(nodes.modelSelect.value)) {
     nodes.imageApiProvider.value = "runninghub";
@@ -9710,7 +9837,15 @@ nodes.promptModelSelect?.addEventListener("change", () => {
     applyCustomApiProvider(customProvider);
     return;
   }
-  if (nodes.promptModelSelect.value === "gemini-3.1-pro") {
+  if (["gpt-4.1-mini", "gpt-4o-mini"].includes(nodes.promptModelSelect.value)) {
+    nodes.promptApiProvider.value = "openai";
+    nodes.promptApiBaseUrl.value = defaultBaseUrl("openai");
+    syncDeepSeekPromptUi({ fromModel: true });
+  } else if (nodes.promptModelSelect.value === "glm-4.6v") {
+    nodes.promptApiProvider.value = "zhipu";
+    nodes.promptApiBaseUrl.value = defaultBaseUrl("zhipu");
+    syncDeepSeekPromptUi({ fromModel: true });
+  } else if (nodes.promptModelSelect.value === "gemini-3.1-pro") {
     nodes.promptApiProvider.value = "grsai";
     nodes.promptApiBaseUrl.value = defaultBaseUrl("grsai");
     syncDeepSeekPromptUi({ fromModel: true });

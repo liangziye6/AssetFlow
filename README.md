@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.17 - 视觉资产复用工作台" width="100%">
+  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.19 - 视觉资产复用工作台" width="100%">
 </p>
 
 <h1 align="center">AssetFlow</h1>
@@ -15,7 +15,7 @@
 <p align="center">Reference · Plan · Create · Save · Reuse</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-v1.9.17-6D5DFC">
+  <img alt="version" src="https://img.shields.io/badge/version-v1.9.19-6D5DFC">
   <img alt="Chrome" src="https://img.shields.io/badge/Chrome-Side%20Panel-4285F4">
   <img alt="Edge" src="https://img.shields.io/badge/Edge-Compatible-0AA0F6">
   <img alt="data" src="https://img.shields.io/badge/data-local--first-16A34A">
@@ -114,6 +114,15 @@ v1.9.17 新增完整的个人视觉方案闭环：
 
 ---
 
+## v1.9.18–v1.9.19 更新
+
+- v1.9.18：图库卡片、网页 Viewer 和插件内 Viewer 支持确认后删除单张图片；本地图片和异步恢复记录同步清理，个人方案独立保留。
+- v1.9.19：首次使用时，反推提示词默认 OpenAI GPT-4.1 mini，生图默认 OpenAI GPT Image 2；已保存的配置保持原样。
+- 新增智谱 GLM-4.6V 视觉反推，以及阿里云百炼 Qwen-Image 3.0 Pro / 3.0 文生图与图生图。OpenAI 图生图通过 Images Edits API 上传参考图。
+- 接口依据：[OpenAI 图像文档](https://developers.openai.com/api/docs/guides/image-generation)、[百炼千问图像文档](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference)、[智谱模型概览](https://docs.bigmodel.cn/cn/guide/start/model-overview)。
+
+---
+
 ## 灵感库
 
 当前内置案例池：
@@ -173,7 +182,7 @@ Viewer → 保存为方案 → 我的方案 → 使用方案 → 重新上传参
 
 ## 安装
 
-当前版本：v1.9.17
+当前版本：v1.9.19
 
 ### 从源码加载
 
@@ -186,7 +195,7 @@ Viewer → 保存为方案 → 我的方案 → 使用方案 → 重新上传参
 5. 点击“加载已解压的扩展”。
 6. 选择 dist/assetflow。
 
-打包脚本同时生成 dist/assetflow-v1.9.17.zip，用于归档或分发。
+打包脚本同时生成 dist/assetflow-v1.9.19.zip，用于归档或分发。
 
 ### 已安装旧版本？
 
@@ -196,10 +205,12 @@ Viewer → 保存为方案 → 我的方案 → 使用方案 → 重新上传参
 
 ## API 配置
 
-AssetFlow 将“反推 / 分析 API”和“生图 API”分开管理，因此可以自由组合不同供应商。
+AssetFlow 将“反推 / 分析 API”和“生图 API”分开管理，因此可以自由组合不同供应商。首次使用时两者默认 OpenAI；已保存的配置不会被覆盖。
 
 ### 反推与视觉分析
 
+- OpenAI GPT-4.1 mini（默认）
+- 智谱 GLM-4.6V
 - Grsai Chat API
 - Google Gemini
 - 阿里云百炼 Qwen-VL
@@ -208,6 +219,8 @@ AssetFlow 将“反推 / 分析 API”和“生图 API”分开管理，因此�
 
 ### 生图
 
+- OpenAI GPT Image 2（默认）
+- 阿里云百炼 Qwen-Image 3.0 Pro / 3.0
 - Grsai GPT Image
 - RunningHub
 - APIMart
@@ -293,7 +306,7 @@ Viewer 可以查看：
 - direct / analysis 来源关系
 - 已生成图库
 
-并支持：使用此提示词、图生图编辑、恢复视觉复用、保存为方案、下载和 Eagle 收集。
+并支持：使用此提示词、图生图编辑、恢复视觉复用、保存为方案、删除单张图片、下载和 Eagle 收集。
 
 旧资产如果缺少完整 lineage，不会伪造来源。
 
@@ -324,7 +337,9 @@ Viewer 中可以直接使用“收集到 Eagle”。AssetFlow 优先读取本地
 
 ## 当前版本验证
 
-v1.9.17 当前已经通过：
+v1.9.19 已通过项目检查、打包、隔离浏览器模拟 API 请求验证，以及图库单张删除回归。新增服务商尚未用真实 API Key 调用线上接口。
+
+v1.9.17 已通过：
 
 - npm run check
 - git diff --check
@@ -362,7 +377,7 @@ GitHub Actions 会自动执行项目检查、git diff --check 和打包。
 
 ## 当前边界
 
-v1.9.17 暂不包含：
+当前暂不包含：
 
 - 文生图保存为个人 Prompt Recipe
 - 个人方案同步
@@ -378,6 +393,6 @@ v1.9.17 暂不包含：
 ---
 
 <p align="center">
-  <strong>AssetFlow v1.9.17</strong><br>
+  <strong>AssetFlow v1.9.19</strong><br>
   Reference · Plan · Create · Save · Reuse
 </p>

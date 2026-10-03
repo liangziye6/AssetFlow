@@ -123,6 +123,7 @@
                   <option value="gemini">Google Gemini</option>
                   <option value="volcengine">火山引擎方舟</option>
                   <option value="aliyun">阿里云百炼</option>
+                  <option value="zhipu">智谱 GLM</option>
                   <option value="deepseek">DeepSeek</option>
                   <option value="grsai">Grsai Chat API</option>
                   <option value="siliconflow">SiliconFlow</option>
@@ -191,6 +192,7 @@
                   <option value="deepseek-v4-flash">DeepSeek-V4-Flash</option>
                   <option value="deepseek-v4-pro">DeepSeek-V4-Pro</option>
                   <option value="qwen-vl-plus">Qwen VL Plus</option>
+                  <option value="glm-4.6v">智谱 GLM-4.6V</option>
                   <option value="gemini-3.1-pro">Grsai Gemini 3.1 Pro</option>
                   <option value="custom" hidden>自定义视觉模型（旧配置兼容）</option>
                 </select>
@@ -212,10 +214,11 @@
               <label>
                 <span>服务商</span>
                 <select id="imageApiProvider">
-                  <option value="openai">OpenAI</option>
+                  <option value="openai" selected>OpenAI</option>
+                  <option value="aliyun">阿里云百炼（千问图像）</option>
                   <option value="apimart">APIMart</option>
                   <option value="grsai">Grsai GPT Image API</option>
-                  <option value="runninghub" selected>RunningHub</option>
+                  <option value="runninghub">RunningHub</option>
                   <option value="jimeng">即梦</option>
                   <option value="siliconflow">SiliconFlow</option>
                   <option value="replicate">Replicate</option>
@@ -255,9 +258,11 @@
                 <span>生图模型</span>
                 <select id="apiImageModelSelect">
                   <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
-                  <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（APIMart / Grsai）</option>
+                  <option value="gpt-image-2" selected>GPT Image 2</option>
                   <option value="gpt-image-2.5" data-grsai-option="true" hidden>Grsai GPT Image 2.5</option>
-                  <option value="runninghub-rhart-image-g-2" selected>RunningHub 全能图片G-2.0 低价渠道版</option>
+                  <option value="qwen-image-3.0-pro">千问 Qwen-Image 3.0 Pro</option>
+                  <option value="qwen-image-3.0">千问 Qwen-Image 3.0</option>
+                  <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
                   <option value="runninghub-rhart-image-g-2-official">RunningHub 全能图片G-2 官方稳定版</option>
                   <option value="flux-pro">Flux Pro</option>
                   <option value="sdxl">SDXL</option>
@@ -494,15 +499,17 @@
                 <div id="modelPicker" class="model-picker">
                   <button id="modelPickerBtn" class="model-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
                     <span class="model-active-dot" aria-hidden="true"></span>
-                    <span id="modelPickerText">RunningHub 全能图片G-2.0 低价渠道版</span>
+                    <span id="modelPickerText">GPT Image 2</span>
                     <span aria-hidden="true">⌄</span>
                   </button>
                   <div id="modelMenu" class="model-menu" role="listbox" hidden></div>
                   <select id="modelSelect">
                     <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
-                    <option value="gpt-image-2" data-legacy-option="true" hidden>GPT Image 2（APIMart / Grsai）</option>
+                    <option value="gpt-image-2" selected>GPT Image 2</option>
                     <option value="gpt-image-2.5" data-grsai-option="true" hidden>Grsai GPT Image 2.5</option>
-                    <option value="runninghub-rhart-image-g-2" selected>RunningHub 全能图片G-2.0 低价渠道版</option>
+                    <option value="qwen-image-3.0-pro">千问 Qwen-Image 3.0 Pro</option>
+                    <option value="qwen-image-3.0">千问 Qwen-Image 3.0</option>
+                    <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
                     <option value="runninghub-rhart-image-g-2-official">RunningHub 全能图片G-2 官方稳定版</option>
                     <option value="flux-pro">Flux Pro</option>
                     <option value="sdxl">SDXL</option>
@@ -639,6 +646,12 @@
             </div>
           </div>
           <button id="lightboxSaveRecipeBtn" class="lightbox-action-btn" type="button" hidden>保存为方案</button>
+          <div class="lightbox-more">
+            <button id="lightboxMoreBtn" class="lightbox-action-btn lightbox-more-btn" type="button" aria-label="更多操作" aria-haspopup="menu" aria-expanded="false">···</button>
+            <div id="lightboxDeleteMenu" class="gallery-item-menu lightbox-item-menu" role="menu" hidden>
+              <button id="lightboxDeleteBtn" type="button" role="menuitem">删除此图片</button>
+            </div>
+          </div>
           <span id="lightboxRecipeNotice" role="status"></span>
           <button id="lightboxClose" class="lightbox-action-btn" type="button">关闭</button>
         </div>
@@ -661,6 +674,18 @@
           <div id="lightboxStrip" class="lightbox-strip" aria-label="已生成图片"></div>
         </div>
       </div>
+
+      <div id="galleryDeleteConfirm" class="gallery-delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="galleryDeleteTitle" aria-describedby="galleryDeleteDescription" hidden>
+        <div class="gallery-delete-panel">
+          <h3 id="galleryDeleteTitle">删除这张生成图片？</h3>
+          <p id="galleryDeleteDescription">删除后将从本地图库移除，无法恢复。<br>已保存到「我的方案」的方案不会受到影响。</p>
+          <div class="gallery-delete-buttons">
+            <button id="galleryDeleteCancel" type="button">取消</button>
+            <button id="galleryDeleteSubmit" type="button">删除</button>
+          </div>
+        </div>
+      </div>
+      <div id="galleryDeleteToast" class="gallery-delete-toast" role="status" hidden></div>
 
       <div id="templateScrim" class="template-scrim" hidden></div>
       <aside id="templateDrawer" class="template-drawer" role="dialog" aria-modal="true" aria-label="灵感库" hidden>

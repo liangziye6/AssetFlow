@@ -8,6 +8,7 @@ const apiStorageKey = "imageSparkApiConfig";
 const pendingGenerationTasksKey = "imageSparkPendingGenerationTasks";
 const pendingGenerationTaskPrefix = `${pendingGenerationTasksKey}:`;
 const completedGenerationResultsKey = "imageSparkCompletedGenerationResults";
+const deletedGalleryKeysKey = "imageSparkDeletedGalleryKeys";
 const maxCompletedGenerationResults = 120;
 const pendingGenerationAlarmName = "imageSparkPollPendingGeneration";
 const localImageDbName = "imageSparkLocalImages";
@@ -339,6 +340,67 @@ function generationResultId(generationId, resultIndex = 0) {
   return generationId ? `generation-${generationId}-${resultIndex}` : "";
 }
 
+function galleryDeleteKey(item) {
+  const id = item?.galleryId || item?.localStoreId
+    || generationResultId(item?.generationId, item?.resultIndex);
+  if (id) return `id:${id}`;
+  const url = String(item?.originalUrl || item?.url || "");
+  if (!url) return "";
+  let hash = 2166136261;
+  for (let index = 0; index < url.length; index += 1) hash = Math.imul(hash ^ url.charCodeAt(index), 16777619);
+  return `url:${url.length}:${hash >>> 0}`;
+}
+
+const deletingGalleryKeys = new Set();
+
+async function deletedGalleryKeySet() {
+  const stored = await storageGet(deletedGalleryKeysKey);
+  return new Set(Array.isArray(stored?.[deletedGalleryKeysKey]) ? stored[deletedGalleryKeysKey] : []);
+}
+
+async function deleteGalleryItem(payload) {
+  if (!payload || payload.isGenerating) throw new Error("正在生成的图片不能删除。");
+  const key = galleryDeleteKey(payload);
+  if (!key) throw new Error("缺少图库图片标识。");
+  deletingGalleryKeys.add(key);
+  try {
+    const db = await openLocalImageDb();
+    let imageCleanupFailed = false;
+    try {
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction(["gallery", localImageStore], "readwrite");
+        const gallery = transaction.objectStore("gallery");
+        const images = transaction.objectStore(localImageStore);
+        const request = gallery.getAll();
+        request.onsuccess = () => {
+          const records = request.result || [];
+          const record = records.find((entry) => entry.id === payload.galleryId
+            || (payload.localStoreId && entry.localStoreId === payload.localStoreId));
+          if (record) gallery.delete(record.id);
+          const imageId = record?.localStoreId || payload.localStoreId;
+          const shared = records.some((entry) => entry !== record && entry.localStoreId === imageId);
+          // Gallery images use image-* IDs; recipe, source and workspace images have other owners.
+          if (imageId?.startsWith("image-") && !shared) images.delete(imageId);
+          else if (imageId && !shared) imageCleanupFailed = true;
+        };
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+    } finally {
+      db.close();
+    }
+    const keys = await deletedGalleryKeySet();
+    keys.add(key);
+    if (!await storageSet({ [deletedGalleryKeysKey]: [...keys] })) {
+      return { ok: true, key, cacheCleanupFailed: true, imageCleanupFailed };
+    }
+    return { ok: true, key, imageCleanupFailed };
+  } finally {
+    deletingGalleryKeys.delete(key);
+  }
+}
+
 async function getLocalGalleryRecord(id) {
   const db = await openLocalImageDb();
   try {
@@ -356,6 +418,7 @@ async function getLocalGalleryRecord(id) {
 async function persistCompletedImage(task, url, index) {
   const galleryId = generationResultId(task.generationId, index);
   if (!galleryId) throw new Error("生成任务缺少稳定 ID");
+  if (deletingGalleryKeys.has(`id:${galleryId}`) || (await deletedGalleryKeySet()).has(`id:${galleryId}`)) return null;
   const existing = await getLocalGalleryRecord(galleryId);
   if (existing) return existing;
   const response = await fetch(url);
@@ -408,6 +471,7 @@ async function persistCompletedImage(task, url, index) {
 
   const db = await openLocalImageDb();
   try {
+    if (deletingGalleryKeys.has(`id:${galleryId}`) || (await deletedGalleryKeySet()).has(`id:${galleryId}`)) return null;
     await new Promise((resolve, reject) => {
       const transaction = db.transaction([localImageStore, "gallery"], "readwrite");
       transaction.objectStore(localImageStore).put(imageRecord);
@@ -427,7 +491,8 @@ async function persistCompletedImages(task, urls) {
   const remainingUrls = [];
   for (let index = 0; index < urls.length; index += 1) {
     try {
-      items.push(await persistCompletedImage(task, urls[index], index));
+      const item = await persistCompletedImage(task, urls[index], index);
+      if (item) items.push(item);
     } catch {
       remainingUrls.push(urls[index]);
     }
@@ -832,6 +897,12 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "IMAGE_SPARK_DELETE_GALLERY_ITEM") {
+    deleteGalleryItem(message.payload)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, error: error?.message || "图库删除失败" }));
+    return true;
+  }
   if (message?.type === "ASSETFLOW_RECIPE_FROM_GALLERY") {
     (async () => {
       const item = await AssetFlowUserRecipes.getGalleryItem(String(message.galleryId || ""));

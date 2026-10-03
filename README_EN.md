@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.17 - Visual Asset Reuse Workspace" width="100%">
+  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.19 - Visual Asset Reuse Workspace" width="100%">
 </p>
 
 <h1 align="center">AssetFlow</h1>
@@ -15,7 +15,7 @@
 <p align="center">Reference · Plan · Create · Save · Reuse</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-v1.9.17-6D5DFC">
+  <img alt="version" src="https://img.shields.io/badge/version-v1.9.19-6D5DFC">
   <img alt="Chrome" src="https://img.shields.io/badge/Chrome-Side%20Panel-4285F4">
   <img alt="Edge" src="https://img.shields.io/badge/Edge-Compatible-0AA0F6">
   <img alt="data" src="https://img.shields.io/badge/data-local--first-16A34A">
@@ -116,6 +116,15 @@ By default, AssetFlow does not permanently copy the original reference images in
 
 ---
 
+## v1.9.18–v1.9.19 Updates
+
+- v1.9.18: Delete one image from a gallery card or either Viewer after confirmation. Local image data and async replay records are cleaned up while personal recipes remain independent.
+- v1.9.19: New setups use OpenAI GPT-4.1 mini for reverse prompts and OpenAI GPT Image 2 for generation. Saved provider settings remain unchanged.
+- Added Zhipu GLM-4.6V for visual analysis and Alibaba Cloud Bailian Qwen-Image 3.0 Pro / 3.0 for text-to-image and image-to-image. OpenAI image edits upload reference images through the Images Edits API.
+- API references: [OpenAI image generation](https://developers.openai.com/api/docs/guides/image-generation), [Alibaba Qwen Image](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference), [Zhipu model overview](https://docs.bigmodel.cn/cn/guide/start/model-overview).
+
+---
+
 ## Inspiration Library
 
 Current built-in recipe pool:
@@ -175,7 +184,7 @@ Per-reference strength and lock controls are available in advanced settings.
 
 ## Installation
 
-Current version: v1.9.17
+Current version: v1.9.19
 
 ### Load from source
 
@@ -188,7 +197,7 @@ Current version: v1.9.17
 5. Choose “Load unpacked”.
 6. Select `dist/assetflow`.
 
-The packaging script also creates `dist/assetflow-v1.9.17.zip` for archiving or distribution.
+The packaging script also creates `dist/assetflow-v1.9.19.zip` for archiving or distribution.
 
 ### Updating an older installation
 
@@ -198,10 +207,12 @@ If an older version was loaded from `dist/lyz-assetflow` or `dist/image-prompt-b
 
 ## API Configuration
 
-AssetFlow manages analysis / reverse-prompt APIs separately from image-generation APIs, so you can mix providers freely.
+AssetFlow manages analysis / reverse-prompt APIs separately from image-generation APIs, so you can mix providers freely. New setups default to OpenAI for both; saved settings are preserved.
 
 ### Analysis and visual understanding
 
+- OpenAI GPT-4.1 mini (default)
+- Zhipu GLM-4.6V
 - Grsai Chat API
 - Google Gemini
 - Alibaba Cloud Bailian Qwen-VL
@@ -210,6 +221,8 @@ AssetFlow manages analysis / reverse-prompt APIs separately from image-generatio
 
 ### Image generation
 
+- OpenAI GPT Image 2 (default)
+- Alibaba Cloud Bailian Qwen-Image 3.0 Pro / 3.0
 - Grsai GPT Image
 - RunningHub
 - APIMart
@@ -301,6 +314,7 @@ It also supports:
 - Image-to-Image Edit
 - Restore Visual Reuse
 - Save as Recipe
+- Delete one image
 - Download
 - Eagle collection
 
@@ -335,7 +349,9 @@ Eagle must be installed and running locally.
 
 ## Current Validation Status
 
-v1.9.17 has passed:
+v1.9.19 passed project checks, packaging, isolated-browser API request mocks, and the single-image gallery deletion regression. The new providers have not been called with live API keys.
+
+v1.9.17 passed:
 
 - `npm run check`
 - `git diff --check`
@@ -373,7 +389,7 @@ GitHub Actions automatically runs project checks, `git diff --check`, and packag
 
 ## Current Scope
 
-v1.9.17 does not yet include:
+The current version does not yet include:
 
 - saving text-to-image results as personal Prompt Recipes
 - personal recipe cloud sync
@@ -389,6 +405,6 @@ These limitations do not block the current text-to-image, image-to-image, visual
 ---
 
 <p align="center">
-  <strong>AssetFlow v1.9.17</strong><br>
+  <strong>AssetFlow v1.9.19</strong><br>
   Reference · Plan · Create · Save · Reuse
 </p>

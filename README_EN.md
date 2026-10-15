@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.19 - Visual Asset Reuse Workspace" width="100%">
+  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.20 - Visual Asset Reuse Workspace" width="100%">
 </p>
 
 <h1 align="center">AssetFlow</h1>
@@ -15,7 +15,7 @@
 <p align="center">Reference · Plan · Create · Save · Reuse</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-v1.9.19-6D5DFC">
+  <img alt="version" src="https://img.shields.io/badge/version-v1.9.20-6D5DFC">
   <img alt="Chrome" src="https://img.shields.io/badge/Chrome-Side%20Panel-4285F4">
   <img alt="Edge" src="https://img.shields.io/badge/Edge-Compatible-0AA0F6">
   <img alt="data" src="https://img.shields.io/badge/data-local--first-16A34A">
@@ -116,11 +116,13 @@ By default, AssetFlow does not permanently copy the original reference images in
 
 ---
 
-## v1.9.18–v1.9.19 Updates
+## v1.9.18–v1.9.20 Updates
 
 - v1.9.18: Delete one image from a gallery card or either Viewer after confirmation. Local image data and async replay records are cleaned up while personal recipes remain independent.
 - v1.9.19: New setups use OpenAI GPT-4.1 mini for reverse prompts and OpenAI GPT Image 2 for generation. Saved provider settings remain unchanged.
+- v1.9.20: Added GPT-6 Astra / GPT-6.1 Sol / GPT-6 Luna reverse-prompt models and Grsai Nano Banana 2.1 / 2 image models. Custom providers now select an explicit OpenAI-compatible or Grsai native protocol, fixing the request path that caused HTTP 404 with the Grsai domestic root URL.
 - Added Zhipu GLM-4.6V for visual analysis and Alibaba Cloud Bailian Qwen-Image 3.0 Pro / 3.0 for text-to-image and image-to-image. OpenAI image edits upload reference images through the Images Edits API.
+- v1.9.20 API references: [OpenAI models](https://developers.openai.com/api/docs/models), [Grsai Nano Banana API](https://qmy27nhsd9.apifox.cn/452392911e0), and [Grsai model directory](https://k.grsai.com/dashboard/models).
 - API references: [OpenAI image generation](https://developers.openai.com/api/docs/guides/image-generation), [Alibaba Qwen Image](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference), [Zhipu model overview](https://docs.bigmodel.cn/cn/guide/start/model-overview).
 
 ---
@@ -184,7 +186,7 @@ Per-reference strength and lock controls are available in advanced settings.
 
 ## Installation
 
-Current version: v1.9.19
+Current version: v1.9.20
 
 ### Load from source
 
@@ -197,7 +199,7 @@ Current version: v1.9.19
 5. Choose “Load unpacked”.
 6. Select `dist/assetflow`.
 
-The packaging script also creates `dist/assetflow-v1.9.19.zip` for archiving or distribution.
+The packaging script also creates `dist/assetflow-v1.9.20.zip` for archiving or distribution.
 
 ### Updating an older installation
 
@@ -211,7 +213,7 @@ AssetFlow manages analysis / reverse-prompt APIs separately from image-generatio
 
 ### Analysis and visual understanding
 
-- OpenAI GPT-4.1 mini (default)
+- OpenAI GPT-4.1 mini (default), GPT-6 Astra / GPT-6.1 Sol / GPT-6 Luna
 - Zhipu GLM-4.6V
 - Grsai Chat API
 - Google Gemini
@@ -223,13 +225,13 @@ AssetFlow manages analysis / reverse-prompt APIs separately from image-generatio
 
 - OpenAI GPT Image 2 (default)
 - Alibaba Cloud Bailian Qwen-Image 3.0 Pro / 3.0
-- Grsai GPT Image
+- Grsai GPT Image, Nano Banana 2.1 / 2
 - RunningHub
 - APIMart
 - Jimeng / Seedream-related configurations
-- Custom OpenAI-compatible Image API
+- Custom OpenAI-compatible Image API or Grsai native API
 
-Provider capabilities vary. Multi-image input, supported resolutions, and asynchronous task behavior are adapted according to the actual provider API.
+Provider capabilities vary. Multi-image input, supported resolutions, and asynchronous task behavior are adapted according to the actual provider API. A custom provider must use the matching protocol. OpenAI-compatible Base URLs usually include `/v1`; the Grsai domestic root URL is `https://grsai.dakka.com.cn`. Other protocols still need a provider-specific adapter.
 
 <details>
 <summary><strong>Grsai example</strong></summary>
@@ -349,6 +351,8 @@ Eagle must be installed and running locally.
 
 ## Current Validation Status
 
+v1.9.20 passed project checks, packaging, and an isolated-browser mock of the custom Grsai request. No live API keys were used.
+
 v1.9.19 passed project checks, packaging, isolated-browser API request mocks, and the single-image gallery deletion regression. The new providers have not been called with live API keys.
 
 v1.9.17 passed:
@@ -405,6 +409,6 @@ These limitations do not block the current text-to-image, image-to-image, visual
 ---
 
 <p align="center">
-  <strong>AssetFlow v1.9.19</strong><br>
+  <strong>AssetFlow v1.9.20</strong><br>
   Reference · Plan · Create · Save · Reuse
 </p>

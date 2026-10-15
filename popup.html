@@ -186,6 +186,9 @@
                 <select id="promptModelSelect">
                   <option value="gpt-4.1-mini">GPT-4.1 mini</option>
                   <option value="gpt-4o-mini">GPT-4o mini</option>
+                  <option value="gpt-6-astra">GPT-6 Astra</option>
+                  <option value="gpt-6.1-sol">GPT-6.1 Sol</option>
+                  <option value="gpt-6-luna">GPT-6 Luna</option>
                   <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                   <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                   <option value="doubao-seed-2-0-lite-260215">豆包 Seed 2.0 Lite（视觉）</option>
@@ -260,6 +263,8 @@
                   <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
                   <option value="gpt-image-2" selected>GPT Image 2</option>
                   <option value="gpt-image-2.5" data-grsai-option="true" hidden>Grsai GPT Image 2.5</option>
+                  <option value="nano-banana-2.1" data-grsai-option="true" hidden>Grsai Nano Banana 2.1</option>
+                  <option value="nano-banana-2" data-grsai-option="true" hidden>Grsai Nano Banana 2</option>
                   <option value="qwen-image-3.0-pro">千问 Qwen-Image 3.0 Pro</option>
                   <option value="qwen-image-3.0">千问 Qwen-Image 3.0</option>
                   <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>
@@ -291,7 +296,7 @@
             <div class="api-section-title custom-provider-title">
               <div>
                 <strong>自定义 API 服务商</strong>
-                <small>新增后会自动出现在对应页签的服务商下拉中，并通过真实 OpenAI-compatible 接口调用。</small>
+                <small>选择真实接口协议后调用服务商；其他非兼容接口需要单独适配。</small>
               </div>
             </div>
             <div id="customProviderEmpty" class="custom-provider-empty">还没有自定义服务商。</div>
@@ -324,6 +329,13 @@
                 <label class="api-wide">
                   <span>Base URL</span>
                   <input id="customProviderBaseUrl" type="url" placeholder="https://api.example.com/v1" required>
+                </label>
+                <label>
+                  <span>接口协议</span>
+                  <select id="customProviderProtocol">
+                    <option value="openai-compatible">OpenAI-compatible</option>
+                    <option value="grsai">Grsai 原生接口</option>
+                  </select>
                 </label>
                 <label>
                   <span>API Key</span>
@@ -507,6 +519,8 @@
                     <option value="gpt-image-1" data-legacy-option="true" hidden>GPT Image（旧配置）</option>
                     <option value="gpt-image-2" selected>GPT Image 2</option>
                     <option value="gpt-image-2.5" data-grsai-option="true" hidden>Grsai GPT Image 2.5</option>
+                    <option value="nano-banana-2.1" data-grsai-option="true" hidden>Grsai Nano Banana 2.1</option>
+                    <option value="nano-banana-2" data-grsai-option="true" hidden>Grsai Nano Banana 2</option>
                     <option value="qwen-image-3.0-pro">千问 Qwen-Image 3.0 Pro</option>
                     <option value="qwen-image-3.0">千问 Qwen-Image 3.0</option>
                     <option value="runninghub-rhart-image-g-2">RunningHub 全能图片G-2.0 低价渠道版</option>

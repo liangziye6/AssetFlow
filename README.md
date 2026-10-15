@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.19 - 视觉资产复用工作台" width="100%">
+  <img src="assets/readme-cover.svg" alt="AssetFlow v1.9.20 - 视觉资产复用工作台" width="100%">
 </p>
 
 <h1 align="center">AssetFlow</h1>
@@ -15,7 +15,7 @@
 <p align="center">Reference · Plan · Create · Save · Reuse</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-v1.9.19-6D5DFC">
+  <img alt="version" src="https://img.shields.io/badge/version-v1.9.20-6D5DFC">
   <img alt="Chrome" src="https://img.shields.io/badge/Chrome-Side%20Panel-4285F4">
   <img alt="Edge" src="https://img.shields.io/badge/Edge-Compatible-0AA0F6">
   <img alt="data" src="https://img.shields.io/badge/data-local--first-16A34A">
@@ -114,11 +114,13 @@ v1.9.17 新增完整的个人视觉方案闭环：
 
 ---
 
-## v1.9.18–v1.9.19 更新
+## v1.9.18–v1.9.20 更新
 
 - v1.9.18：图库卡片、网页 Viewer 和插件内 Viewer 支持确认后删除单张图片；本地图片和异步恢复记录同步清理，个人方案独立保留。
 - v1.9.19：首次使用时，反推提示词默认 OpenAI GPT-4.1 mini，生图默认 OpenAI GPT Image 2；已保存的配置保持原样。
+- v1.9.20：增加 GPT-6 Astra / GPT-6.1 Sol / GPT-6 Luna 反推模型和 Grsai Nano Banana 2.1 / 2 生图模型；自定义服务商可明确选择 OpenAI-compatible 或 Grsai 原生协议，修复 Grsai 国内根地址的生图请求路径错误。
 - 新增智谱 GLM-4.6V 视觉反推，以及阿里云百炼 Qwen-Image 3.0 Pro / 3.0 文生图与图生图。OpenAI 图生图通过 Images Edits API 上传参考图。
+- v1.9.20 接口依据：[OpenAI 模型目录](https://developers.openai.com/api/docs/models)、[Grsai Nano Banana 接口](https://qmy27nhsd9.apifox.cn/452392911e0)、[Grsai 模型目录](https://k.grsai.com/dashboard/models)。
 - 接口依据：[OpenAI 图像文档](https://developers.openai.com/api/docs/guides/image-generation)、[百炼千问图像文档](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference)、[智谱模型概览](https://docs.bigmodel.cn/cn/guide/start/model-overview)。
 
 ---
@@ -182,7 +184,7 @@ Viewer → 保存为方案 → 我的方案 → 使用方案 → 重新上传参
 
 ## 安装
 
-当前版本：v1.9.19
+当前版本：v1.9.20
 
 ### 从源码加载
 
@@ -195,7 +197,7 @@ Viewer → 保存为方案 → 我的方案 → 使用方案 → 重新上传参
 5. 点击“加载已解压的扩展”。
 6. 选择 dist/assetflow。
 
-打包脚本同时生成 dist/assetflow-v1.9.19.zip，用于归档或分发。
+打包脚本同时生成 dist/assetflow-v1.9.20.zip，用于归档或分发。
 
 ### 已安装旧版本？
 
@@ -209,7 +211,7 @@ AssetFlow 将“反推 / 分析 API”和“生图 API”分开管理，因此�
 
 ### 反推与视觉分析
 
-- OpenAI GPT-4.1 mini（默认）
+- OpenAI GPT-4.1 mini（默认）、GPT-6 Astra / GPT-6.1 Sol / GPT-6 Luna
 - 智谱 GLM-4.6V
 - Grsai Chat API
 - Google Gemini
@@ -221,13 +223,13 @@ AssetFlow 将“反推 / 分析 API”和“生图 API”分开管理，因此�
 
 - OpenAI GPT Image 2（默认）
 - 阿里云百炼 Qwen-Image 3.0 Pro / 3.0
-- Grsai GPT Image
+- Grsai GPT Image、Nano Banana 2.1 / 2
 - RunningHub
 - APIMart
 - 即梦 / Seedream 相关配置
-- 自定义 OpenAI-compatible Image API
+- 自定义 OpenAI-compatible Image API 或 Grsai 原生 API
 
-不同 Provider 的多图能力、分辨率和异步任务方式不同，AssetFlow 会按实际接口能力适配。
+不同 Provider 的多图能力、分辨率和异步任务方式不同，AssetFlow 会按实际接口能力适配。自定义服务商需要选择与服务端一致的接口协议；OpenAI-compatible 的 Base URL 通常填写到 `/v1`，Grsai 国内节点填写 `https://grsai.dakka.com.cn`。非兼容协议仍需按供应商文档单独适配。
 
 <details>
 <summary><strong>Grsai 配置示例</strong></summary>
@@ -337,6 +339,8 @@ Viewer 中可以直接使用“收集到 Eagle”。AssetFlow 优先读取本地
 
 ## 当前版本验证
 
+v1.9.20 已通过项目检查、打包和隔离浏览器模拟 Grsai 自定义服务商请求；未使用真实 API Key 调用线上接口。
+
 v1.9.19 已通过项目检查、打包、隔离浏览器模拟 API 请求验证，以及图库单张删除回归。新增服务商尚未用真实 API Key 调用线上接口。
 
 v1.9.17 已通过：
@@ -393,6 +397,6 @@ GitHub Actions 会自动执行项目检查、git diff --check 和打包。
 ---
 
 <p align="center">
-  <strong>AssetFlow v1.9.19</strong><br>
+  <strong>AssetFlow v1.9.20</strong><br>
   Reference · Plan · Create · Save · Reuse
 </p>

@@ -142,6 +142,7 @@ const nodes = {
   customProviderKind: document.querySelector("#customProviderKind"),
   customProviderName: document.querySelector("#customProviderName"),
   customProviderBaseUrl: document.querySelector("#customProviderBaseUrl"),
+  customProviderProtocol: document.querySelector("#customProviderProtocol"),
   customProviderApiKey: document.querySelector("#customProviderApiKey"),
   customProviderModel: document.querySelector("#customProviderModel"),
   customProviderFormStatus: document.querySelector("#customProviderFormStatus"),
@@ -1664,6 +1665,20 @@ function defaultBaseUrl(provider) {
   return urls[provider] || "";
 }
 
+function isGrsaiBaseUrl(baseUrl) {
+  try {
+    return ["grsai.dakka.com.cn", "grsaiapi.com"].includes(new URL(baseUrl).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function chatEndpointForPrompt(prompt) {
+  return prompt.provider === "grsai" || prompt.protocol === "grsai"
+    ? "/v1/chat/completions"
+    : "/chat/completions";
+}
+
 function normalizeDeepSeekThinkingMode(value) {
   return ["flash-off", "flash-on", "pro-off", "pro-on"].includes(value) ? value : "flash-off";
 }
@@ -1716,7 +1731,8 @@ function assertPromptProviderSupportsImageInput(prompt, featureLabel = "图片�
 
 function openAiCompatibleChatPayload(prompt, messages, maxTokens) {
   const payload = { model: prompt.model, messages };
-  if (prompt.provider === "grsai") payload.stream = false;
+  if (prompt.provider === "grsai" || prompt.protocol === "grsai") payload.stream = false;
+  else if (/^gpt-6(?:[.-]|$)/.test(prompt.model)) payload.max_completion_tokens = maxTokens;
   else payload.max_tokens = maxTokens;
   if (prompt.provider === "deepseek") {
     const thinking = Boolean(prompt.deepSeekThinking);
@@ -1770,6 +1786,8 @@ function syncGrsaiModelOptions() {
     const gptImage25 = [...select.options].find((option) => option.value === "gpt-image-2.5");
     if (gptImage2) gptImage2.hidden = !["openai", "apimart", "grsai"].includes(provider);
     if (gptImage25) gptImage25.hidden = provider !== "grsai";
+    [...select.options].filter((option) => option.dataset.grsaiOption === "true" && option.value.startsWith("nano-banana-"))
+      .forEach((option) => { option.hidden = provider !== "grsai"; });
   });
   renderModelMenu();
 }
@@ -2900,7 +2918,7 @@ async function callPromptApi(imageItem = imageState) {
     headers.Authorization = `Bearer ${prompt.apiKey}`;
   }
 
-  const response = await fetch(baseUrlWithPath(prompt.baseUrl, prompt.provider === "grsai" ? "/v1/chat/completions" : "/chat/completions"), {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, chatEndpointForPrompt(prompt)), {
     method: "POST",
     headers,
     body: JSON.stringify(openAiCompatibleChatPayload(prompt, [
@@ -2947,7 +2965,7 @@ async function callPromptApi(imageItem = imageState) {
 }
 
 async function compileReversePromptWithLanguageModel(prompt, visualAnalysis) {
-  const response = await fetch(baseUrlWithPath(prompt.baseUrl, prompt.provider === "grsai" ? "/v1/chat/completions" : "/chat/completions"), {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, chatEndpointForPrompt(prompt)), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -4219,7 +4237,7 @@ async function callVisualReusePromptApi(imageInput, instruction) {
     ]))
   ];
 
-  const response = await fetch(baseUrlWithPath(prompt.baseUrl, prompt.provider === "grsai" ? "/v1/chat/completions" : "/chat/completions"), {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, chatEndpointForPrompt(prompt)), {
     method: "POST",
     headers,
     body: JSON.stringify(openAiCompatibleChatPayload(prompt, [
@@ -4397,7 +4415,7 @@ async function callTextTranslateApi(text, targetLanguage = "") {
     return translated;
   }
 
-  const response = await fetch(baseUrlWithPath(prompt.baseUrl, prompt.provider === "grsai" ? "/v1/chat/completions" : "/chat/completions"), {
+  const response = await fetch(baseUrlWithPath(prompt.baseUrl, chatEndpointForPrompt(prompt)), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -7748,16 +7766,16 @@ async function pollGrsaiTask({ baseUrl, apiKey, taskId, count, onProgress }) {
   throw new PendingGenerationTaskError(`Grsai 任务 ${taskId} 仍在处理中。插件已保留任务，会继续查询结果。`);
 }
 
-async function callGrsaiGptImage({
+async function callGrsaiImage({
   prompt, displayPrompt, promptCn, promptEn, promptStructure,
   count, width, height, model, imageModel, apiKey, baseUrl,
   useImageReferences, mode, source, onProgress, onReferencesPrepared,
   referenceItems, selectedReferenceIds = [], onTaskSubmitted
 }) {
-  if (!["gpt-image-2", "gpt-image-2.5"].includes(imageModel)) {
-    throw new Error("Grsai GPT Image API 请选用 GPT Image 2 或 GPT Image 2.5 模型。");
-  }
-  if (width > 1920 || height > 1920 || width * height > 1920 * 1024) {
+  const isNanoBanana = imageModel.startsWith("nano-banana");
+  if (!imageModel.trim()) throw new Error("请填写 Grsai 生图模型名。");
+  if (["gpt-image-2", "gpt-image-2.5"].includes(imageModel)
+    && (width > 1920 || height > 1920 || width * height > 1920 * 1024)) {
     throw new Error("Grsai GPT Image 2 / 2.5 仅支持 1K 尺寸，请在尺寸设置中选择 1K。");
   }
   const selectedItems = referenceItems.filter((item) => selectedReferenceIds.includes(item.id));
@@ -7781,7 +7799,9 @@ async function callGrsaiGptImage({
       prompt,
       images,
       aspectRatio: grsaiAspectRatio(width, height),
-      quality: "auto",
+      ...(isNanoBanana
+        ? { imageSize: Math.max(width, height) <= 1536 ? "1K" : Math.max(width, height) <= 3072 ? "2K" : "4K" }
+        : { quality: "auto" }),
       replyType: "async"
     })
   }, "Grsai 提交");
@@ -8164,8 +8184,8 @@ async function callImageGenerationApi({
     throw new Error("Replicate 需要具体模型 version，当前请先用自定义 OpenAI-compatible 接口。");
   }
 
-  if (provider === "grsai") {
-    return callGrsaiGptImage({
+  if (provider === "grsai" || (provider === "custom" && image.protocol === "grsai")) {
+    return callGrsaiImage({
       prompt, displayPrompt, promptCn, promptEn, promptStructure,
       count, width, height, model, imageModel, apiKey, baseUrl,
       useImageReferences: useImageReferences && referenceItems.length > 0,
@@ -8238,7 +8258,7 @@ async function callImageGenerationApi({
   if (provider === "openai" && imageModel === "gpt-image-2") {
     validateOpenAiImageSize(width, height);
   }
-  if (provider === "openai" && useImageReferences) {
+  if ((provider === "openai" || (provider === "custom" && image.protocol === "openai-compatible")) && useImageReferences) {
     if (!referenceItems.length) {
       throw new Error("OpenAI 图生图需要先上传参考图片。");
     }
@@ -8923,7 +8943,8 @@ function normalizeCustomApiProvider(value) {
     baseUrl: String(provider.baseUrl || "").trim(),
     apiKey: String(provider.apiKey || "").trim(),
     model: String(provider.model || "").trim(),
-    protocol: "openai-compatible",
+    protocol: provider.protocol === "grsai" ? "grsai" : "openai-compatible",
+    protocolVersion: 1,
     createdAt: provider.createdAt || new Date().toISOString(),
     updatedAt: provider.updatedAt || new Date().toISOString()
   };
@@ -8968,7 +8989,9 @@ function loadCustomApiProviders() {
   try {
     const stored = JSON.parse(localStorage.getItem(CUSTOM_API_PROVIDERS_STORAGE_KEY) || "[]");
     customApiProviders = Array.isArray(stored)
-      ? stored.map(normalizeCustomApiProvider).filter((provider) => provider.name && provider.baseUrl && provider.model)
+      ? stored.map((provider) => normalizeCustomApiProvider(provider && provider.protocolVersion !== 1 && isGrsaiBaseUrl(provider.baseUrl)
+        ? { ...provider, protocol: "grsai" }
+        : provider)).filter((provider) => provider.name && provider.baseUrl && provider.model)
       : [];
   } catch {
     customApiProviders = [];
@@ -9097,7 +9120,7 @@ function renderCustomProviderList() {
     name.textContent = provider.name;
     const meta = document.createElement("div");
     meta.className = "custom-provider-card-meta";
-    meta.textContent = `${provider.model} · ${provider.baseUrl} · ${maskedCustomProviderKey(provider.apiKey)}`;
+    meta.textContent = `${provider.model} · ${provider.protocol === "grsai" ? "Grsai 原生接口" : "OpenAI-compatible"} · ${provider.baseUrl} · ${maskedCustomProviderKey(provider.apiKey)}`;
     copy.append(badge, name, meta);
 
     const actions = document.createElement("div");
@@ -9127,6 +9150,7 @@ function openCustomProviderForm(provider = null) {
   nodes.customProviderKind.value = value.kind === "image" ? "image" : "prompt";
   nodes.customProviderName.value = value.name || "";
   nodes.customProviderBaseUrl.value = value.baseUrl || "";
+  nodes.customProviderProtocol.value = value.protocol || (isGrsaiBaseUrl(value.baseUrl) ? "grsai" : "openai-compatible");
   nodes.customProviderApiKey.value = value.apiKey || "";
   nodes.customProviderModel.value = value.model || "";
   nodes.customProviderFormTitle.textContent = provider ? "编辑服务商" : "添加服务商";
@@ -9226,6 +9250,7 @@ function saveCustomProviderFromForm(event) {
     kind: nodes.customProviderKind.value,
     name: nodes.customProviderName.value,
     baseUrl: nodes.customProviderBaseUrl.value,
+    protocol: nodes.customProviderProtocol.value,
     apiKey: nodes.customProviderApiKey.value,
     model: nodes.customProviderModel.value,
     updatedAt: new Date().toISOString()
@@ -9292,6 +9317,7 @@ function currentApiConfigFromForm() {
     prompt: {
       provider: promptProvider,
       providerId: promptCustomProvider?.id || "",
+      protocol: promptCustomProvider?.protocol || "openai-compatible",
       providerLabel: promptCustomProvider?.name || selectedOptionText(nodes.promptApiProvider, "OpenAI"),
       baseUrl: nodes.promptApiBaseUrl.value.trim(),
       apiKey: nodes.promptApiKey.value.trim(),
@@ -9306,6 +9332,7 @@ function currentApiConfigFromForm() {
     image: {
       provider: imageProvider,
       providerId: imageCustomProvider?.id || "",
+      protocol: imageCustomProvider?.protocol || "openai-compatible",
       providerLabel: imageCustomProvider?.name || selectedOptionText(nodes.imageApiProvider, "OpenAI"),
       baseUrl: nodes.imageApiBaseUrl.value.trim(),
       apiKey: nodes.imageApiKey.value.trim(),
@@ -9756,7 +9783,7 @@ nodes.apiImageModelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "aliyun";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("aliyun");
   }
-  if (nodes.apiImageModelSelect.value === "gpt-image-2.5") {
+  if (["gpt-image-2.5", "nano-banana-2", "nano-banana-2.1"].includes(nodes.apiImageModelSelect.value)) {
     nodes.imageApiProvider.value = "grsai";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("grsai");
   } else if (nodes.apiImageModelSelect.value === "gpt-image-2"
@@ -9814,7 +9841,7 @@ nodes.modelSelect.addEventListener("change", () => {
     nodes.imageApiProvider.value = "aliyun";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("aliyun");
   }
-  if (nodes.modelSelect.value === "gpt-image-2.5") {
+  if (["gpt-image-2.5", "nano-banana-2", "nano-banana-2.1"].includes(nodes.modelSelect.value)) {
     nodes.imageApiProvider.value = "grsai";
     nodes.imageApiBaseUrl.value = defaultBaseUrl("grsai");
   } else if (nodes.modelSelect.value === "gpt-image-2"
@@ -9837,7 +9864,9 @@ nodes.promptModelSelect?.addEventListener("change", () => {
     applyCustomApiProvider(customProvider);
     return;
   }
-  if (["gpt-4.1-mini", "gpt-4o-mini"].includes(nodes.promptModelSelect.value)) {
+  if (["gpt-4.1-mini", "gpt-4o-mini", "gpt-6-luna"].includes(nodes.promptModelSelect.value)
+    || (["gpt-6-astra", "gpt-6.1-sol"].includes(nodes.promptModelSelect.value)
+      && nodes.promptApiProvider.value !== "grsai")) {
     nodes.promptApiProvider.value = "openai";
     nodes.promptApiBaseUrl.value = defaultBaseUrl("openai");
     syncDeepSeekPromptUi({ fromModel: true });
@@ -9884,6 +9913,11 @@ nodes.runningHubApiMode?.addEventListener("change", () => {
 nodes.addCustomProviderBtn?.addEventListener("click", () => openCustomProviderForm());
 nodes.cancelCustomProviderBtn?.addEventListener("click", closeCustomProviderForm);
 nodes.customProviderForm?.addEventListener("submit", saveCustomProviderFromForm);
+nodes.customProviderBaseUrl?.addEventListener("input", () => {
+  if (!nodes.customProviderId.value && isGrsaiBaseUrl(nodes.customProviderBaseUrl.value)) {
+    nodes.customProviderProtocol.value = "grsai";
+  }
+});
 [
   nodes.promptApiBaseUrl,
   nodes.promptApiKey,
